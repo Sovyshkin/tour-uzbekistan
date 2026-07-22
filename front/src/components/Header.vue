@@ -227,11 +227,10 @@ onBeforeUnmount(() => {
       <!-- Logo -->
       <router-link to="/" class="brand-link flex-shrink-0">
         <img
-          src="../assets/icons/Logo Orig.png"
+          src="../assets/icons/logo_dmc_b.svg"
           alt="Centrum Holidays"
-          class="brand-logo h-8 lg:h-auto"
+          class="brand-logo"
         />
-        <span class="brand-subtitle">Destination Management Company</span>
       </router-link>
 
       <!-- Desktop Navigation -->
@@ -684,28 +683,21 @@ onBeforeUnmount(() => {
 
 .brand-link {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
+  align-items: center;
 }
 
-.brand-subtitle {
-  color: #285aff;
-  font-family: 'Aeonik Pro', sans-serif;
-  font-size: 8px;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: 0;
-  white-space: nowrap;
+.brand-logo {
+  display: block;
+  width: 150px;
+  height: auto;
+  object-fit: contain;
 }
 
 @media (min-width: 1024px) {
-  .brand-subtitle {
-    font-size: 10px;
+  .brand-logo {
+    width: 186px;
   }
-}
 
-@media (min-width: 1024px) {
   .wrapper {
     padding: 20px 40px;
   }
