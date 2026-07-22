@@ -240,6 +240,9 @@ model TourTranslation {
   hotelsInfo         String? @db.Text
   transportInfo      String? @db.Text
   countriesInfo      String? @db.Text
+  detailsInfo        String? @db.Text
+  routesInfo         String? @db.Text
+  reviewsInfo        String? @db.Text
   included           Json?
   excluded           Json?
   localizedSlug      String?

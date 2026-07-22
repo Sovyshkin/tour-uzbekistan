@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
@@ -11,7 +12,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ContentStatus, Locale } from '@prisma/client';
+import { ContentStatus, Locale, TourType } from '@prisma/client';
 
 class AdminContentTranslationUpdateDto {
   @ApiPropertyOptional({ enum: Locale })
@@ -82,6 +83,57 @@ export class AdminContentUpdateDto {
   @IsInt()
   sortOrder?: number;
 
+  @ApiPropertyOptional({ enum: TourType })
+  @IsOptional()
+  @IsEnum(TourType)
+  type?: TourType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  countryId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  durationDays?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  durationNights?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  minGroupSize?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  maxGroupSize?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  comfortLevel?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  priceFrom?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
@@ -101,6 +153,11 @@ export class AdminContentUpdateDto {
   @IsOptional()
   @IsString()
   mainImage?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  routeMapImage?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

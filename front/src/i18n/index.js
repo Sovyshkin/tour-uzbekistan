@@ -56,6 +56,12 @@ const messages = {
       continue_btn: 'Продолжить',
       terms_text:
         'После регистрации с вами свяжется менеджер для подтверждения данных.',
+      personal_data_agreement: 'Я даю согласие на обработку персональных данных.',
+      privacy_policy_agreement: 'Я ознакомлен(а) и согласен(на) с политикой конфиденциальности.',
+      partner_terms_agreement: 'Я принимаю условия партнерского соглашения.',
+      open_document: 'Открыть документ',
+      document_missing: 'документ скоро будет добавлен',
+      agreement_required: 'Подтвердите обязательные согласия',
     },
     roleModal: {
       title: 'Выберите кто вы?',
@@ -440,6 +446,12 @@ const messages = {
       continue_btn: 'Continue',
       terms_text:
         'After registration, a manager will contact you to confirm your details.',
+      personal_data_agreement: 'I consent to the processing of personal data.',
+      privacy_policy_agreement: 'I have read and agree to the privacy policy.',
+      partner_terms_agreement: 'I accept the partner agreement terms.',
+      open_document: 'Open document',
+      document_missing: 'document will be added soon',
+      agreement_required: 'Please confirm the required consents',
     },
     roleModal: {
       title: 'Who are you?',
@@ -822,6 +834,12 @@ const messages = {
       continue_btn: 'Davom etish',
       terms_text:
         "Ro'yxatdan o'tgandan so'ng, menejer siz bilan ma'lumotlarni tasdiqlash uchun bog'lanadi.",
+      personal_data_agreement: 'Shaxsiy ma’lumotlarni qayta ishlashga rozilik beraman.',
+      privacy_policy_agreement: 'Maxfiylik siyosati bilan tanishdim va roziman.',
+      partner_terms_agreement: 'Hamkorlik shartnomasi shartlarini qabul qilaman.',
+      open_document: 'Hujjatni ochish',
+      document_missing: 'hujjat tez orada qo‘shiladi',
+      agreement_required: 'Majburiy roziliklarni tasdiqlang',
     },
     roleModal: {
       title: 'Kim ekanligingizni tanlang?',

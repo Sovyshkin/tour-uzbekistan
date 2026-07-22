@@ -20,16 +20,24 @@ const tour = ref({
   id: null,
   title: '',
   subtitle: '',
+  route: '',
   mainImage: '/assets/icons/card1.png',
   gallery: [],
   description: '',
+  detailsInfo: '',
+  routesInfo: '',
+  reviewsInfo: '',
+  countriesInfo: '',
   duration: '-',
+  transportInfo: '',
   transport: '-',
   tourists: '-',
   hotels: '-',
   comfort: '-',
   mapImage: '/assets/icons/map.png',
   country: null,
+  minGroupSize: null,
+  maxGroupSize: null,
   priceFrom: null,
   currency: null,
 });
@@ -280,6 +288,19 @@ const tabs = computed(() => [
   { id: 'countries', label: t('openCard.tab_countries') },
 ]);
 
+const stripHtml = (value) => String(value || '').replace(/<[^>]*>/g, '').trim();
+const hasContent = (value) => stripHtml(value).length > 0;
+
+const tabContent = computed(() => ({
+  details: tour.value.detailsInfo || tour.value.description,
+  route: tour.value.routesInfo || tour.value.route,
+  reviews: tour.value.reviewsInfo,
+  transport: tour.value.transportInfo || tour.value.transport,
+  countries: tour.value.countriesInfo,
+}));
+
+const activeTabContent = computed(() => tabContent.value[activeTab.value] || '');
+
 const loadTour = async () => {
   try {
     const data = await getTour(route.params.id, getApiLocale(locale.value));
@@ -289,14 +310,29 @@ const loadTour = async () => {
       subtitle: `(${data.durationDays} ${t('openCard.days')} / ${data.durationNights} ${t('openCard.nights', data.durationNights)})`,
       mainImage: data.mainImage || data.heroImage || data.images?.[0]?.imageUrl || '/assets/icons/card1.png',
       gallery: (data.images || []).map((image) => image.imageUrl).filter(Boolean),
+      route: data.route,
       description: data.description,
+      detailsInfo: data.detailsInfo || '',
+      routesInfo: data.routesInfo || '',
+      reviewsInfo: data.reviewsInfo || '',
+      countriesInfo: data.countriesInfo || '',
       duration: `${data.durationDays} ${t('openCard.days')} / ${data.durationNights} ${t('openCard.nights', data.durationNights)}`,
+      transportInfo: data.transportInfo || '',
       transport: data.transportInfo || '-',
-      tourists: people.value ? `${people.value}` : '-',
+      tourists:
+        data.minGroupSize && data.maxGroupSize
+          ? `${data.minGroupSize}-${data.maxGroupSize}`
+          : data.minGroupSize
+            ? `${data.minGroupSize}+`
+            : people.value
+              ? `${people.value}`
+              : '-',
       hotels: data.hotelsInfo || '-',
       comfort: data.comfortLevel ? `${data.comfortLevel}` : '-',
       mapImage: data.routeMapImage || '/assets/icons/map.png',
       country: data.country,
+      minGroupSize: data.minGroupSize || null,
+      maxGroupSize: data.maxGroupSize || null,
       priceFrom: data.priceFrom || null,
       currency: data.currency || null,
     };
@@ -481,19 +517,19 @@ onMounted(() => {
         >
           {{ tour.title }} {{ tour.subtitle }}
         </h1>
-        <div class="flex flex-col flex-col-reverse lg:flex-row gap-6 lg:gap-8">
+        <div class="tour-detail-layout">
           <!-- ЛЕВАЯ КОЛОНКА -->
-          <div class="flex-1 min-w-0">
+          <div class="tour-main-column">
             <!-- Заголовок -->
             <h1
-              class="text-[22px] sm:text-[28px] lg:text-[36px] font-medium mb-1 leading-tight mb-4 sm:mb-6 hidden lg:block"
+              class="text-[22px] sm:text-[28px] lg:text-[34px] xl:text-[40px] font-medium leading-tight mb-4 sm:mb-6 hidden lg:block"
             >
               {{ tour.title }} {{ tour.subtitle }}
             </h1>
 
             <!-- Главное фото -->
             <div
-              class="relative rounded-[16px] hidden lg:block overflow-hidden mb-4 sm:mb-5 aspect-[4/3] sm:aspect-[16/10] lg:aspect-[16/9] group"
+              class="tour-main-image group"
             >
               <img
                 :src="currentImage"
@@ -564,7 +600,7 @@ onMounted(() => {
 
             <!-- Галерея миниатюр -->
             <div
-              class="flex gap-2 hidden lg:flex sm:gap-3 mb-6 sm:mb-8 overflow-x-auto p-2 scrollbar-hide"
+              class="tour-thumbs scrollbar-hide"
             >
               <div
                 v-for="(img, i) in allImages"
@@ -581,7 +617,7 @@ onMounted(() => {
             </div>
 
             <!-- Табы -->
-            <div class="flex mb-6 sm:mb-8 overflow-x-auto pb-2 scrollbar-hide">
+            <div class="tour-tabs scrollbar-hide">
               <button
                 v-for="tab in tabs"
                 :key="tab.id"
@@ -597,7 +633,7 @@ onMounted(() => {
               </button>
             </div>
 
-            <div class="mb-5 sm:mb-7 flex justify-end">
+            <div class="tour-toggle-row">
               <button
                 type="button"
                 class="inline-flex items-center gap-2 rounded-[10px] border border-[#d2d2d4] bg-white px-4 py-2 text-[12px] sm:text-[14px] font-medium text-[#000] transition hover:border-[#285aff] hover:text-[#285aff]"
@@ -626,16 +662,40 @@ onMounted(() => {
               </button>
             </div>
 
+            <div
+              v-if="activeTabContent && activeTab !== 'details'"
+              class="tour-tab-card"
+            >
+              <div class="tour-tab-kicker">{{ tabs.find((tab) => tab.id === activeTab)?.label }}</div>
+              <div class="tour-rich-text" v-html="activeTabContent"></div>
+            </div>
+
+            <div
+              v-else-if="activeTab !== 'details'"
+              class="tour-tab-card tour-tab-empty"
+            >
+              <div class="tour-tab-kicker">{{ tabs.find((tab) => tab.id === activeTab)?.label }}</div>
+              <p>Информация скоро появится.</p>
+            </div>
+
+            <div
+              v-if="activeTab === 'details' && hasContent(activeTabContent)"
+              class="tour-tab-card tour-details-intro"
+            >
+              <div class="tour-tab-kicker">{{ t('openCard.tab_details') }}</div>
+              <div class="tour-rich-text" v-html="activeTabContent"></div>
+            </div>
+
             <!-- Дни программы -->
-            <div class="space-y-4 sm:space-y-6">
+            <div v-if="activeTab === 'details'" class="tour-program-card">
               <div
                 v-for="day in days"
                 :key="day.id"
-                class="border-b border-[#e6e6e7] pb-4 sm:pb-6"
+                class="tour-program-item"
               >
                 <button
                   @click="toggleDay(day.id)"
-                  class="w-full flex items-center justify-between text-left mb-3 sm:mb-4 cursor-pointer"
+                  class="w-full flex items-center justify-between text-left cursor-pointer"
                 >
                   <h2
                     class="text-[18px] sm:text-[22px] lg:text-[26px] font-medium"
@@ -660,7 +720,7 @@ onMounted(() => {
                 <Transition name="fade">
                   <p
                     v-if="descriptionsVisible && day.expanded"
-                    class="text-[12px] sm:text-[13px] lg:text-[14px] text-[#666] leading-[1.7]"
+                    class="mt-3 text-[13px] sm:text-[14px] lg:text-[15px] text-[#555] leading-[1.75]"
                   >
                     {{ day.content }}
                   </p>
@@ -669,7 +729,7 @@ onMounted(() => {
             </div>
 
             <!-- Что включено / не включено -->
-            <div v-if="descriptionsVisible" class="mt-8 sm:mt-12">
+            <div v-if="activeTab === 'details' && descriptionsVisible" class="tour-included-card">
               <h3 class="text-[18px] sm:text-[22px] font-medium mb-4 sm:mb-6">
                 {{ t('openCard.included_title') }}
               </h3>
@@ -719,20 +779,20 @@ onMounted(() => {
           </div>
 
           <!-- ПРАВАЯ КОЛОНКА (сайдбар) -->
-          <div class="w-full lg:w-[300px] xl:w-[340px] flex-shrink-0">
-            <div class="lg:border border-[#000] rounded-[16px] bg-white">
+          <div class="tour-aside">
+            <div class="tour-summary-card">
               <!-- Описание -->
               <p
                 v-if="descriptionsVisible"
-                class="text-[11px] sm:text-[16px] text-[#000] leading-[1] py-[20px] border-b border-b-[#e3e3e4] lg:p-[40px]"
+                class="tour-summary-description"
               >
                 {{ t('openCard.sidebar_description') }}
               </p>
 
               <!-- Характеристики -->
-              <div class="">
+              <div class="tour-feature-list">
                 <div
-                  class="flex items-center gap-3 lg:px-[40px] py-[25px] border-b border-b-[#e3e3e4]"
+                  class="tour-feature-row"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -750,13 +810,13 @@ onMounted(() => {
                       fill="black"
                     />
                   </svg>
-                  <span class="text-[12px] sm:text-[16px] text-[#000]"
+                  <span class="tour-feature-text"
                     >{{ t('openCard.duration') }}
                     <span class="font-medium">{{ tour.duration }}</span>
                   </span>
                 </div>
                 <div
-                  class="flex items-center gap-3 lg:px-[40px] py-[25px] border-b border-b-[#e3e3e4]"
+                  class="tour-feature-row"
                 >
                   <svg
                     class="w-4 h-4 sm:w-5 sm:h-5 text-[#000] flex-shrink-0"
@@ -771,13 +831,13 @@ onMounted(() => {
                       d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
                     />
                   </svg>
-                  <span class="text-[12px] sm:text-[16px] text-[#000]"
+                  <span class="tour-feature-text"
                     >{{ t('openCard.transport') }}
                     <span class="font-medium">{{ tour.transport }}</span>
                   </span>
                 </div>
                 <div
-                  class="flex items-center gap-3 lg:px-[40px] py-[25px] border-b border-b-[#e3e3e4]"
+                  class="tour-feature-row"
                 >
                   <svg
                     class="w-4 h-4 sm:w-5 sm:h-5 text-[#000] flex-shrink-0"
@@ -792,13 +852,13 @@ onMounted(() => {
                       d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
                     />
                   </svg>
-                  <span class="text-[12px] sm:text-[16px] text-[#000]"
+                  <span class="tour-feature-text"
                     >{{ t('openCard.tourists') }}
                     <span class="font-medium">{{ tour.tourists }}</span>
                   </span>
                 </div>
                 <div
-                  class="flex items-center gap-3 lg:px-[40px] py-[25px] border-b border-b-[#e3e3e4]"
+                  class="tour-feature-row"
                 >
                   <svg
                     class="w-4 h-4 sm:w-5 sm:h-5 text-[#000] flex-shrink-0"
@@ -813,13 +873,13 @@ onMounted(() => {
                       d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
                     />
                   </svg>
-                  <span class="text-[12px] sm:text-[16px] text-[#000]"
+                  <span class="tour-feature-text"
                     >{{ t('openCard.cities') }}
                     <span class="font-medium">{{ tour.hotels }}</span>
                   </span>
                 </div>
                 <div
-                  class="flex items-center gap-3 lg:px-[40px] py-[25px] border-b border-b-[#e3e3e4]"
+                  class="tour-feature-row"
                 >
                   <svg
                     class="w-4 h-4 sm:w-5 sm:h-5 text-[#000] flex-shrink-0"
@@ -834,7 +894,7 @@ onMounted(() => {
                       d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
                     />
                   </svg>
-                  <span class="text-[12px] sm:text-[16px] text-[#000]"
+                  <span class="tour-feature-text"
                     >{{ t('openCard.accommodation') }}
                     <span class="font-medium">{{ tour.comfort }}</span>
                   </span>
@@ -843,9 +903,16 @@ onMounted(() => {
 
               <!-- Карта -->
               <div
-                class="rounded-[12px] overflow-hidden mb-4 sm:mb-5 aspect-[4/3]"
+                class="tour-map"
               >
+                <img
+                  v-if="tour.mapImage && tour.mapImage !== '/assets/icons/map.png'"
+                  :src="tour.mapImage"
+                  :alt="`${tour.title} ${tour.subtitle}`"
+                  class="w-full h-full object-cover"
+                />
                 <iframe
+                  v-else
                   src="https://yandex.ru/map-widget/v1/?ll=69.279737,41.311151&z=7&l=map"
                   class="w-full h-full"
                   style="border: 0"
@@ -856,6 +923,7 @@ onMounted(() => {
 
               <!-- Подробнее -->
               <button
+                @click="activeTab = 'details'"
                 class="w-full text-center text-[12px] sm:text-[13px] text-[#666] hover:text-[#285aff] transition mb-4 sm:mb-5 flex items-center justify-center gap-1"
               >
                 {{ t('openCard.more_details') }}
@@ -876,7 +944,7 @@ onMounted(() => {
 
               <!-- Текущая дата и цена -->
               <div
-                class="border-t border-[#e3e3e4] pt-4 sm:pt-5 lg:px-[40px] pt-[15px] pb-[20px]"
+                class="tour-buy-panel"
               >
                 <div
                   class="flex items-center justify-between mb-[10px] border-b border-b-[#e3e3e4] pb-[10px]"
@@ -906,7 +974,7 @@ onMounted(() => {
                 </div>
                 <button
                   @click="openModal"
-                  class="w-full bg-[#ff00e7] text-white rounded-[10px] py-2 sm:py-2 text-[14px] font-medium hover:bg-[#eb02d3] transition cursor-pointer"
+                  class="w-full bg-[#ff00e7] text-white rounded-[12px] py-3 text-[15px] font-medium hover:bg-[#eb02d3] transition cursor-pointer"
                 >
                   {{ t('openCard.buy') }}
                 </button>
@@ -934,7 +1002,7 @@ onMounted(() => {
                   </h4>
                 </div>
                 <div
-                  class="lg:px-[40px] py-[15px] bg-[#f6f6f6] rounded-b-[15px] hidden lg:block"
+                  class="tour-dates-panel hidden lg:block"
                 >
                   <div
                     v-for="(d, i) in otherDates"
@@ -1143,6 +1211,296 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.tour-detail-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.tour-main-column {
+  min-width: 0;
+}
+
+.tour-aside {
+  width: 100%;
+  min-width: 0;
+}
+
+.tour-main-image {
+  position: relative;
+  display: none;
+  overflow: hidden;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  aspect-ratio: 16 / 10;
+  background: #f3f4f7;
+  box-shadow: 0 18px 45px rgba(10, 17, 31, 0.1);
+}
+
+.tour-thumbs {
+  display: none;
+  gap: 12px;
+  margin-bottom: 28px;
+  overflow-x: auto;
+  padding: 4px 4px 10px;
+}
+
+.tour-tabs {
+  display: flex;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.tour-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 18px;
+}
+
+.tour-program-card {
+  overflow: hidden;
+  border: 1px solid #e3e6ec;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 16px 45px rgba(10, 17, 31, 0.06);
+}
+
+.tour-tab-card {
+  margin-bottom: 22px;
+  padding: 22px;
+  border: 1px solid #e3e6ec;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fff 0%, #fbfcff 100%);
+  box-shadow: 0 16px 45px rgba(10, 17, 31, 0.06);
+}
+
+.tour-details-intro {
+  margin-bottom: 18px;
+}
+
+.tour-tab-kicker {
+  margin-bottom: 12px;
+  color: #285aff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tour-tab-empty {
+  color: #6f7480;
+}
+
+.tour-rich-text {
+  color: #20242c;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.tour-rich-text :deep(p) {
+  margin: 0 0 14px;
+}
+
+.tour-rich-text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.tour-rich-text :deep(ul),
+.tour-rich-text :deep(ol) {
+  margin: 12px 0;
+  padding-left: 22px;
+}
+
+.tour-rich-text :deep(li) {
+  margin-bottom: 8px;
+}
+
+.tour-rich-text :deep(strong),
+.tour-rich-text :deep(b) {
+  font-weight: 700;
+}
+
+.tour-rich-text :deep(a) {
+  color: #285aff;
+  text-decoration: underline;
+}
+
+.tour-program-item {
+  padding: 18px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.tour-program-item:last-child {
+  border-bottom: 0;
+}
+
+.tour-included-card {
+  margin-top: 30px;
+  padding: 22px;
+  border: 1px solid #e3e6ec;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 16px 45px rgba(10, 17, 31, 0.06);
+}
+
+.tour-summary-card {
+  overflow: hidden;
+  border: 1px solid #dfe3eb;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 55px rgba(10, 17, 31, 0.1);
+}
+
+.tour-summary-description {
+  padding: 20px;
+  border-bottom: 1px solid #edf0f5;
+  color: #1d2430;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.tour-feature-list {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.tour-feature-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.tour-feature-row svg {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.tour-feature-text {
+  color: #111;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.tour-map {
+  overflow: hidden;
+  margin: 18px 20px;
+  border: 1px solid #edf0f5;
+  border-radius: 14px;
+  aspect-ratio: 16 / 10;
+  background: #f4f6fa;
+}
+
+.tour-buy-panel {
+  margin: 0 20px 20px;
+  padding-top: 16px;
+  border-top: 1px solid #edf0f5;
+}
+
+.tour-dates-panel {
+  margin: 0;
+  padding: 14px 20px 18px;
+  border-top: 1px solid #edf0f5;
+  background: #f7f8fb;
+}
+
+@media (min-width: 1024px) {
+  .tour-detail-layout {
+    grid-template-columns: minmax(0, 0.58fr) minmax(360px, 0.42fr);
+    gap: 34px;
+  }
+
+  .tour-main-image,
+  .tour-thumbs {
+    display: flex;
+  }
+
+  .tour-main-image {
+    display: block;
+    aspect-ratio: 16 / 11;
+  }
+
+  .tour-aside {
+    position: sticky;
+    top: 24px;
+  }
+
+  .tour-summary-description {
+    padding: 24px;
+    font-size: 15px;
+  }
+
+  .tour-feature-list {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tour-feature-row {
+    min-height: 86px;
+    padding: 18px 20px;
+  }
+
+  .tour-feature-row:nth-child(odd) {
+    border-right: 1px solid #edf0f5;
+  }
+
+  .tour-feature-text {
+    font-size: 14px;
+  }
+
+  .tour-program-item {
+    padding: 22px 24px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .tour-detail-layout {
+    grid-template-columns: minmax(0, 0.56fr) minmax(420px, 0.44fr);
+    gap: 40px;
+  }
+
+  .tour-main-image {
+    aspect-ratio: 16 / 10;
+  }
+
+  .tour-summary-description {
+    padding: 28px 30px;
+  }
+
+  .tour-feature-row {
+    padding: 20px 24px;
+  }
+
+  .tour-map,
+  .tour-buy-panel {
+    margin-right: 24px;
+    margin-left: 24px;
+  }
+
+  .tour-dates-panel {
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  .tour-program-item,
+  .tour-included-card,
+  .tour-summary-description,
+  .tour-feature-row {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .tour-map,
+  .tour-buy-panel {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;

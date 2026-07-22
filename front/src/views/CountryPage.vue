@@ -673,8 +673,10 @@ onMounted(() => {
 
 .hero-section {
   position: relative;
-  height: 350px;
+  height: 458px;
+  max-height: 458px;
   width: 100%;
+  overflow: hidden;
 }
 
 .hero-image {
@@ -682,9 +684,10 @@ onMounted(() => {
   top: 0;
   left: 0;
   width: 100%;
-  height: 350px;
+  height: 458px;
+  max-height: 458px;
   background-size: cover;
-  background-position: center;
+  background-position: center center;
   background-repeat: no-repeat;
   z-index: 0;
 }
@@ -732,16 +735,16 @@ onMounted(() => {
   }
   .hero-image {
     height: 358px;
-    background-position: left;
+    background-position: center center;
   }
 }
 
 @media (min-width: 1921px) {
   .hero-section {
-    height: 800px;
+    height: 458px;
   }
   .hero-image {
-    height: 800px;
+    height: 458px;
   }
 }
 

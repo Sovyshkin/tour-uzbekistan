@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsEnum,
   IsInt,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
@@ -59,6 +60,35 @@ export class AdminContentCreateDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  minGroupSize?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  maxGroupSize?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  comfortLevel?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  priceFrom?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   sortOrder?: number;
 
   @ApiPropertyOptional()
@@ -85,6 +115,11 @@ export class AdminContentCreateDto {
   @IsOptional()
   @IsString()
   mainImage?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  routeMapImage?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

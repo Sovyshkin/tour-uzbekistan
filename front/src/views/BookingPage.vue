@@ -251,10 +251,11 @@ onMounted(() => {
   top: 0;
   left: 0;
   width: 100%;
-  height: 684px;
+  height: 458px;
+  max-height: 458px;
   background-image: url('/assets/icons/booking.jpg');
   background-size: cover;
-  background-position: center;
+  background-position: center center;
   z-index: 0;
 }
 

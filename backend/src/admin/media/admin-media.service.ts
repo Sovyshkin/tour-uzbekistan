@@ -20,6 +20,10 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/svg+xml',
   'image/avif',
   'application/pdf',
+  'application/msword',
+  'application/rtf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
 ]);
 
 const decodeOriginalName = (value: string) => {

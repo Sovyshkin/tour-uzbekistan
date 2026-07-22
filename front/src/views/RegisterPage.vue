@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { getApiLocale, registerPartner } from '@/api';
+import { getApiLocale, getSiteSettings, registerPartner, resolveAssetUrl } from '@/api';
 import { useDialog } from '@/composables/useDialog';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateRegisterFormFields } from '@/utils/formValidation';
@@ -20,8 +20,12 @@ const form = ref({
   city: '',
   language: '',
   tin: '',
+  personalDataConsent: false,
+  privacyPolicyConsent: false,
+  partnerAgreementConsent: false,
 });
 const formErrors = ref({});
+const settings = ref({});
 
 const clearFieldError = (field) => {
   if (!formErrors.value[field]) {
@@ -49,6 +53,34 @@ const languageOptions = [
   { id: 'uz', label: "O'zbek" },
 ];
 
+const legalDocuments = computed(() => [
+  {
+    field: 'personalDataConsent',
+    settingKey: 'legal.personal_data_processing',
+    label: t('register.personal_data_agreement'),
+  },
+  {
+    field: 'privacyPolicyConsent',
+    settingKey: 'legal.privacy_policy',
+    label: t('register.privacy_policy_agreement'),
+  },
+  {
+    field: 'partnerAgreementConsent',
+    settingKey: 'legal.partner_agreement',
+    label: t('register.partner_terms_agreement'),
+  },
+]);
+
+const getDocumentUrl = (key) => resolveAssetUrl(settings.value[key] || '');
+
+const loadSettings = async () => {
+  try {
+    settings.value = await getSiteSettings(getApiLocale(locale.value));
+  } catch {
+    settings.value = {};
+  }
+};
+
 const selectCompany = (opt) => {
   form.value.company = opt.id;
   isCompanyOpen.value = false;
@@ -75,6 +107,7 @@ onMounted(() => {
   if (!form.value.language) {
     form.value.language = getApiLocale(locale.value);
   }
+  loadSettings();
 });
 
 onUnmounted(() => {
@@ -93,6 +126,11 @@ const selectedLanguageLabel = computed(() => {
 
 const handleSubmit = async () => {
   const validationErrors = validateRegisterFormFields(form.value);
+  for (const document of legalDocuments.value) {
+    if (!form.value[document.field]) {
+      validationErrors[document.field] = t('register.agreement_required');
+    }
+  }
   formErrors.value = validationErrors;
 
   if (Object.keys(validationErrors).length) {
@@ -115,6 +153,9 @@ const handleSubmit = async () => {
       city: form.value.city || undefined,
       tin: form.value.tin || undefined,
       preferredLocale: form.value.language || getApiLocale(locale.value),
+      personalDataConsent: form.value.personalDataConsent,
+      privacyPolicyConsent: form.value.privacyPolicyConsent,
+      partnerAgreementConsent: form.value.partnerAgreementConsent,
     });
     formErrors.value = {};
 
@@ -293,6 +334,44 @@ const handleSubmit = async () => {
         <p v-if="formErrors.tin" class="mt-1 ml-1 text-[12px] text-[#cc008f]">{{ formErrors.tin }}</p>
       </div>
 
+      <div class="flex flex-col gap-3 rounded-[12px] border border-[#e6e6e7] bg-[#fafafa] p-4">
+        <label
+          v-for="document in legalDocuments"
+          :key="document.field"
+          class="agreement-row"
+          :class="formErrors[document.field] ? 'agreement-row-error' : ''"
+        >
+          <input
+            v-model="form[document.field]"
+            type="checkbox"
+            class="agreement-checkbox"
+            @change="clearFieldError(document.field)"
+          />
+          <span>
+            {{ document.label }}
+            <a
+              v-if="getDocumentUrl(document.settingKey)"
+              :href="getDocumentUrl(document.settingKey)"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="agreement-link"
+              @click.stop
+            >
+              {{ t('register.open_document') }}
+            </a>
+            <span v-else class="agreement-muted">
+              {{ t('register.document_missing') }}
+            </span>
+          </span>
+        </label>
+        <p
+          v-if="legalDocuments.some((document) => formErrors[document.field])"
+          class="text-[12px] text-[#cc008f]"
+        >
+          {{ t('register.agreement_required') }}
+        </p>
+      </div>
+
       <button
         type="submit"
         class="w-full py-3 rounded-[10px] bg-[#ff00cc] text-white text-[14px] font-medium hover:bg-[#e000b8] transition mt-2 cursor-pointer"
@@ -308,5 +387,39 @@ const handleSubmit = async () => {
 </template>
 
 <style scoped>
-/* стили без изменений */
+.agreement-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: flex-start;
+  color: #333;
+  font-size: 12px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.agreement-row-error {
+  color: #cc008f;
+}
+
+.agreement-checkbox {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  accent-color: #ff00cc;
+  cursor: pointer;
+}
+
+.agreement-link {
+  margin-left: 4px;
+  color: #285aff;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.agreement-muted {
+  margin-left: 4px;
+  color: #8a8a8a;
+}
 </style>

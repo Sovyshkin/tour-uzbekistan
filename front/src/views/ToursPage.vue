@@ -198,7 +198,7 @@ onMounted(async () => {
   <div>
     <!-- HERO -->
     <section class="mb-[30px] sm:mb-[55px]">
-      <div class="hero-section relative h-[200px] sm:h-[400px] lg:h-[558px]">
+      <div class="hero-section relative h-[200px] sm:h-[400px] lg:h-[458px]">
         <div
           class="hero-image absolute inset-0 bg-cover bg-center"
           style="
@@ -878,22 +878,23 @@ input[type='range']::-moz-range-thumb {
 .hero-section {
   position: relative;
   width: 100%;
+  max-height: 458px;
   overflow: hidden;
 }
 .hero-image {
   position: absolute;
   inset: 0;
   background-size: cover;
-  background-position: center;
+  background-position: center 78%;
 }
 
 /* Адаптив hero */
 @media (min-width: 1921px) {
   .hero-section {
-    height: 800px;
+    height: 458px;
   }
   .hero-image {
-    background-position: 0px -400px;
+    background-position: center 78%;
   }
 }
 </style>

@@ -211,8 +211,10 @@ const sendLead = async () => {
 /* Hero */
 .hero-section {
   position: relative;
-  height: 447px;
+  height: 458px;
+  max-height: 458px;
   width: 100%;
+  overflow: hidden;
 }
 
 .hero-image {
@@ -220,10 +222,11 @@ const sendLead = async () => {
   top: 0;
   left: 0;
   width: 100%;
-  height: 447px;
+  height: 458px;
+  max-height: 458px;
   background-image: url('/assets/icons/directions.jpg');
   background-size: cover;
-  background-position: center;
+  background-position: center center;
   background-repeat: no-repeat;
   z-index: 0;
 }
@@ -407,16 +410,16 @@ const sendLead = async () => {
   }
   .hero-image {
     height: 358px;
-    background-position: left;
+    background-position: center center;
   }
 }
 
 @media (min-width: 1921px) {
   .hero-section {
-    height: 800px;
+    height: 458px;
   }
   .hero-image {
-    height: 800px;
+    height: 458px;
   }
 }
 </style>

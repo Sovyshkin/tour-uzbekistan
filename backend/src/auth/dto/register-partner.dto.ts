@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Locale, PartnerType } from '@prisma/client';
 import {
+  Equals,
   IsEmail,
   IsEnum,
   IsOptional,
@@ -64,4 +65,25 @@ export class RegisterPartnerDto {
   @IsOptional()
   @IsEnum(Locale)
   preferredLocale: Locale = Locale.en;
+
+  @ApiProperty({
+    example: true,
+    description: 'Required consent to personal data processing',
+  })
+  @Equals(true)
+  personalDataConsent!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description: 'Required acceptance of privacy policy',
+  })
+  @Equals(true)
+  privacyPolicyConsent!: boolean;
+
+  @ApiProperty({
+    example: true,
+    description: 'Required acceptance of partner agreement',
+  })
+  @Equals(true)
+  partnerAgreementConsent!: boolean;
 }

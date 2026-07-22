@@ -22,6 +22,15 @@ export class TourDetailDto {
   @ApiProperty()
   description!: string;
 
+  @ApiProperty({ required: false, nullable: true })
+  detailsInfo!: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  routesInfo!: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  reviewsInfo!: string | null;
+
   @ApiProperty()
   durationDays!: number;
 
@@ -42,6 +51,12 @@ export class TourDetailDto {
 
   @ApiProperty({ required: false, nullable: true })
   comfortLevel!: number | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  minGroupSize!: number | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  maxGroupSize!: number | null;
 
   @ApiPropertyOptional()
   priceFrom?: string;

@@ -234,8 +234,10 @@ onMounted(loadCategories);
 
 .hero-section {
   position: relative;
-  height: 447px;
+  height: 458px;
+  max-height: 458px;
   width: 100%;
+  overflow: hidden;
 }
 
 .hero-image {
@@ -243,9 +245,10 @@ onMounted(loadCategories);
   top: 0;
   left: 0;
   width: 100%;
-  height: 447px;
+  height: 458px;
+  max-height: 458px;
   background-size: cover;
-  background-position: center;
+  background-position: center center;
   background-repeat: no-repeat;
   z-index: 0;
 }
@@ -321,7 +324,7 @@ onMounted(loadCategories);
 @media (min-width: 1440px) {
   .hero-section,
   .hero-image {
-    height: 550px;
+    height: 458px;
   }
 }
 </style>

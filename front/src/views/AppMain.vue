@@ -650,7 +650,7 @@ h1 {
   }
   .hero-image {
     height: 358px;
-    background-position: left;
+    background-position: center center;
   }
   .hero-content {
     height: 358px;

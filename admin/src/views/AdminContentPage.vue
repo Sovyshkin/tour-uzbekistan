@@ -28,6 +28,15 @@ type ContentRecord = {
   sortOrder?: number;
   isFeatured?: boolean;
   isActive?: boolean;
+  countryId?: string;
+  durationDays?: number;
+  durationNights?: number;
+  minGroupSize?: number | null;
+  maxGroupSize?: number | null;
+  comfortLevel?: number | null;
+  priceFrom?: string | null;
+  currency?: string | null;
+  tourType?: string;
   image?: string | null;
   images?: Record<string, string | null>;
   whyFacts?: WhyFactForm[];
@@ -37,10 +46,10 @@ type ContentRecord = {
 type FieldConfig = {
   key: string;
   label: string;
-  type?: 'text' | 'textarea';
+  type?: 'text' | 'textarea' | 'richtext';
 };
 
-type ImageFieldKey = 'heroImage' | 'mainImage' | 'previewImage' | 'imageUrl';
+type ImageFieldKey = 'heroImage' | 'mainImage' | 'previewImage' | 'imageUrl' | 'routeMapImage';
 
 type ImageFieldConfig = {
   key: ImageFieldKey;
@@ -126,10 +135,13 @@ const typeFields: Record<ContentType, FieldConfig[]> = {
     { key: 'title', label: 'Название' },
     { key: 'subtitle', label: 'Подзаголовок' },
     { key: 'route', label: 'Маршрут' },
-    { key: 'description', label: 'Описание', type: 'textarea' },
-    { key: 'hotelsInfo', label: 'Отели', type: 'textarea' },
-    { key: 'transportInfo', label: 'Транспорт', type: 'textarea' },
-    { key: 'countriesInfo', label: 'Страны', type: 'textarea' },
+    { key: 'description', label: 'Краткое описание тура', type: 'richtext' },
+    { key: 'detailsInfo', label: 'Узнать больше', type: 'richtext' },
+    { key: 'routesInfo', label: 'Маршруты', type: 'richtext' },
+    { key: 'reviewsInfo', label: 'Отзывы', type: 'richtext' },
+    { key: 'transportInfo', label: 'Транспорт', type: 'richtext' },
+    { key: 'countriesInfo', label: 'О странах', type: 'richtext' },
+    { key: 'hotelsInfo', label: 'Города / отели', type: 'textarea' },
     { key: 'seoTitle', label: 'SEO title' },
     { key: 'seoDescription', label: 'SEO description', type: 'textarea' },
   ],
@@ -159,7 +171,10 @@ const typeFields: Record<ContentType, FieldConfig[]> = {
 const imageFieldsByType: Partial<Record<ContentType, ImageFieldConfig[]>> = {
   homeBanners: [{ key: 'imageUrl', label: 'Превью' }],
   countries: [{ key: 'heroImage', label: 'Превью' }],
-  tours: [{ key: 'mainImage', label: 'Превью' }],
+  tours: [
+    { key: 'mainImage', label: 'Превью' },
+    { key: 'routeMapImage', label: 'Карта маршрута' },
+  ],
   services: [{ key: 'previewImage', label: 'Превью' }],
   whyCategories: [{ key: 'heroImage', label: 'Превью' }],
   news: [{ key: 'previewImage', label: 'Превью' }],
@@ -282,6 +297,7 @@ const contentTableRef = ref();
 const uploadInput = ref<HTMLInputElement | null>(null);
 const uploadTargetField = ref<ImageFieldKey | null>(null);
 const uploadFactTargetIndex = ref<number | null>(null);
+const documentUploadTarget = ref<{ locale: LocaleCode; fieldKey: string } | null>(null);
 const contentByType = reactive<Record<ContentType, ContentRecord[]>>({
   homeBanners: [],
   pages: [],
@@ -305,6 +321,11 @@ const form = reactive<{
   countryId?: string;
   durationDays?: number;
   durationNights?: number;
+  minGroupSize?: number;
+  maxGroupSize?: number;
+  comfortLevel?: number;
+  priceFrom?: number;
+  currency?: string;
   tourType?: string;
   media: Partial<Record<ImageFieldKey, string>>;
   whyFacts: WhyFactForm[];
@@ -320,6 +341,11 @@ const form = reactive<{
   countryId: undefined,
   durationDays: undefined,
   durationNights: undefined,
+  minGroupSize: undefined,
+  maxGroupSize: undefined,
+  comfortLevel: undefined,
+  priceFrom: undefined,
+  currency: undefined,
   tourType: undefined,
   media: {},
   whyFacts: [],
@@ -351,8 +377,10 @@ const activeItems = computed(() => contentByType[normalizedActiveType.value]);
 const activeFields = computed(() => typeFields[form.type]);
 const activeImageFields = computed(() => imageFieldsByType[form.type] ?? []);
 const isCreatableType = computed(() => creatableTypes.includes(normalizedActiveType.value));
-const isTourCreateForm = computed(() => isCreating.value && form.type === 'tours');
+const isTourForm = computed(() => form.type === 'tours');
 const isMediaType = (type: ContentType) => type === 'media';
+const isDocumentUrlField = (field: FieldConfig) =>
+  form.type === 'siteSettings' && form.slug.startsWith('legal.') && field.key === 'textValue';
 const selectedCount = computed(() => selectedItems.value.length);
 const selectedStatusItems = computed(() => selectedItems.value.filter((item) => item.status !== undefined));
 const selectedActiveItems = computed(() => selectedItems.value.filter((item) => item.isActive !== undefined));
@@ -374,6 +402,11 @@ const resetForm = () => {
   form.countryId = undefined;
   form.durationDays = undefined;
   form.durationNights = undefined;
+  form.minGroupSize = undefined;
+  form.maxGroupSize = undefined;
+  form.comfortLevel = undefined;
+  form.priceFrom = undefined;
+  form.currency = undefined;
   form.tourType = undefined;
   form.media = {};
   form.whyFacts = [];
@@ -612,6 +645,15 @@ const openEditor = async (record: ContentRecord) => {
   form.sortOrder = record.sortOrder;
   form.isFeatured = record.isFeatured;
   form.isActive = record.isActive;
+  form.countryId = record.countryId;
+  form.durationDays = record.durationDays;
+  form.durationNights = record.durationNights;
+  form.minGroupSize = record.minGroupSize ?? undefined;
+  form.maxGroupSize = record.maxGroupSize ?? undefined;
+  form.comfortLevel = record.comfortLevel ?? undefined;
+  form.priceFrom = record.priceFrom ? Number(record.priceFrom) : undefined;
+  form.currency = record.currency ?? undefined;
+  form.tourType = record.tourType;
 
   if (imageFieldsByType[record.type]?.length) {
     await loadMediaOptions();
@@ -623,6 +665,10 @@ const openEditor = async (record: ContentRecord) => {
   if (record.type === 'whyCategories') {
     await loadMediaOptions();
     form.whyFacts = normalizeWhyFacts(record.whyFacts);
+  }
+
+  if (record.type === 'tours') {
+    await loadCountryOptions();
   }
 
   for (const locale of locales) {
@@ -673,6 +719,11 @@ const openCreate = async () => {
       form.countryId = '';
       form.durationDays = 1;
       form.durationNights = 0;
+      form.minGroupSize = 1;
+      form.maxGroupSize = 2;
+      form.comfortLevel = 4;
+      form.priceFrom = undefined;
+      form.currency = 'USD';
       form.tourType = 'PRIVATE';
     } catch (error: any) {
       ElMessage.error(getApiErrorMessage(error, 'Не удалось загрузить страны'));
@@ -706,10 +757,15 @@ const saveContent = async () => {
       })),
     };
 
-    if (form.type === 'tours' && isCreating.value) {
+    if (form.type === 'tours') {
       payload.countryId = form.countryId;
       payload.durationDays = form.durationDays;
       payload.durationNights = form.durationNights;
+      payload.minGroupSize = form.minGroupSize;
+      payload.maxGroupSize = form.maxGroupSize;
+      payload.comfortLevel = form.comfortLevel;
+      payload.priceFrom = form.priceFrom;
+      payload.currency = form.currency;
       payload.type = form.tourType;
     }
 
@@ -747,7 +803,15 @@ const saveContent = async () => {
 };
 
 const triggerUpload = (field?: ImageFieldKey) => {
+  documentUploadTarget.value = null;
   uploadTargetField.value = field ?? null;
+  uploadInput.value?.click();
+};
+
+const triggerDocumentUpload = (locale: LocaleCode, fieldKey: string) => {
+  uploadFactTargetIndex.value = null;
+  uploadTargetField.value = null;
+  documentUploadTarget.value = { locale, fieldKey };
   uploadInput.value?.click();
 };
 
@@ -761,7 +825,14 @@ const handleUploadChange = async (event: Event) => {
 
   const uploadData = new FormData();
   uploadData.append('file', file);
-  uploadData.append('group', uploadTargetField.value ? form.type : normalizedActiveType.value);
+  uploadData.append(
+    'group',
+    documentUploadTarget.value
+      ? 'legal-documents'
+      : uploadTargetField.value
+        ? form.type
+        : normalizedActiveType.value,
+  );
   uploadData.append('altText', file.name.replace(/\.[^.]+$/, ''));
 
   try {
@@ -770,7 +841,10 @@ const handleUploadChange = async (event: Event) => {
     });
     await loadMediaOptions(true);
 
-    if (uploadFactTargetIndex.value !== null) {
+    if (documentUploadTarget.value) {
+      const { locale, fieldKey } = documentUploadTarget.value;
+      form.translations[locale][fieldKey] = response.data.url;
+    } else if (uploadFactTargetIndex.value !== null) {
       const fact = form.whyFacts[uploadFactTargetIndex.value];
       if (fact) {
         fact.imageUrl = response.data.url;
@@ -786,6 +860,7 @@ const handleUploadChange = async (event: Event) => {
     input.value = '';
     uploadTargetField.value = null;
     uploadFactTargetIndex.value = null;
+    documentUploadTarget.value = null;
   }
 };
 
@@ -1190,7 +1265,7 @@ watch(
             <el-switch v-model="form.isActive" />
           </el-form-item>
 
-          <template v-if="isTourCreateForm">
+          <template v-if="isTourForm">
             <el-form-item label="Страна">
               <el-select
                 v-model="form.countryId"
@@ -1223,6 +1298,26 @@ watch(
 
             <el-form-item label="Ночей">
               <el-input-number v-model="form.durationNights" :min="0" />
+            </el-form-item>
+
+            <el-form-item label="Мин. туристов">
+              <el-input-number v-model="form.minGroupSize" :min="1" />
+            </el-form-item>
+
+            <el-form-item label="Макс. туристов">
+              <el-input-number v-model="form.maxGroupSize" :min="1" />
+            </el-form-item>
+
+            <el-form-item label="Проживание / звездность">
+              <el-input-number v-model="form.comfortLevel" :min="1" :max="5" />
+            </el-form-item>
+
+            <el-form-item label="Цена от">
+              <el-input-number v-model="form.priceFrom" :min="0" :precision="2" />
+            </el-form-item>
+
+            <el-form-item label="Валюта">
+              <el-input v-model="form.currency" placeholder="USD" />
             </el-form-item>
           </template>
         </div>
@@ -1401,10 +1496,39 @@ watch(
                 </el-button>
               </div>
               <el-input
-                v-else
+                v-else-if="field.type !== 'richtext'"
                 v-model="form.translations[locale.code][field.key]"
-                :type="field.type ?? 'text'"
-                :rows="field.type === 'textarea' ? 4 : undefined"
+                :type="isDocumentUrlField(field) ? 'text' : (field.type ?? 'text')"
+                :rows="!isDocumentUrlField(field) && field.type === 'textarea' ? 4 : undefined"
+              >
+                <template v-if="isDocumentUrlField(field)" #append>
+                  <el-button @click="triggerDocumentUpload(locale.code, field.key)">
+                    Загрузить документ
+                  </el-button>
+                </template>
+              </el-input>
+              <div
+                v-if="isDocumentUrlField(field)"
+                class="document-link-actions"
+              >
+                <el-button
+                  v-if="form.translations[locale.code][field.key]"
+                  tag="a"
+                  :href="resolveMediaUrl(String(form.translations[locale.code][field.key] ?? ''))"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  plain
+                >
+                  Открыть текущий документ
+                </el-button>
+                <span v-else>Документ еще не загружен</span>
+              </div>
+              <RichTextEditor
+                v-else-if="field.type === 'richtext'"
+                :model-value="String(form.translations[locale.code][field.key] ?? '')"
+                :placeholder="`${field.label}: начните писать...`"
+                :min-height="180"
+                @update:model-value="(value: string) => (form.translations[locale.code][field.key] = value)"
               />
             </el-form-item>
           </el-tab-pane>
@@ -1458,6 +1582,16 @@ watch(
 
 .media-upload-input {
   display: none;
+}
+
+.document-link-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  color: #8a93a3;
+  font-size: 13px;
+  flex-wrap: wrap;
 }
 
 .content-tabs :deep(.el-tabs__content) {

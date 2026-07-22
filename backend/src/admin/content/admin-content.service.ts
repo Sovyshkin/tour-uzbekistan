@@ -20,6 +20,15 @@ type AdminContentRecord = {
   sortOrder?: number;
   isFeatured?: boolean;
   isActive?: boolean;
+  countryId?: string;
+  durationDays?: number;
+  durationNights?: number;
+  minGroupSize?: number | null;
+  maxGroupSize?: number | null;
+  comfortLevel?: number | null;
+  priceFrom?: string | null;
+  currency?: string | null;
+  tourType?: string;
   image?: string | null;
   images?: Record<string, string | null>;
   translations: Record<Locale, Record<string, unknown>>;
@@ -95,6 +104,9 @@ const TRANSLATION_FIELDS: Record<AdminContentType, string[]> = {
     'subtitle',
     'route',
     'description',
+    'detailsInfo',
+    'routesInfo',
+    'reviewsInfo',
     'hotelsInfo',
     'transportInfo',
     'countriesInfo',
@@ -663,6 +675,39 @@ const DEFAULT_SITE_SETTINGS: DefaultSiteSettingSeed[] = [
       ru: 'Нажимая кнопку «Отправить», вы даете согласие на обработку персональных данных',
       en: "By clicking the 'Send' button, you consent to the processing of personal data",
       uz: '«Yuborish» tugmasini bosish orqali shaxsiy ma’lumotlarni qayta ishlashga rozilik bildirasiz',
+    },
+  },
+  {
+    key: 'legal.personal_data_processing',
+    group: 'legal',
+    label: 'Документ: обработка персональных данных',
+    textValue: { ru: '', en: '', uz: '' },
+    description: {
+      ru: 'Загрузите файл согласия на обработку персональных данных. Ссылка используется на странице регистрации.',
+      en: 'Upload the personal data processing consent file. The link is used on the registration page.',
+      uz: 'Shaxsiy ma’lumotlarni qayta ishlash roziligi faylini yuklang. Havola ro‘yxatdan o‘tish sahifasida ishlatiladi.',
+    },
+  },
+  {
+    key: 'legal.privacy_policy',
+    group: 'legal',
+    label: 'Документ: политика конфиденциальности',
+    textValue: { ru: '', en: '', uz: '' },
+    description: {
+      ru: 'Загрузите файл политики конфиденциальности. Ссылка используется на странице регистрации.',
+      en: 'Upload the privacy policy file. The link is used on the registration page.',
+      uz: 'Maxfiylik siyosati faylini yuklang. Havola ro‘yxatdan o‘tish sahifasida ishlatiladi.',
+    },
+  },
+  {
+    key: 'legal.partner_agreement',
+    group: 'legal',
+    label: 'Документ: партнерское соглашение',
+    textValue: { ru: '', en: '', uz: '' },
+    description: {
+      ru: 'Загрузите файл договора или условий для партнеров. Ссылка используется на странице регистрации.',
+      en: 'Upload the partner agreement or terms file. The link is used on the registration page.',
+      uz: 'Hamkorlik shartnomasi yoki shartlari faylini yuklang. Havola ro‘yxatdan o‘tish sahifasida ishlatiladi.',
     },
   },
   {
@@ -1325,10 +1370,16 @@ export class AdminContentService {
         type: dto.type ?? 'PRIVATE',
         durationDays: dto.durationDays ?? 1,
         durationNights: dto.durationNights ?? 0,
+        minGroupSize: dto.minGroupSize,
+        maxGroupSize: dto.maxGroupSize,
+        comfortLevel: dto.comfortLevel,
+        priceFrom: dto.priceFrom,
+        currency: dto.currency ?? 'USD',
         status: dto.status ?? ContentStatus.DRAFT,
         isFeatured: dto.isFeatured ?? false,
         heroImage: previewImage,
         mainImage: previewImage,
+        routeMapImage: dto.routeMapImage,
         translations: {
           create: LOCALES.map((locale) => {
             const fields = this.getCreateFields(dto, locale);
@@ -1339,6 +1390,9 @@ export class AdminContentService {
               subtitle: this.readNullableString(fields.subtitle),
               route: this.readString(fields.route, 'Маршрут уточняется'),
               description: this.readString(fields.description, 'Описание будет добавлено позже.'),
+              detailsInfo: this.readNullableString(fields.detailsInfo),
+              routesInfo: this.readNullableString(fields.routesInfo),
+              reviewsInfo: this.readNullableString(fields.reviewsInfo),
               hotelsInfo: this.readNullableString(fields.hotelsInfo),
               transportInfo: this.readNullableString(fields.transportInfo),
               countriesInfo: this.readNullableString(fields.countriesInfo),
@@ -1617,8 +1671,20 @@ export class AdminContentService {
       title: this.getTitle(record.translations, 'title'),
       status: record.status,
       isFeatured: record.isFeatured,
+      countryId: record.countryId,
+      durationDays: record.durationDays,
+      durationNights: record.durationNights,
+      minGroupSize: record.minGroupSize,
+      maxGroupSize: record.maxGroupSize,
+      comfortLevel: record.comfortLevel,
+      priceFrom: record.priceFrom?.toString() ?? null,
+      currency: record.currency,
+      tourType: record.type,
       image: record.mainImage ?? record.heroImage,
-      images: { mainImage: record.mainImage ?? record.heroImage },
+      images: {
+        mainImage: record.mainImage ?? record.heroImage,
+        routeMapImage: record.routeMapImage,
+      },
       translations: this.mapTranslations(AdminContentType.TOURS, record.translations),
     }));
   }
@@ -1757,6 +1823,8 @@ export class AdminContentService {
       where: { id },
       data: {
         ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
+        ...(dto.countryId !== undefined ? { countryId: dto.countryId } : {}),
+        ...(dto.type !== undefined ? { type: dto.type } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
@@ -1775,6 +1843,14 @@ export class AdminContentService {
         ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
+        ...(dto.durationDays !== undefined ? { durationDays: dto.durationDays } : {}),
+        ...(dto.durationNights !== undefined ? { durationNights: dto.durationNights } : {}),
+        ...(dto.minGroupSize !== undefined ? { minGroupSize: dto.minGroupSize } : {}),
+        ...(dto.maxGroupSize !== undefined ? { maxGroupSize: dto.maxGroupSize } : {}),
+        ...(dto.comfortLevel !== undefined ? { comfortLevel: dto.comfortLevel } : {}),
+        ...(dto.priceFrom !== undefined ? { priceFrom: dto.priceFrom } : {}),
+        ...(dto.currency !== undefined ? { currency: dto.currency } : {}),
+        ...(dto.routeMapImage !== undefined ? { routeMapImage: dto.routeMapImage } : {}),
         ...(previewImage !== undefined ? { heroImage: previewImage, mainImage: previewImage } : {}),
       },
     });

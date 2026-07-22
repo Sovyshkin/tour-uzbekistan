@@ -268,6 +268,24 @@ async function main() {
       en: 'We combine local expertise, a reliable supplier network, and attentive operational support to deliver a stable result.',
       uz: 'Biz mahalliy tajriba, ishonchli hamkorlar tarmog‘i va puxta operatsion yordamni birlashtiramiz.',
     },
+    {
+      key: 'legal.personal_data_processing',
+      ru: '',
+      en: '',
+      uz: '',
+    },
+    {
+      key: 'legal.privacy_policy',
+      ru: '',
+      en: '',
+      uz: '',
+    },
+    {
+      key: 'legal.partner_agreement',
+      ru: '',
+      en: '',
+      uz: '',
+    },
   ];
 
   for (const setting of homeTextSettings) {
