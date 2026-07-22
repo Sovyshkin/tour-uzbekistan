@@ -2,8 +2,26 @@ import axios from 'axios';
 
 import { useAuthStore } from '@/stores/auth';
 
+const normalizeApiBaseUrl = (value?: string) => {
+  const trimmed = String(value || '').trim();
+
+  if (!trimmed) {
+    return '/api/v1';
+  }
+
+  if (trimmed.startsWith('/')) {
+    return trimmed;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `http://${trimmed}`;
+};
+
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000/api/v1',
+  baseURL: normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL),
 });
 
 let refreshPromise: Promise<void> | null = null;

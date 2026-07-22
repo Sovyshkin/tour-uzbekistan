@@ -15,11 +15,21 @@ const form = reactive({
   password: '',
 });
 
+const normalizeRedirect = (value: string) => {
+  const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+  if (basePath && value.startsWith(`${basePath}/`)) {
+    return value.slice(basePath.length) || '/';
+  }
+
+  return value || '/';
+};
+
 const submit = async () => {
   try {
     await authStore.login(form.email, form.password);
     ElMessage.success('Вход выполнен');
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/';
+    const redirect = normalizeRedirect(typeof route.query.redirect === 'string' ? route.query.redirect : '/');
     router.push(redirect);
   } catch (error: any) {
     ElMessage.error(getApiErrorMessage(error, 'Не удалось войти'));

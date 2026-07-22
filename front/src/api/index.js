@@ -1,10 +1,40 @@
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+const normalizeApiBaseUrl = (value) => {
+  const trimmed = String(value || '').trim();
+
+  if (!trimmed) {
+    return '/api/v1';
+  }
+
+  if (trimmed.startsWith('/')) {
+    return trimmed;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `http://${trimmed}`;
+};
+
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL);
+
+const getRuntimeOrigin = () =>
+  typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : 'http://localhost:3000';
+
+const getApiUrl = (path = '') => {
+  const baseUrl = new URL(API_BASE_URL, getRuntimeOrigin());
+  const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
+  const basePath = baseUrl.pathname.endsWith('/') ? baseUrl.pathname : `${baseUrl.pathname}/`;
+  baseUrl.pathname = `${basePath}${normalizedPath}`.replace(/\/{2,}/g, '/');
+  return baseUrl;
+};
 
 const AUTH_STORAGE_KEY = 'tour_uzbekistan_auth';
 
 function buildUrl(path, query) {
-  const url = new URL(`${API_BASE_URL}${path}`);
+  const url = getApiUrl(path);
 
   Object.entries(query || {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
@@ -61,7 +91,7 @@ async function request(path, options = {}, retry = true) {
     headers.Authorization = `Bearer ${auth.accessToken}`;
   }
 
-  const response = await fetch(path.startsWith('http') ? path : `${API_BASE_URL}${path}`, {
+  const response = await fetch(path.startsWith('http') ? path : getApiUrl(path).toString(), {
     ...options,
     headers,
   });
@@ -134,7 +164,7 @@ export function resolveAssetUrl(value) {
   }
 
   if (value.startsWith('/uploads')) {
-    return `${new URL(API_BASE_URL).origin}${value}`;
+    return `${new URL(API_BASE_URL, getRuntimeOrigin()).origin}${value}`;
   }
 
   return value;
