@@ -16,12 +16,15 @@ const isAdminAuthRequest = (url?: string) => {
 };
 
 const redirectToLogin = () => {
-  if (window.location.pathname === '/login') {
+  const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const loginPath = `${basePath}/login`;
+
+  if (window.location.pathname === loginPath) {
     return;
   }
 
   const redirect = `${window.location.pathname}${window.location.search}`;
-  window.location.assign(`/login?redirect=${encodeURIComponent(redirect)}`);
+  window.location.assign(`${loginPath}?redirect=${encodeURIComponent(redirect)}`);
 };
 
 http.interceptors.request.use((config) => {
