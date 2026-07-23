@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+import { translateAdmin } from '@/i18n';
 import { useAuthStore } from '@/stores/auth';
 
 const normalizeApiBaseUrl = (value?: string) => {
@@ -96,7 +97,7 @@ http.interceptors.response.use(
     }
 
     if (error.response?.status === 403) {
-      authStore.forbiddenMessage = 'Недостаточно прав для выполнения действия';
+      authStore.forbiddenMessage = translateAdmin('errors.forbiddenMessage');
     }
 
     return Promise.reject(error);

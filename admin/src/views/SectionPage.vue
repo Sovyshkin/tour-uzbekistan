@@ -2,17 +2,20 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
-const route = useRoute();
+import { useAdminI18n } from '@/i18n';
 
-const sectionTitle = computed(() => String(route.meta.title ?? 'Раздел'));
+const route = useRoute();
+const { t } = useAdminI18n();
+
+const sectionTitle = computed(() => t(String(route.meta.titleKey ?? 'common.section')));
 const sectionDescription = computed(() =>
-  String(route.meta.description ?? 'Этот раздел уже подключен к роутингу и готов для дальнейшей реализации.'),
+  String(route.meta.description ?? t('common.sectionFallbackDescription')),
 );
 </script>
 
 <template>
   <el-card shadow="never" class="section-card">
-    <div class="section-eyebrow">Раздел админки</div>
+    <div class="section-eyebrow">{{ t('common.sectionEyebrow') }}</div>
     <h2 class="section-title">{{ sectionTitle }}</h2>
     <p class="section-description">
       {{ sectionDescription }}

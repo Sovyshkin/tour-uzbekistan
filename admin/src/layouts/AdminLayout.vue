@@ -22,35 +22,41 @@ import {
 import { useAuthStore } from '@/stores/auth';
 import { useDashboardStore } from '@/stores/dashboard';
 import http from '@/lib/http';
+import { useAdminI18n } from '@/i18n';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const dashboardStore = useDashboardStore();
+const { locale, locales, t } = useAdminI18n();
 const isMobileMenuOpen = ref(false);
 let dashboardRefreshTimer: number | null = null;
 
 const menuItems = [
-  { label: 'Dashboard', icon: DataAnalysis, routeName: 'dashboard' },
-  { label: 'Контент сайта', icon: Files, routeName: 'site-content' },
-  { label: 'Страницы', icon: Memo, routeName: 'pages' },
-  { label: 'Страны', icon: Flag, routeName: 'countries' },
-  { label: 'Туры', icon: Suitcase, routeName: 'admin-tours' },
-  { label: 'Услуги', icon: Tickets, routeName: 'admin-services' },
-  { label: 'Почему мы', icon: Bell, routeName: 'why-us' },
-  { label: 'Новости', icon: Reading, routeName: 'admin-news' },
-  { label: 'Заявки', icon: Memo, routeName: 'admin-leads' },
-  { label: 'Бронирования', icon: Tickets, routeName: 'admin-bookings' },
-  { label: 'Партнеры', icon: UserFilled, routeName: 'partners' },
-  { label: 'Пользователи', icon: User, routeName: 'users' },
-  { label: 'Медиа', icon: Picture, routeName: 'media' },
-  { label: 'Логи', icon: Document, routeName: 'admin-logs' },
-  { label: 'Настройки', icon: Setting, routeName: 'settings' },
+  { labelKey: 'common.dashboard', icon: DataAnalysis, routeName: 'dashboard' },
+  { labelKey: 'nav.siteContent', icon: Files, routeName: 'site-content' },
+  { labelKey: 'nav.pages', icon: Memo, routeName: 'pages' },
+  { labelKey: 'nav.countries', icon: Flag, routeName: 'countries' },
+  { labelKey: 'nav.tours', icon: Suitcase, routeName: 'admin-tours' },
+  { labelKey: 'nav.services', icon: Tickets, routeName: 'admin-services' },
+  { labelKey: 'nav.whyUs', icon: Bell, routeName: 'why-us' },
+  { labelKey: 'nav.news', icon: Reading, routeName: 'admin-news' },
+  { labelKey: 'nav.leads', icon: Memo, routeName: 'admin-leads' },
+  { labelKey: 'nav.bookings', icon: Tickets, routeName: 'admin-bookings' },
+  { labelKey: 'nav.partners', icon: UserFilled, routeName: 'partners' },
+  { labelKey: 'nav.users', icon: User, routeName: 'users' },
+  { labelKey: 'nav.media', icon: Picture, routeName: 'media' },
+  { labelKey: 'nav.logs', icon: Document, routeName: 'admin-logs' },
+  { labelKey: 'nav.settings', icon: Setting, routeName: 'settings' },
 ];
 
+const pageTitle = computed(() =>
+  route.meta.titleKey ? t(String(route.meta.titleKey)) : String(route.meta.title ?? t('common.dashboard')),
+);
+
 const breadcrumbs = computed(() => [
-  { label: 'Админ-панель' },
-  { label: String(route.meta.title ?? 'Dashboard') },
+  { label: t('common.adminPanel') },
+  { label: pageTitle.value },
 ]);
 
 const getMenuBadge = (routeName: string) => {
@@ -89,7 +95,7 @@ const handleLogout = async () => {
   }
 
   authStore.logout();
-  ElMessage.success('Вы вышли из админ-панели');
+  ElMessage.success(t('common.logoutSuccess'));
   router.push({ name: 'login' });
 };
 
@@ -117,19 +123,19 @@ onBeforeUnmount(() => {
     <aside class="admin-sidebar">
       <div class="brand-block">
         <div class="brand-title">Centrum Holidays</div>
-        <div class="brand-subtitle">Admin Panel</div>
+        <div class="brand-subtitle">{{ t('common.adminPanelEn') }}</div>
       </div>
 
       <nav class="menu-list">
         <RouterLink
           v-for="item in menuItems"
-          :key="item.label"
+          :key="item.labelKey"
           :to="{ name: item.routeName }"
           class="menu-item"
           :class="{ active: route.name === item.routeName }"
         >
           <component :is="item.icon" class="menu-icon" />
-          <span class="menu-label">{{ item.label }}</span>
+          <span class="menu-label">{{ t(item.labelKey) }}</span>
           <span v-if="getMenuBadge(item.routeName) > 0" class="menu-badge">
             {{ getMenuBadge(item.routeName) > 99 ? '99+' : getMenuBadge(item.routeName) }}
           </span>
@@ -150,22 +156,22 @@ onBeforeUnmount(() => {
         <div class="mobile-sidebar-top">
           <div class="brand-block">
             <div class="brand-title">Centrum Holidays</div>
-            <div class="brand-subtitle">Admin Panel</div>
+            <div class="brand-subtitle">{{ t('common.adminPanelEn') }}</div>
           </div>
-          <el-button text @click="closeMobileMenu">Закрыть</el-button>
+          <el-button text @click="closeMobileMenu">{{ t('common.close') }}</el-button>
         </div>
 
         <nav class="menu-list">
           <RouterLink
             v-for="item in menuItems"
-            :key="`mobile-${item.label}`"
+            :key="`mobile-${item.labelKey}`"
             :to="{ name: item.routeName }"
             class="menu-item"
             :class="{ active: route.name === item.routeName }"
             @click="closeMobileMenu"
           >
             <component :is="item.icon" class="menu-icon" />
-            <span class="menu-label">{{ item.label }}</span>
+            <span class="menu-label">{{ t(item.labelKey) }}</span>
             <span v-if="getMenuBadge(item.routeName) > 0" class="menu-badge">
               {{ getMenuBadge(item.routeName) > 99 ? '99+' : getMenuBadge(item.routeName) }}
             </span>
@@ -190,16 +196,21 @@ onBeforeUnmount(() => {
               {{ crumb.label }}
             </el-breadcrumb-item>
           </el-breadcrumb>
-          <h1 class="page-title">{{ route.meta.title ?? 'Dashboard' }}</h1>
+          <h1 class="page-title">{{ pageTitle }}</h1>
           </div>
         </div>
 
         <div class="header-actions">
+          <el-segmented
+            v-model="locale"
+            class="language-switch"
+            :options="locales.map((item) => ({ label: item.label, value: item.code }))"
+          />
           <div class="user-box">
             <div class="user-name">{{ authStore.user?.displayName }}</div>
             <div class="user-role">{{ authStore.user?.role }}</div>
           </div>
-          <el-button type="danger" plain @click="handleLogout">Logout</el-button>
+          <el-button type="danger" plain @click="handleLogout">{{ t('common.logout') }}</el-button>
         </div>
       </header>
 
@@ -331,6 +342,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-shrink: 0;
+}
+
+.language-switch {
   flex-shrink: 0;
 }
 

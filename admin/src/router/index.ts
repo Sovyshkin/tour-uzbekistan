@@ -32,7 +32,7 @@ const router = createRouter({
           name: 'dashboard',
           component: DashboardPage,
           meta: {
-            title: 'Dashboard',
+            titleKey: 'common.dashboard',
           },
         },
         {
@@ -40,7 +40,7 @@ const router = createRouter({
           name: 'site-content',
           component: AdminContentPage,
           meta: {
-            title: 'Контент сайта',
+            titleKey: 'nav.siteContent',
             contentTypes: ['homeBanners', 'countries', 'tours', 'services', 'whyCategories', 'news'],
           },
         },
@@ -53,7 +53,7 @@ const router = createRouter({
           name: 'pages',
           component: AdminContentPage,
           meta: {
-            title: 'Страницы',
+            titleKey: 'nav.pages',
             contentTypes: ['pages'],
           },
         },
@@ -62,7 +62,7 @@ const router = createRouter({
           name: 'countries',
           component: AdminContentPage,
           meta: {
-            title: 'Страны',
+            titleKey: 'nav.countries',
             contentTypes: ['countries'],
           },
         },
@@ -71,7 +71,7 @@ const router = createRouter({
           name: 'admin-tours',
           component: AdminContentPage,
           meta: {
-            title: 'Туры',
+            titleKey: 'nav.tours',
             contentTypes: ['tours'],
           },
         },
@@ -80,7 +80,7 @@ const router = createRouter({
           name: 'admin-services',
           component: AdminContentPage,
           meta: {
-            title: 'Услуги',
+            titleKey: 'nav.services',
             contentTypes: ['services'],
           },
         },
@@ -89,7 +89,7 @@ const router = createRouter({
           name: 'why-us',
           component: AdminContentPage,
           meta: {
-            title: 'Почему мы',
+            titleKey: 'nav.whyUs',
             contentTypes: ['whyCategories'],
           },
         },
@@ -98,7 +98,7 @@ const router = createRouter({
           name: 'admin-news',
           component: AdminContentPage,
           meta: {
-            title: 'Новости',
+            titleKey: 'nav.news',
             contentTypes: ['news'],
           },
         },
@@ -107,7 +107,7 @@ const router = createRouter({
           name: 'admin-leads',
           component: AdminRecordsPage,
           meta: {
-            title: 'Заявки',
+            titleKey: 'nav.leads',
             recordType: 'leads',
           },
         },
@@ -116,7 +116,7 @@ const router = createRouter({
           name: 'admin-bookings',
           component: AdminRecordsPage,
           meta: {
-            title: 'Бронирования',
+            titleKey: 'nav.bookings',
             recordType: 'bookings',
           },
         },
@@ -125,7 +125,7 @@ const router = createRouter({
           name: 'partners',
           component: AdminRecordsPage,
           meta: {
-            title: 'Партнеры',
+            titleKey: 'nav.partners',
             recordType: 'partners',
           },
         },
@@ -134,7 +134,7 @@ const router = createRouter({
           name: 'users',
           component: AdminRecordsPage,
           meta: {
-            title: 'Пользователи',
+            titleKey: 'nav.users',
             recordType: 'users',
           },
         },
@@ -143,7 +143,7 @@ const router = createRouter({
           name: 'media',
           component: AdminContentPage,
           meta: {
-            title: 'Медиа',
+            titleKey: 'nav.media',
             contentTypes: ['media'],
           },
         },
@@ -152,7 +152,7 @@ const router = createRouter({
           name: 'admin-logs',
           component: AdminAuditLogsPage,
           meta: {
-            title: 'Логи',
+            titleKey: 'nav.logs',
           },
         },
         {
@@ -160,7 +160,7 @@ const router = createRouter({
           name: 'settings',
           component: AdminContentPage,
           meta: {
-            title: 'Настройки',
+            titleKey: 'nav.settings',
             contentTypes: ['siteSettings'],
           },
         },

@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 
 import http from '@/lib/http';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { useAdminI18n } from '@/i18n';
 import { useDashboardStore } from '@/stores/dashboard';
 
 type RecordType = 'users' | 'partners' | 'leads' | 'bookings';
@@ -12,6 +13,7 @@ type AnyRecord = Record<string, any> & { id: string; title: string };
 
 const route = useRoute();
 const dashboardStore = useDashboardStore();
+const { t } = useAdminI18n();
 const loading = ref(false);
 const savingId = ref('');
 const archivingId = ref('');
@@ -24,42 +26,42 @@ const selectedRecords = ref<AnyRecord[]>([]);
 const createForm = ref<Record<string, any>>({});
 const createError = ref('');
 
-const roleLabels: Record<string, string> = {
-  ADMIN: 'Администратор',
-  MANAGER: 'Менеджер',
-  CUSTOMER: 'Клиент',
-  PARTNER: 'Партнер',
-};
+const roleLabels = computed<Record<string, string>>(() => ({
+  ADMIN: t('enums.role.ADMIN'),
+  MANAGER: t('enums.role.MANAGER'),
+  CUSTOMER: t('enums.role.CUSTOMER'),
+  PARTNER: t('enums.role.PARTNER'),
+}));
 
-const userStatusLabels: Record<string, string> = {
-  ACTIVE: 'Активен',
-  PENDING: 'Ожидает',
-  SUSPENDED: 'Заблокирован',
-};
+const userStatusLabels = computed<Record<string, string>>(() => ({
+  ACTIVE: t('enums.userStatus.ACTIVE'),
+  PENDING: t('enums.userStatus.PENDING'),
+  SUSPENDED: t('enums.userStatus.SUSPENDED'),
+}));
 
-const partnerTypeLabels: Record<string, string> = {
-  AGENCY: 'Турагентство',
-  OPERATOR: 'Туроператор',
-  TRANSPORT: 'Транспорт',
-  HOTEL: 'Отель',
-  OTHER: 'Другое',
-};
+const partnerTypeLabels = computed<Record<string, string>>(() => ({
+  AGENCY: t('enums.partnerType.AGENCY'),
+  OPERATOR: t('enums.partnerType.OPERATOR'),
+  TRANSPORT: t('enums.partnerType.TRANSPORT'),
+  HOTEL: t('enums.partnerType.HOTEL'),
+  OTHER: t('enums.partnerType.OTHER'),
+}));
 
-const leadStatusLabels: Record<string, string> = {
-  NEW: 'Новая',
-  IN_PROGRESS: 'В работе',
-  QUALIFIED: 'Квалифицирована',
-  WON: 'Успешная',
-  LOST: 'Потеряна',
-  SPAM: 'Спам',
-};
+const leadStatusLabels = computed<Record<string, string>>(() => ({
+  NEW: t('enums.leadStatus.NEW'),
+  IN_PROGRESS: t('enums.leadStatus.IN_PROGRESS'),
+  QUALIFIED: t('enums.leadStatus.QUALIFIED'),
+  WON: t('enums.leadStatus.WON'),
+  LOST: t('enums.leadStatus.LOST'),
+  SPAM: t('enums.leadStatus.SPAM'),
+}));
 
-const bookingStatusLabels: Record<string, string> = {
-  PENDING: 'Ожидает',
-  CONFIRMED: 'Подтверждено',
-  CANCELLED: 'Отменено',
-  COMPLETED: 'Завершено',
-};
+const bookingStatusLabels = computed<Record<string, string>>(() => ({
+  PENDING: t('enums.bookingStatus.PENDING'),
+  CONFIRMED: t('enums.bookingStatus.CONFIRMED'),
+  CANCELLED: t('enums.bookingStatus.CANCELLED'),
+  COMPLETED: t('enums.bookingStatus.COMPLETED'),
+}));
 
 const labelFrom = (labels: Record<string, string>, value: unknown) => {
   const key = String(value ?? '');
@@ -71,42 +73,42 @@ const recordType = computed<RecordType>(() => String(route.meta.recordType ?? 'u
 const columns = computed(() => {
   if (recordType.value === 'users') {
     return [
-      { prop: 'title', label: 'Имя', minWidth: 180 },
-      { prop: 'email', label: 'Email', minWidth: 220 },
-      { prop: 'role', label: 'Роль', width: 150, format: (value: unknown) => labelFrom(roleLabels, value) },
-      { prop: 'status', label: 'Статус', width: 150, format: (value: unknown) => labelFrom(userStatusLabels, value) },
-      { prop: 'partner', label: 'Партнер', minWidth: 180 },
+      { prop: 'title', label: t('common.name'), minWidth: 180 },
+      { prop: 'email', label: t('common.email'), minWidth: 220 },
+      { prop: 'role', label: t('common.role'), width: 150, format: (value: unknown) => labelFrom(roleLabels.value, value) },
+      { prop: 'status', label: t('common.status'), width: 150, format: (value: unknown) => labelFrom(userStatusLabels.value, value) },
+      { prop: 'partner', label: t('common.partner'), minWidth: 180 },
     ];
   }
 
   if (recordType.value === 'partners') {
     return [
-      { prop: 'title', label: 'Название', minWidth: 220 },
-      { prop: 'email', label: 'Email', minWidth: 220 },
-      { prop: 'phone', label: 'Телефон', minWidth: 160 },
-      { prop: 'type', label: 'Тип', width: 170, format: (value: unknown) => labelFrom(partnerTypeLabels, value) },
-      { prop: 'city', label: 'Город', width: 140 },
+      { prop: 'title', label: t('common.title'), minWidth: 220 },
+      { prop: 'email', label: t('common.email'), minWidth: 220 },
+      { prop: 'phone', label: t('common.phone'), minWidth: 160 },
+      { prop: 'type', label: t('common.type'), width: 170, format: (value: unknown) => labelFrom(partnerTypeLabels.value, value) },
+      { prop: 'city', label: t('common.city'), width: 140 },
     ];
   }
 
   if (recordType.value === 'leads') {
     return [
-      { prop: 'title', label: 'Имя', minWidth: 180 },
-      { prop: 'email', label: 'Email', minWidth: 220 },
-      { prop: 'phone', label: 'Телефон', minWidth: 160 },
-      { prop: 'status', label: 'Статус', width: 150, format: (value: unknown) => labelFrom(leadStatusLabels, value) },
-      { prop: 'sourcePagePath', label: 'Страница', minWidth: 180 },
-      { prop: 'tour', label: 'Тур', minWidth: 180 },
+      { prop: 'title', label: t('common.name'), minWidth: 180 },
+      { prop: 'email', label: t('common.email'), minWidth: 220 },
+      { prop: 'phone', label: t('common.phone'), minWidth: 160 },
+      { prop: 'status', label: t('common.status'), width: 150, format: (value: unknown) => labelFrom(leadStatusLabels.value, value) },
+      { prop: 'sourcePagePath', label: t('common.page'), minWidth: 180 },
+      { prop: 'tour', label: t('common.tour'), minWidth: 180 },
     ];
   }
 
   return [
-    { prop: 'title', label: 'Номер', minWidth: 170 },
-    { prop: 'customer', label: 'Клиент', minWidth: 180 },
-    { prop: 'email', label: 'Email', minWidth: 220 },
-    { prop: 'status', label: 'Статус', width: 150, format: (value: unknown) => labelFrom(bookingStatusLabels, value) },
-    { prop: 'tour', label: 'Тур', minWidth: 180 },
-    { prop: 'totalPrice', label: 'Цена', width: 120 },
+    { prop: 'title', label: t('dashboard.bookingNumber'), minWidth: 170 },
+    { prop: 'customer', label: t('dashboard.customer'), minWidth: 180 },
+    { prop: 'email', label: t('common.email'), minWidth: 220 },
+    { prop: 'status', label: t('common.status'), width: 150, format: (value: unknown) => labelFrom(bookingStatusLabels.value, value) },
+    { prop: 'tour', label: t('common.tour'), minWidth: 180 },
+    { prop: 'totalPrice', label: t('common.price'), width: 120 },
   ];
 });
 
@@ -118,7 +120,7 @@ const loadRecords = async () => {
     });
     records.value = response.data;
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось загрузить данные'));
+    ElMessage.error(getApiErrorMessage(error, t('records.loadFailed')));
   } finally {
     loading.value = false;
   }
@@ -165,7 +167,7 @@ const createRecord = async () => {
   createError.value = '';
 
   if (recordType.value === 'users' && String(createForm.value.password ?? '').length < 8) {
-    createError.value = 'Пароль должен быть не короче 8 символов';
+    createError.value = t('records.passwordTooShort');
     ElMessage.warning(createError.value);
     return;
   }
@@ -175,9 +177,9 @@ const createRecord = async () => {
     const response = await http.post<AnyRecord[]>(`/admin/records/${recordType.value}`, createForm.value);
     records.value = response.data;
     createOpen.value = false;
-    ElMessage.success('Запись создана');
+    ElMessage.success(t('records.created'));
   } catch (error: any) {
-    createError.value = getApiErrorMessage(error, 'Не удалось создать запись');
+    createError.value = getApiErrorMessage(error, t('records.createFailed'));
     ElMessage.error({
       message: createError.value,
       duration: 6000,
@@ -205,9 +207,9 @@ const updateStatus = async (row: AnyRecord, value: string | boolean) => {
     if (recordType.value === 'leads' || recordType.value === 'bookings') {
       dashboardStore.load();
     }
-    ElMessage.success('Сохранено');
+    ElMessage.success(t('common.saved'));
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось сохранить'));
+    ElMessage.error(getApiErrorMessage(error, t('records.saveFailed')));
   } finally {
     savingId.value = '';
   }
@@ -232,7 +234,7 @@ const bulkUpdate = async (payload: Record<string, unknown>, successMessage: stri
     }
     ElMessage.success(successMessage);
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось выполнить массовое действие'));
+    ElMessage.error(getApiErrorMessage(error, t('records.bulkActionFailed')));
   } finally {
     bulkProcessing.value = false;
   }
@@ -240,28 +242,28 @@ const bulkUpdate = async (payload: Record<string, unknown>, successMessage: stri
 
 const archiveLabel = computed(() => {
   if (recordType.value === 'partners') {
-    return 'Отключить';
+    return t('records.disable');
   }
 
   if (recordType.value === 'bookings') {
-    return 'Отменить';
+    return t('records.cancelBooking');
   }
 
   if (recordType.value === 'leads') {
-    return 'В спам';
+    return t('records.spam');
   }
 
-  return 'Заблокировать';
+  return t('records.block');
 });
 
 const archiveRecord = async (row: AnyRecord) => {
   try {
     await ElMessageBox.confirm(
-      `Вы уверены, что хотите выполнить действие "${archiveLabel.value}" для "${row.title}"?`,
+      t('records.confirmSingle', { action: archiveLabel.value, title: row.title }),
       archiveLabel.value,
       {
         confirmButtonText: archiveLabel.value,
-        cancelButtonText: 'Отмена',
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       },
     );
@@ -276,9 +278,9 @@ const archiveRecord = async (row: AnyRecord) => {
     if (recordType.value === 'leads' || recordType.value === 'bookings') {
       dashboardStore.load();
     }
-    ElMessage.success('Запись обновлена');
+    ElMessage.success(t('records.updated'));
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось выполнить действие'));
+    ElMessage.error(getApiErrorMessage(error, t('records.actionFailed')));
   } finally {
     archivingId.value = '';
   }
@@ -291,11 +293,11 @@ const bulkArchiveRecords = async () => {
 
   try {
     await ElMessageBox.confirm(
-      `Вы уверены, что хотите выполнить действие "${archiveLabel.value}" для ${selectedRecords.value.length} записей?`,
-      'Массовое действие',
+      t('records.confirmBulk', { action: archiveLabel.value, count: selectedRecords.value.length }),
+      t('records.bulkAction'),
       {
         confirmButtonText: archiveLabel.value,
-        cancelButtonText: 'Отмена',
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       },
     );
@@ -313,9 +315,9 @@ const bulkArchiveRecords = async () => {
     if (recordType.value === 'leads' || recordType.value === 'bookings') {
       dashboardStore.load();
     }
-    ElMessage.success('Записи обновлены');
+    ElMessage.success(t('records.updatedPlural'));
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось выполнить массовое действие'));
+    ElMessage.error(getApiErrorMessage(error, t('records.bulkActionFailed')));
   } finally {
     bulkProcessing.value = false;
   }
@@ -335,55 +337,55 @@ watch(
   <div class="records-page">
     <section class="records-toolbar">
       <div>
-        <h2>{{ String(route.meta.title ?? 'Раздел') }}</h2>
-        <p>Данные загружаются из PostgreSQL через admin API.</p>
+        <h2>{{ t(String(route.meta.titleKey ?? 'common.section')) }}</h2>
+        <p>{{ t('records.apiNote') }}</p>
       </div>
       <div class="records-actions">
-        <el-button :loading="loading" @click="loadRecords">Обновить</el-button>
-        <el-button v-if="canCreate" type="primary" @click="openCreate">Создать</el-button>
+        <el-button :loading="loading" @click="loadRecords">{{ t('common.refresh') }}</el-button>
+        <el-button v-if="canCreate" type="primary" @click="openCreate">{{ t('common.create') }}</el-button>
         <template v-if="selectedCount > 0">
-          <el-tag class="selection-count" type="info">{{ selectedCount }} выбрано</el-tag>
+          <el-tag class="selection-count" type="info">{{ t('common.selected', { count: selectedCount }) }}</el-tag>
 
           <template v-if="recordType === 'users'">
-            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ userStatus: 'ACTIVE' }, 'Пользователи активированы')">
-              Активировать
+            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ userStatus: 'ACTIVE' }, t('records.usersActivated'))">
+              {{ t('common.activate') }}
             </el-button>
-            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ userStatus: 'SUSPENDED' }, 'Пользователи заблокированы')">
-              Заблокировать
+            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ userStatus: 'SUSPENDED' }, t('records.usersBlocked'))">
+              {{ t('records.block') }}
             </el-button>
           </template>
 
           <template v-else-if="recordType === 'partners'">
-            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ isActive: true }, 'Партнеры активированы')">
-              Активировать
+            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ isActive: true }, t('records.partnersActivated'))">
+              {{ t('common.activate') }}
             </el-button>
-            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ isActive: false }, 'Партнеры отключены')">
-              Отключить
+            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ isActive: false }, t('records.partnersDisabled'))">
+              {{ t('common.deactivate') }}
             </el-button>
           </template>
 
           <template v-else-if="recordType === 'leads'">
-            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ leadStatus: 'IN_PROGRESS' }, 'Заявки переведены в работу')">
-              В работу
+            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ leadStatus: 'IN_PROGRESS' }, t('records.leadsInProgress'))">
+              {{ t('records.markInProgress') }}
             </el-button>
-            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ leadStatus: 'WON' }, 'Заявки отмечены успешными')">
-              Успешные
+            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ leadStatus: 'WON' }, t('records.leadsWon'))">
+              {{ t('records.markWon') }}
             </el-button>
           </template>
 
           <template v-else>
-            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ bookingStatus: 'CONFIRMED' }, 'Бронирования подтверждены')">
-              Подтвердить
+            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ bookingStatus: 'CONFIRMED' }, t('records.bookingsConfirmed'))">
+              {{ t('records.confirmBooking') }}
             </el-button>
-            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ bookingStatus: 'CANCELLED' }, 'Бронирования отменены')">
-              Отменить
+            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ bookingStatus: 'CANCELLED' }, t('records.bookingsCancelled'))">
+              {{ t('records.cancelBooking') }}
             </el-button>
           </template>
 
           <el-button type="danger" plain :loading="bulkProcessing" @click="bulkArchiveRecords">
             {{ archiveLabel }}
           </el-button>
-          <el-button plain :disabled="bulkProcessing" @click="resetSelection">Снять выбор</el-button>
+          <el-button plain :disabled="bulkProcessing" @click="resetSelection">{{ t('common.clearSelection') }}</el-button>
         </template>
       </div>
     </section>
@@ -394,7 +396,7 @@ watch(
         v-loading="loading"
         :data="records"
         row-key="id"
-        empty-text="Нет данных"
+        :empty-text="t('common.noData')"
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="48" />
@@ -410,7 +412,7 @@ watch(
             {{ column.format ? column.format(row[column.prop]) : row[column.prop] }}
           </template>
         </el-table-column>
-        <el-table-column label="Управление" width="300">
+        <el-table-column :label="t('common.management')" width="300">
           <template #default="{ row }">
             <div class="record-row-actions">
               <el-select
@@ -474,7 +476,7 @@ watch(
     <el-dialog
       v-model="createOpen"
       width="min(560px, calc(100vw - 24px))"
-      :title="recordType === 'users' ? 'Создать пользователя' : 'Создать партнера'"
+      :title="recordType === 'users' ? t('records.createUser') : t('records.createPartner')"
     >
       <el-form label-position="top">
         <el-alert
@@ -490,22 +492,22 @@ watch(
           <el-form-item label="Email">
             <el-input v-model="createForm.email" />
           </el-form-item>
-          <el-form-item label="Пароль">
+          <el-form-item :label="t('login.password')">
             <el-input v-model="createForm.password" type="password" show-password />
           </el-form-item>
           <div class="dialog-grid">
-            <el-form-item label="Имя">
+            <el-form-item :label="t('common.firstName')">
               <el-input v-model="createForm.firstName" />
             </el-form-item>
-            <el-form-item label="Фамилия">
+            <el-form-item :label="t('common.lastName')">
               <el-input v-model="createForm.lastName" />
             </el-form-item>
           </div>
-          <el-form-item label="Телефон">
+          <el-form-item :label="t('common.phone')">
             <el-input v-model="createForm.phone" />
           </el-form-item>
           <div class="dialog-grid">
-            <el-form-item label="Роль">
+            <el-form-item :label="t('common.role')">
               <el-select v-model="createForm.role">
                 <el-option :label="roleLabels.ADMIN" value="ADMIN" />
                 <el-option :label="roleLabels.MANAGER" value="MANAGER" />
@@ -513,7 +515,7 @@ watch(
                 <el-option :label="roleLabels.PARTNER" value="PARTNER" />
               </el-select>
             </el-form-item>
-            <el-form-item label="Статус">
+            <el-form-item :label="t('common.status')">
               <el-select v-model="createForm.status">
                 <el-option :label="userStatusLabels.ACTIVE" value="ACTIVE" />
                 <el-option :label="userStatusLabels.PENDING" value="PENDING" />
@@ -524,7 +526,7 @@ watch(
         </template>
 
         <template v-else>
-          <el-form-item label="Название">
+          <el-form-item :label="t('common.title')">
             <el-input v-model="createForm.name" />
           </el-form-item>
           <el-form-item label="Slug">
@@ -534,15 +536,15 @@ watch(
             <el-form-item label="Email">
               <el-input v-model="createForm.email" />
             </el-form-item>
-            <el-form-item label="Телефон">
+            <el-form-item :label="t('common.phone')">
               <el-input v-model="createForm.phone" />
             </el-form-item>
           </div>
           <div class="dialog-grid">
-            <el-form-item label="Город">
+            <el-form-item :label="t('common.city')">
               <el-input v-model="createForm.city" />
             </el-form-item>
-            <el-form-item label="Тип">
+            <el-form-item :label="t('common.type')">
               <el-select v-model="createForm.type">
                 <el-option :label="partnerTypeLabels.AGENCY" value="AGENCY" />
                 <el-option :label="partnerTypeLabels.OPERATOR" value="OPERATOR" />
@@ -552,15 +554,15 @@ watch(
               </el-select>
             </el-form-item>
           </div>
-          <el-form-item label="Активен">
+          <el-form-item :label="t('common.enabled')">
             <el-switch v-model="createForm.isActive" />
           </el-form-item>
         </template>
       </el-form>
 
       <template #footer>
-        <el-button @click="createOpen = false">Отмена</el-button>
-        <el-button type="primary" :loading="creating" @click="createRecord">Создать</el-button>
+        <el-button @click="createOpen = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="creating" @click="createRecord">{{ t('common.create') }}</el-button>
       </template>
     </el-dialog>
   </div>

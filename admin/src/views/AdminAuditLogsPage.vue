@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus';
 
 import http from '@/lib/http';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { useAdminI18n } from '@/i18n';
 
 type AuditLog = {
   id: string;
@@ -41,37 +42,38 @@ const entityTypeFilter = ref('');
 const userEmailFilter = ref('');
 const searchFilter = ref('');
 const dateRange = ref<[Date, Date] | null>(null);
+const { locale, t } = useAdminI18n();
 
-const actionLabels: Record<string, string> = {
-  LOGIN: 'Вход',
-  LOGOUT: 'Выход',
-  CREATE: 'Создание',
-  UPDATE: 'Изменение',
-  ARCHIVE: 'Архивация',
-  UPLOAD: 'Загрузка',
-};
-
-const actionOptions = Object.entries(actionLabels).map(([value, label]) => ({
-  value,
-  label,
+const actionLabels = computed<Record<string, string>>(() => ({
+  LOGIN: t('audit.actions.LOGIN'),
+  LOGOUT: t('audit.actions.LOGOUT'),
+  CREATE: t('audit.actions.CREATE'),
+  UPDATE: t('audit.actions.UPDATE'),
+  ARCHIVE: t('audit.actions.ARCHIVE'),
+  UPLOAD: t('audit.actions.UPLOAD'),
 }));
 
-const entityTypeOptions = [
-  { value: 'auth', label: 'Авторизация' },
-  { value: 'content:pages', label: 'Страницы' },
-  { value: 'content:countries', label: 'Страны' },
-  { value: 'content:tours', label: 'Туры' },
-  { value: 'content:services', label: 'Услуги' },
-  { value: 'content:whyCategories', label: 'Почему мы' },
-  { value: 'content:news', label: 'Новости' },
-  { value: 'content:media', label: 'Медиа' },
-  { value: 'content:siteSettings', label: 'Настройки' },
-  { value: 'record:users', label: 'Пользователи' },
-  { value: 'record:partners', label: 'Партнеры' },
-  { value: 'record:leads', label: 'Заявки' },
-  { value: 'record:bookings', label: 'Бронирования' },
-  { value: 'media', label: 'Загрузка медиа' },
-];
+const actionOptions = computed(() => Object.entries(actionLabels.value).map(([value, label]) => ({
+  value,
+  label,
+})));
+
+const entityTypeOptions = computed(() => [
+  { value: 'auth', label: t('audit.entities.auth') },
+  { value: 'content:pages', label: t('audit.entities.content:pages') },
+  { value: 'content:countries', label: t('audit.entities.content:countries') },
+  { value: 'content:tours', label: t('audit.entities.content:tours') },
+  { value: 'content:services', label: t('audit.entities.content:services') },
+  { value: 'content:whyCategories', label: t('audit.entities.content:whyCategories') },
+  { value: 'content:news', label: t('audit.entities.content:news') },
+  { value: 'content:media', label: t('audit.entities.content:media') },
+  { value: 'content:siteSettings', label: t('audit.entities.content:siteSettings') },
+  { value: 'record:users', label: t('audit.entities.record:users') },
+  { value: 'record:partners', label: t('audit.entities.record:partners') },
+  { value: 'record:leads', label: t('audit.entities.record:leads') },
+  { value: 'record:bookings', label: t('audit.entities.record:bookings') },
+  { value: 'media', label: t('audit.entities.media') },
+]);
 
 const actionTagType = (action: string) => {
   if (action === 'CREATE' || action === 'UPLOAD') {
@@ -90,10 +92,10 @@ const actionTagType = (action: string) => {
 };
 
 const entityTypeLabel = (value: string) =>
-  entityTypeOptions.find((option) => option.value === value)?.label ?? value;
+  entityTypeOptions.value.find((option) => option.value === value)?.label ?? value;
 
 const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('ru-RU', {
+  new Intl.DateTimeFormat(locale.value === 'ru' ? 'ru-RU' : 'en-US', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -130,7 +132,7 @@ const loadLogs = async () => {
     logs.value = response.data.items;
     total.value = response.data.meta.total;
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось загрузить логи'));
+    ElMessage.error(getApiErrorMessage(error, t('audit.loadFailed')));
   } finally {
     loading.value = false;
   }
@@ -161,10 +163,10 @@ watch([page, limit], loadLogs, { immediate: true });
   <div class="audit-page">
     <section class="audit-toolbar">
       <div>
-        <h2>Логи действий</h2>
-        <p>История входов, изменений контента, записей и загрузок медиа в админке.</p>
+        <h2>{{ t('audit.title') }}</h2>
+        <p>{{ t('audit.subtitle') }}</p>
       </div>
-      <el-button :loading="loading" @click="loadLogs">Обновить</el-button>
+      <el-button :loading="loading" @click="loadLogs">{{ t('common.refresh') }}</el-button>
     </section>
 
     <el-card class="audit-filters" shadow="never">
@@ -172,16 +174,16 @@ watch([page, limit], loadLogs, { immediate: true });
         <el-input
           v-model="searchFilter"
           clearable
-          placeholder="Поиск по объекту, пути или ID"
+          :placeholder="t('audit.searchPlaceholder')"
           @keyup.enter="applyFilters"
         />
         <el-input
           v-model="userEmailFilter"
           clearable
-          placeholder="Email пользователя"
+          :placeholder="t('audit.userEmailPlaceholder')"
           @keyup.enter="applyFilters"
         />
-        <el-select v-model="actionFilter" clearable placeholder="Действие">
+        <el-select v-model="actionFilter" clearable :placeholder="t('audit.actionPlaceholder')">
           <el-option
             v-for="option in actionOptions"
             :key="option.value"
@@ -189,7 +191,7 @@ watch([page, limit], loadLogs, { immediate: true });
             :value="option.value"
           />
         </el-select>
-        <el-select v-model="entityTypeFilter" clearable filterable placeholder="Раздел">
+        <el-select v-model="entityTypeFilter" clearable filterable :placeholder="t('audit.sectionPlaceholder')">
           <el-option
             v-for="option in entityTypeOptions"
             :key="option.value"
@@ -201,45 +203,45 @@ watch([page, limit], loadLogs, { immediate: true });
           v-model="dateRange"
           type="datetimerange"
           range-separator="—"
-          start-placeholder="Дата от"
-          end-placeholder="Дата до"
+          :start-placeholder="t('audit.dateFrom')"
+          :end-placeholder="t('audit.dateTo')"
           format="DD.MM.YYYY HH:mm"
         />
       </div>
       <div class="filter-actions">
-        <el-button :loading="loading" type="primary" @click="applyFilters">Применить</el-button>
-        <el-button @click="resetFilters">Сбросить</el-button>
+        <el-button :loading="loading" type="primary" @click="applyFilters">{{ t('audit.apply') }}</el-button>
+        <el-button @click="resetFilters">{{ t('audit.reset') }}</el-button>
       </div>
     </el-card>
 
     <el-card class="audit-card" shadow="never">
-      <el-table v-loading="loading" :data="logs" row-key="id" empty-text="Логов пока нет">
-        <el-table-column label="Дата" width="180">
+      <el-table v-loading="loading" :data="logs" row-key="id" :empty-text="t('audit.empty')">
+        <el-table-column :label="t('common.date')" width="180">
           <template #default="{ row }">
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="Пользователь" min-width="220">
+        <el-table-column :label="t('common.user')" min-width="220">
           <template #default="{ row }">
             <div class="audit-user">
-              <strong>{{ row.userEmail || 'Система' }}</strong>
+              <strong>{{ row.userEmail || t('common.system') }}</strong>
               <span>{{ row.userRole || '-' }}</span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="Действие" width="130">
+        <el-table-column :label="t('audit.actionPlaceholder')" width="130">
           <template #default="{ row }">
             <el-tag :type="actionTagType(row.action)">
               {{ actionLabels[row.action] || row.action }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="Раздел" min-width="170">
+        <el-table-column :label="t('common.section')" min-width="170">
           <template #default="{ row }">
             {{ entityTypeLabel(row.entityType) }}
           </template>
         </el-table-column>
-        <el-table-column label="Объект" min-width="220">
+        <el-table-column :label="t('common.object')" min-width="220">
           <template #default="{ row }">
             {{ row.entityTitle || row.entityId || '-' }}
           </template>
@@ -248,10 +250,10 @@ watch([page, limit], loadLogs, { immediate: true });
         <el-table-column v-if="hasDetails" type="expand">
           <template #default="{ row }">
             <div class="audit-details">
-              <div><strong>Метод:</strong> {{ row.method || '-' }}</div>
-              <div><strong>Путь:</strong> {{ row.path || '-' }}</div>
-              <div><strong>ID объекта:</strong> {{ row.entityId || '-' }}</div>
-              <div><strong>User-Agent:</strong> {{ row.userAgent || '-' }}</div>
+              <div><strong>{{ t('common.method') }}:</strong> {{ row.method || '-' }}</div>
+              <div><strong>{{ t('common.path') }}:</strong> {{ row.path || '-' }}</div>
+              <div><strong>{{ t('common.entityId') }}:</strong> {{ row.entityId || '-' }}</div>
+              <div><strong>{{ t('audit.userAgent') }}:</strong> {{ row.userAgent || '-' }}</div>
               <pre v-if="row.metadata">{{ formatMetadata(row.metadata) }}</pre>
             </div>
           </template>

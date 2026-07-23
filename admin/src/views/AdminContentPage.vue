@@ -6,6 +6,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import RichTextEditor from '@/components/RichTextEditor.vue';
 import http from '@/lib/http';
 import { getApiErrorMessage } from '@/lib/api-error';
+import { useAdminI18n } from '@/i18n';
 
 type LocaleCode = 'ru' | 'en' | 'uz';
 type ContentType =
@@ -83,102 +84,103 @@ type MediaAsset = {
 };
 
 const route = useRoute();
-const locales: Array<{ code: LocaleCode; label: string }> = [
-  { code: 'ru', label: 'Русский' },
-  { code: 'en', label: 'English' },
-  { code: 'uz', label: "O'zbek" },
-];
+const { t } = useAdminI18n();
+const locales = computed<Array<{ code: LocaleCode; label: string }>>(() => [
+  { code: 'ru', label: t('content.locales.ru') },
+  { code: 'en', label: t('content.locales.en') },
+  { code: 'uz', label: t('content.locales.uz') },
+]);
 
-const typeLabels: Record<ContentType, string> = {
-  pages: 'Страницы',
-  siteSettings: 'Настройки',
-  media: 'Медиа',
-  homeBanners: 'Баннеры главной',
-  countries: 'Страны',
-  tours: 'Туры',
-  services: 'Услуги',
-  whyCategories: 'Почему мы',
-  news: 'Новости',
-};
+const typeLabels = computed<Record<ContentType, string>>(() => ({
+  pages: t('content.types.pages'),
+  siteSettings: t('content.types.siteSettings'),
+  media: t('content.types.media'),
+  homeBanners: t('content.types.homeBanners'),
+  countries: t('content.types.countries'),
+  tours: t('content.types.tours'),
+  services: t('content.types.services'),
+  whyCategories: t('content.types.whyCategories'),
+  news: t('content.types.news'),
+}));
 
-const typeFields: Record<ContentType, FieldConfig[]> = {
+const typeFields = computed<Record<ContentType, FieldConfig[]>>(() => ({
   pages: [
-    { key: 'title', label: 'Название' },
-    { key: 'menuLabel', label: 'Пункт меню' },
-    { key: 'heroTitle', label: 'Hero заголовок' },
-    { key: 'heroSubtitle', label: 'Hero подзаголовок', type: 'textarea' },
-    { key: 'content', label: 'Контент страницы' },
-    { key: 'seoTitle', label: 'SEO title' },
-    { key: 'seoDescription', label: 'SEO description', type: 'textarea' },
+    { key: 'title', label: t('content.fields.title') },
+    { key: 'menuLabel', label: t('content.fields.menuLabel') },
+    { key: 'heroTitle', label: t('content.fields.heroTitle') },
+    { key: 'heroSubtitle', label: t('content.fields.heroSubtitle'), type: 'textarea' },
+    { key: 'content', label: t('content.fields.content') },
+    { key: 'seoTitle', label: t('content.fields.seoTitle') },
+    { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
   siteSettings: [
-    { key: 'label', label: 'Название настройки' },
-    { key: 'textValue', label: 'Текстовое значение', type: 'textarea' },
-    { key: 'description', label: 'Описание', type: 'textarea' },
+    { key: 'label', label: t('content.fields.label') },
+    { key: 'textValue', label: t('content.fields.textValue'), type: 'textarea' },
+    { key: 'description', label: t('content.fields.description'), type: 'textarea' },
   ],
-  media: [{ key: 'altText', label: 'Alt текст' }],
+  media: [{ key: 'altText', label: t('content.fields.altText') }],
   homeBanners: [
-    { key: 'title', label: 'Заголовок' },
-    { key: 'subtitle', label: 'Подзаголовок', type: 'textarea' },
-    { key: 'buttonLabel', label: 'Текст кнопки' },
-    { key: 'altText', label: 'Alt текст' },
+    { key: 'title', label: t('content.fields.title') },
+    { key: 'subtitle', label: t('content.fields.subtitle'), type: 'textarea' },
+    { key: 'buttonLabel', label: t('content.fields.buttonLabel') },
+    { key: 'altText', label: t('content.fields.altText') },
   ],
   countries: [
-    { key: 'name', label: 'Название' },
-    { key: 'welcomeTitle', label: 'Заголовок приветствия' },
-    { key: 'intro', label: 'Описание', type: 'textarea' },
-    { key: 'sidebarTitle', label: 'Заголовок сайдбара' },
-    { key: 'seoTitle', label: 'SEO title' },
-    { key: 'seoDescription', label: 'SEO description', type: 'textarea' },
+    { key: 'name', label: t('content.fields.name') },
+    { key: 'welcomeTitle', label: t('content.fields.welcomeTitle') },
+    { key: 'intro', label: t('content.fields.intro'), type: 'textarea' },
+    { key: 'sidebarTitle', label: t('content.fields.sidebarTitle') },
+    { key: 'seoTitle', label: t('content.fields.seoTitle') },
+    { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
   tours: [
-    { key: 'title', label: 'Название' },
-    { key: 'subtitle', label: 'Подзаголовок' },
-    { key: 'route', label: 'Маршрут' },
-    { key: 'description', label: 'Краткое описание тура', type: 'richtext' },
-    { key: 'detailsInfo', label: 'Узнать больше', type: 'richtext' },
-    { key: 'routesInfo', label: 'Маршруты', type: 'richtext' },
-    { key: 'reviewsInfo', label: 'Отзывы', type: 'richtext' },
-    { key: 'transportInfo', label: 'Транспорт', type: 'richtext' },
-    { key: 'countriesInfo', label: 'О странах', type: 'richtext' },
-    { key: 'hotelsInfo', label: 'Города / отели', type: 'textarea' },
-    { key: 'seoTitle', label: 'SEO title' },
-    { key: 'seoDescription', label: 'SEO description', type: 'textarea' },
+    { key: 'title', label: t('content.fields.title') },
+    { key: 'subtitle', label: t('content.fields.subtitle') },
+    { key: 'route', label: t('content.fields.route') },
+    { key: 'description', label: t('content.fields.shortDescription'), type: 'richtext' },
+    { key: 'detailsInfo', label: t('content.fields.detailsInfo'), type: 'richtext' },
+    { key: 'routesInfo', label: t('content.fields.routesInfo'), type: 'richtext' },
+    { key: 'reviewsInfo', label: t('content.fields.reviewsInfo'), type: 'richtext' },
+    { key: 'transportInfo', label: t('content.fields.transportInfo'), type: 'richtext' },
+    { key: 'countriesInfo', label: t('content.fields.countriesInfo'), type: 'richtext' },
+    { key: 'hotelsInfo', label: t('content.fields.hotelsInfo'), type: 'textarea' },
+    { key: 'seoTitle', label: t('content.fields.seoTitle') },
+    { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
   services: [
-    { key: 'name', label: 'Название' },
-    { key: 'title', label: 'Заголовок' },
-    { key: 'subtitle', label: 'Подзаголовок', type: 'textarea' },
-    { key: 'shortDescription', label: 'Краткое описание', type: 'textarea' },
-    { key: 'seoTitle', label: 'SEO title' },
-    { key: 'seoDescription', label: 'SEO description', type: 'textarea' },
+    { key: 'name', label: t('content.fields.name') },
+    { key: 'title', label: t('content.fields.title') },
+    { key: 'subtitle', label: t('content.fields.subtitle'), type: 'textarea' },
+    { key: 'shortDescription', label: t('content.fields.shortDescription'), type: 'textarea' },
+    { key: 'seoTitle', label: t('content.fields.seoTitle') },
+    { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
   whyCategories: [
-    { key: 'title', label: 'Заголовок' },
-    { key: 'subtitle', label: 'Подзаголовок' },
-    { key: 'description', label: 'Описание', type: 'textarea' },
-    { key: 'seoTitle', label: 'SEO title' },
-    { key: 'seoDescription', label: 'SEO description', type: 'textarea' },
+    { key: 'title', label: t('content.fields.title') },
+    { key: 'subtitle', label: t('content.fields.subtitle') },
+    { key: 'description', label: t('content.fields.description'), type: 'textarea' },
+    { key: 'seoTitle', label: t('content.fields.seoTitle') },
+    { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
   news: [
-    { key: 'title', label: 'Заголовок' },
-    { key: 'excerpt', label: 'Анонс', type: 'textarea' },
-    { key: 'seoTitle', label: 'SEO title' },
-    { key: 'seoDescription', label: 'SEO description', type: 'textarea' },
+    { key: 'title', label: t('content.fields.title') },
+    { key: 'excerpt', label: t('content.fields.excerpt'), type: 'textarea' },
+    { key: 'seoTitle', label: t('content.fields.seoTitle') },
+    { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
-};
+}));
 
-const imageFieldsByType: Partial<Record<ContentType, ImageFieldConfig[]>> = {
-  homeBanners: [{ key: 'imageUrl', label: 'Превью' }],
-  countries: [{ key: 'heroImage', label: 'Превью' }],
+const imageFieldsByType = computed<Partial<Record<ContentType, ImageFieldConfig[]>>>(() => ({
+  homeBanners: [{ key: 'imageUrl', label: t('content.preview') }],
+  countries: [{ key: 'heroImage', label: t('content.preview') }],
   tours: [
-    { key: 'mainImage', label: 'Превью' },
-    { key: 'routeMapImage', label: 'Карта маршрута' },
+    { key: 'mainImage', label: t('content.preview') },
+    { key: 'routeMapImage', label: t('content.routeMap') },
   ],
-  services: [{ key: 'previewImage', label: 'Превью' }],
-  whyCategories: [{ key: 'heroImage', label: 'Превью' }],
-  news: [{ key: 'previewImage', label: 'Превью' }],
-};
+  services: [{ key: 'previewImage', label: t('content.preview') }],
+  whyCategories: [{ key: 'heroImage', label: t('content.preview') }],
+  news: [{ key: 'previewImage', label: t('content.preview') }],
+}));
 
 const defaultPageContentBySlug: Partial<Record<string, Record<LocaleCode, PageContentBlock[]>>> = {
   about: {
@@ -374,8 +376,8 @@ const normalizedActiveType = computed<ContentType>(() =>
   routeTypes.value.includes(activeType.value) ? activeType.value : routeTypes.value[0] ?? activeType.value,
 );
 const activeItems = computed(() => contentByType[normalizedActiveType.value]);
-const activeFields = computed(() => typeFields[form.type]);
-const activeImageFields = computed(() => imageFieldsByType[form.type] ?? []);
+const activeFields = computed(() => typeFields.value[form.type]);
+const activeImageFields = computed(() => imageFieldsByType.value[form.type] ?? []);
 const isCreatableType = computed(() => creatableTypes.includes(normalizedActiveType.value));
 const isTourForm = computed(() => form.type === 'tours');
 const isMediaType = (type: ContentType) => type === 'media';
@@ -481,7 +483,7 @@ const applyDefaultPageContent = (slug: string) => {
     return;
   }
 
-  for (const locale of locales) {
+  for (const locale of locales.value) {
     const currentBlocks = normalizePageContentBlocks(form.translations[locale.code].content);
     if (!currentBlocks.length) {
       form.translations[locale.code].content = clonePageBlocks(defaults[locale.code]);
@@ -629,7 +631,7 @@ const loadContent = async () => {
   try {
     await Promise.all(routeTypes.value.map((type) => loadType(type)));
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось загрузить контент'));
+    ElMessage.error(getApiErrorMessage(error, t('content.contentLoadFailed')));
   } finally {
     loading.value = false;
   }
@@ -655,9 +657,9 @@ const openEditor = async (record: ContentRecord) => {
   form.currency = record.currency ?? undefined;
   form.tourType = record.tourType;
 
-  if (imageFieldsByType[record.type]?.length) {
+  if (imageFieldsByType.value[record.type]?.length) {
     await loadMediaOptions();
-    for (const field of imageFieldsByType[record.type] ?? []) {
+    for (const field of imageFieldsByType.value[record.type] ?? []) {
       form.media[field.key] = record.images?.[field.key] ?? '';
     }
   }
@@ -671,9 +673,9 @@ const openEditor = async (record: ContentRecord) => {
     await loadCountryOptions();
   }
 
-  for (const locale of locales) {
+  for (const locale of locales.value) {
     form.translations[locale.code] = {};
-    for (const field of typeFields[record.type]) {
+    for (const field of typeFields.value[record.type]) {
       const value = record.translations[locale.code]?.[field.key];
       form.translations[locale.code][field.key] =
         record.type === 'pages' && field.key === 'content'
@@ -701,9 +703,9 @@ const openCreate = async () => {
   form.isFeatured = ['countries', 'tours', 'services'].includes(createType) ? false : undefined;
   form.isActive = createType === 'siteSettings' ? true : undefined;
 
-  if (imageFieldsByType[createType]?.length) {
+  if (imageFieldsByType.value[createType]?.length) {
     await loadMediaOptions();
-    for (const field of imageFieldsByType[createType] ?? []) {
+    for (const field of imageFieldsByType.value[createType] ?? []) {
       form.media[field.key] = '';
     }
   }
@@ -726,14 +728,14 @@ const openCreate = async () => {
       form.currency = 'USD';
       form.tourType = 'PRIVATE';
     } catch (error: any) {
-      ElMessage.error(getApiErrorMessage(error, 'Не удалось загрузить страны'));
+      ElMessage.error(getApiErrorMessage(error, t('content.countriesLoadFailed')));
       return;
     }
   }
 
-  for (const locale of locales) {
+  for (const locale of locales.value) {
     form.translations[locale.code] = {};
-    for (const field of typeFields[createType]) {
+    for (const field of typeFields.value[createType]) {
       form.translations[locale.code][field.key] =
         createType === 'pages' && field.key === 'content' ? [] : '';
     }
@@ -751,7 +753,7 @@ const saveContent = async () => {
       sortOrder: form.sortOrder,
       isFeatured: form.isFeatured,
       isActive: form.isActive,
-      translations: locales.map((locale) => ({
+      translations: locales.value.map((locale) => ({
         locale: locale.code,
         fields: form.translations[locale.code],
       })),
@@ -769,7 +771,7 @@ const saveContent = async () => {
       payload.type = form.tourType;
     }
 
-    for (const field of imageFieldsByType[form.type] ?? []) {
+    for (const field of imageFieldsByType.value[form.type] ?? []) {
       payload[field.key] = form.media[field.key] ?? '';
     }
 
@@ -779,7 +781,7 @@ const saveContent = async () => {
         sortOrder: fact.sortOrder,
         status: fact.status,
         imageUrl: fact.imageUrl,
-        translations: locales.map((locale) => ({
+        translations: locales.value.map((locale) => ({
           locale: locale.code,
           fields: fact.translations[locale.code],
         })),
@@ -794,9 +796,9 @@ const saveContent = async () => {
 
     await loadType(form.type);
     drawerOpen.value = false;
-    ElMessage.success(isCreating.value ? 'Запись создана' : 'Контент сохранен');
+    ElMessage.success(isCreating.value ? t('content.recordCreated') : t('content.contentSaved'));
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось сохранить контент'));
+    ElMessage.error(getApiErrorMessage(error, t('content.saveFailed')));
   } finally {
     saving.value = false;
   }
@@ -903,9 +905,9 @@ const handleUploadChange = async (event: Event) => {
       form.media[uploadTargetField.value] = response.data.url;
     }
 
-    ElMessage.success('Медиа загружено');
+    ElMessage.success(t('content.mediaUploaded'));
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось загрузить медиа'));
+    ElMessage.error(getApiErrorMessage(error, t('content.mediaUploadFailed')));
   } finally {
     input.value = '';
     uploadTargetField.value = null;
@@ -916,14 +918,14 @@ const handleUploadChange = async (event: Event) => {
 
 const archiveActionLabel = (row: ContentRecord) => {
   if (row.type === 'media') {
-    return 'Удалить';
+    return t('common.delete');
   }
 
   if (row.type === 'homeBanners' || row.type === 'siteSettings') {
-    return 'Отключить';
+    return t('common.deactivate');
   }
 
-  return 'Архивировать';
+  return t('common.archive');
 };
 
 const archiveContent = async (row: ContentRecord) => {
@@ -931,11 +933,11 @@ const archiveContent = async (row: ContentRecord) => {
 
   try {
     await ElMessageBox.confirm(
-      `Вы уверены, что хотите ${action} "${row.title}"?`,
+      t('content.confirmAction', { action, title: row.title }),
       archiveActionLabel(row),
       {
         confirmButtonText: archiveActionLabel(row),
-        cancelButtonText: 'Отмена',
+        cancelButtonText: t('common.cancel'),
         type: row.type === 'media' ? 'warning' : 'info',
       },
     );
@@ -947,9 +949,9 @@ const archiveContent = async (row: ContentRecord) => {
   try {
     const response = await http.delete<ContentRecord[]>(`/admin/content/${row.type}/${row.id}`);
     contentByType[row.type] = response.data;
-    ElMessage.success(row.type === 'media' ? 'Запись удалена' : 'Запись обновлена');
+    ElMessage.success(row.type === 'media' ? t('content.deleted') : t('content.updated'));
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось выполнить действие'));
+    ElMessage.error(getApiErrorMessage(error, t('content.actionFailed')));
   } finally {
     archivingId.value = '';
   }
@@ -1006,7 +1008,7 @@ const patchSelected = async (
   successMessage: string,
 ) => {
   if (!items.length) {
-    ElMessage.warning('Нет выбранных записей для этого действия');
+    ElMessage.warning(t('content.noSelection'));
     return;
   }
 
@@ -1017,14 +1019,14 @@ const patchSelected = async (
     resetSelection();
     ElMessage.success(successMessage);
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось выполнить массовое действие'));
+    ElMessage.error(getApiErrorMessage(error, t('records.bulkActionFailed')));
   } finally {
     bulkProcessing.value = false;
   }
 };
 
 const bulkSetStatus = (status: 'DRAFT' | 'PUBLISHED') => {
-  const message = status === 'PUBLISHED' ? 'Выбранные записи опубликованы' : 'Выбранные записи переведены в черновик';
+  const message = status === 'PUBLISHED' ? t('content.selectedPublished') : t('content.selectedDrafted');
   return patchSelected(selectedStatusItems.value, { status }, message);
 };
 
@@ -1032,7 +1034,7 @@ const bulkSetActive = (isActive: boolean) => {
   return patchSelected(
     selectedActiveItems.value,
     { isActive },
-    isActive ? 'Выбранные записи активированы' : 'Выбранные записи отключены',
+    isActive ? t('content.selectedActivated') : t('content.selectedDisabled'),
   );
 };
 
@@ -1043,11 +1045,11 @@ const bulkArchiveSelected = async () => {
 
   try {
     await ElMessageBox.confirm(
-      `Вы уверены, что хотите выполнить действие для ${selectedItems.value.length} записей?`,
-      'Массовое действие',
+      t('content.confirmBulk', { count: selectedItems.value.length }),
+      t('records.bulkAction'),
       {
-        confirmButtonText: normalizedActiveType.value === 'media' ? 'Удалить' : 'Архивировать',
-        cancelButtonText: 'Отмена',
+        confirmButtonText: normalizedActiveType.value === 'media' ? t('common.delete') : t('common.archive'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       },
     );
@@ -1062,9 +1064,9 @@ const bulkArchiveSelected = async () => {
     );
     await loadType(normalizedActiveType.value);
     resetSelection();
-    ElMessage.success(normalizedActiveType.value === 'media' ? 'Выбранные медиа удалены' : 'Выбранные записи обновлены');
+    ElMessage.success(normalizedActiveType.value === 'media' ? t('content.selectedMediaDeleted') : t('content.selectedUpdated'));
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось выполнить массовое действие'));
+    ElMessage.error(getApiErrorMessage(error, t('records.bulkActionFailed')));
   } finally {
     bulkProcessing.value = false;
   }
@@ -1092,22 +1094,22 @@ watch(
   <div class="content-page">
     <section v-if="!drawerOpen" class="toolbar">
       <div class="toolbar-actions">
-        <el-button :loading="loading" @click="loadContent">Обновить</el-button>
+        <el-button :loading="loading" @click="loadContent">{{ t('common.refresh') }}</el-button>
         <el-button v-if="activeType === 'media'" type="primary" plain @click="triggerUpload()">
-          Загрузить
+          {{ t('common.upload') }}
         </el-button>
         <el-button v-if="isCreatableType" type="primary" @click="openCreate">
-          Создать
+          {{ t('common.create') }}
         </el-button>
         <template v-if="selectedCount > 0">
-          <el-tag class="selection-count" type="info">{{ selectedCount }} выбрано</el-tag>
+          <el-tag class="selection-count" type="info">{{ t('common.selected', { count: selectedCount }) }}</el-tag>
           <el-button
             v-if="hasSelectedStatusItems"
             plain
             :loading="bulkProcessing"
             @click="bulkSetStatus('PUBLISHED')"
           >
-            Опубликовать
+            {{ t('common.publish') }}
           </el-button>
           <el-button
             v-if="hasSelectedStatusItems"
@@ -1115,7 +1117,7 @@ watch(
             :loading="bulkProcessing"
             @click="bulkSetStatus('DRAFT')"
           >
-            В черновик
+            {{ t('common.draft') }}
           </el-button>
           <el-button
             v-if="hasSelectedActiveItems"
@@ -1123,7 +1125,7 @@ watch(
             :loading="bulkProcessing"
             @click="bulkSetActive(true)"
           >
-            Активировать
+            {{ t('common.activate') }}
           </el-button>
           <el-button
             v-if="hasSelectedActiveItems"
@@ -1131,7 +1133,7 @@ watch(
             :loading="bulkProcessing"
             @click="bulkSetActive(false)"
           >
-            Отключить
+            {{ t('common.deactivate') }}
           </el-button>
           <el-button
             type="danger"
@@ -1139,10 +1141,10 @@ watch(
             :loading="bulkProcessing"
             @click="bulkArchiveSelected"
           >
-            {{ normalizedActiveType === 'media' ? 'Удалить' : 'Архивировать' }}
+            {{ normalizedActiveType === 'media' ? t('common.delete') : t('common.archive') }}
           </el-button>
           <el-button plain :disabled="bulkProcessing" @click="resetSelection">
-            Снять выбор
+            {{ t('common.clearSelection') }}
           </el-button>
         </template>
       </div>
@@ -1200,13 +1202,13 @@ watch(
                   {{ item.image }}
                 </a>
                 <div class="media-alt">
-                  {{ item.translations.ru?.altText || 'Alt текст не задан' }}
+                  {{ item.translations.ru?.altText || t('content.mediaAltMissing') }}
                 </div>
               </div>
 
               <div class="media-actions">
                 <el-button type="primary" plain size="small" @click="openEditor(item)">
-                  Редактировать
+                  {{ t('common.edit') }}
                 </el-button>
                 <el-button
                   type="danger"
@@ -1215,12 +1217,12 @@ watch(
                   :loading="archivingId === item.id"
                   @click="archiveContent(item)"
                 >
-                  Удалить
+                  {{ t('common.delete') }}
                 </el-button>
               </div>
             </article>
 
-            <el-empty v-if="!loading && !activeItems.length" description="Нет медиа" />
+            <el-empty v-if="!loading && !activeItems.length" :description="t('common.noMedia')" />
           </div>
         </el-card>
 
@@ -1229,35 +1231,35 @@ watch(
             ref="contentTableRef"
             v-loading="loading"
             :data="activeItems"
-            empty-text="Нет данных"
+            :empty-text="t('common.noData')"
             row-key="id"
             @selection-change="handleSelectionChange"
           >
             <el-table-column type="selection" width="48" />
-            <el-table-column prop="title" label="Название" min-width="220" />
-            <el-table-column prop="slug" label="Slug" min-width="180" />
-            <el-table-column label="Статус" width="130">
+            <el-table-column prop="title" :label="t('common.title')" min-width="220" />
+            <el-table-column prop="slug" :label="t('common.slug')" min-width="180" />
+            <el-table-column :label="t('common.status')" width="130">
               <template #default="{ row }">
                 <el-tag v-if="row.status" :type="statusTagType(row.status)">
-                  {{ row.status }}
+                  {{ row.status ? t(`enums.publishStatus.${row.status}`) : row.status }}
                 </el-tag>
                 <el-tag v-else :type="row.isActive ? 'success' : 'info'">
                   {{ row.isActive ? 'ACTIVE' : 'OFF' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="Избранное" width="120">
+            <el-table-column :label="t('common.featured')" width="120">
               <template #default="{ row }">
                 <el-tag v-if="row.isFeatured !== undefined" :type="row.isFeatured ? 'success' : 'info'">
-                  {{ row.isFeatured ? 'Да' : 'Нет' }}
+                  {{ row.isFeatured ? t('common.yes') : t('common.no') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="Действия" width="250">
+            <el-table-column :label="t('common.actions')" width="250">
               <template #default="{ row }">
                 <div class="row-actions">
                   <el-button type="primary" plain size="small" @click="openEditor(row)">
-                    Редактировать
+                    {{ t('common.edit') }}
                   </el-button>
                   <el-button
                     type="danger"
@@ -1280,12 +1282,12 @@ watch(
       <header class="editor-header">
         <div>
           <p class="editor-kicker">{{ typeLabels[form.type] }}</p>
-          <h2>{{ isCreating ? `Создание записи` : `Редактирование: ${form.slug}` }}</h2>
+          <h2>{{ isCreating ? t('content.createTitle') : t('content.editTitle', { slug: form.slug }) }}</h2>
         </div>
         <div class="editor-header-actions">
-          <el-button @click="drawerOpen = false">Назад</el-button>
+          <el-button @click="drawerOpen = false">{{ t('common.back') }}</el-button>
           <el-button type="primary" :loading="saving" @click="saveContent">
-            Сохранить
+            {{ t('common.save') }}
           </el-button>
         </div>
       </header>
@@ -1296,32 +1298,32 @@ watch(
             <el-input v-model="form.slug" />
           </el-form-item>
 
-          <el-form-item v-if="form.status !== undefined" label="Статус">
+          <el-form-item v-if="form.status !== undefined" :label="t('common.status')">
             <el-select v-model="form.status">
-              <el-option label="Черновик" value="DRAFT" />
-              <el-option label="Опубликовано" value="PUBLISHED" />
-              <el-option label="Архив" value="ARCHIVED" />
+              <el-option :label="t('enums.publishStatus.DRAFT')" value="DRAFT" />
+              <el-option :label="t('enums.publishStatus.PUBLISHED')" value="PUBLISHED" />
+              <el-option :label="t('enums.publishStatus.ARCHIVED')" value="ARCHIVED" />
             </el-select>
           </el-form-item>
 
-          <el-form-item v-if="form.sortOrder !== undefined" label="Порядок">
+          <el-form-item v-if="form.sortOrder !== undefined" :label="t('common.order')">
             <el-input-number v-model="form.sortOrder" :min="0" />
           </el-form-item>
 
-          <el-form-item v-if="form.isFeatured !== undefined" label="Рекомендуемое">
+          <el-form-item v-if="form.isFeatured !== undefined" :label="t('common.featured')">
             <el-switch v-model="form.isFeatured" />
           </el-form-item>
 
-          <el-form-item v-if="form.isActive !== undefined" label="Активно">
+          <el-form-item v-if="form.isActive !== undefined" :label="t('common.active')">
             <el-switch v-model="form.isActive" />
           </el-form-item>
 
           <template v-if="isTourForm">
-            <el-form-item label="Страна">
+            <el-form-item :label="t('content.country')">
               <el-select
                 v-model="form.countryId"
                 filterable
-                placeholder="Выберите страну"
+                :placeholder="t('content.chooseCountry')"
               >
                 <el-option
                   v-for="country in countryOptions"
@@ -1332,7 +1334,7 @@ watch(
               </el-select>
             </el-form-item>
 
-            <el-form-item label="Тип тура">
+            <el-form-item :label="t('content.tourType')">
               <el-select v-model="form.tourType">
                 <el-option label="PRIVATE" value="PRIVATE" />
                 <el-option label="GROUP" value="GROUP" />
@@ -1343,31 +1345,31 @@ watch(
               </el-select>
             </el-form-item>
 
-            <el-form-item label="Дней">
+            <el-form-item :label="t('content.days')">
               <el-input-number v-model="form.durationDays" :min="1" />
             </el-form-item>
 
-            <el-form-item label="Ночей">
+            <el-form-item :label="t('content.nights')">
               <el-input-number v-model="form.durationNights" :min="0" />
             </el-form-item>
 
-            <el-form-item label="Мин. туристов">
+            <el-form-item :label="t('content.minTourists')">
               <el-input-number v-model="form.minGroupSize" :min="1" />
             </el-form-item>
 
-            <el-form-item label="Макс. туристов">
+            <el-form-item :label="t('content.maxTourists')">
               <el-input-number v-model="form.maxGroupSize" :min="1" />
             </el-form-item>
 
-            <el-form-item label="Проживание / звездность">
+            <el-form-item :label="t('content.comfort')">
               <el-input-number v-model="form.comfortLevel" :min="1" :max="5" />
             </el-form-item>
 
-            <el-form-item label="Цена от">
+            <el-form-item :label="t('content.priceFrom')">
               <el-input-number v-model="form.priceFrom" :min="0" :precision="2" />
             </el-form-item>
 
-            <el-form-item label="Валюта">
+            <el-form-item :label="t('content.currency')">
               <el-input v-model="form.currency" placeholder="USD" />
             </el-form-item>
           </template>
@@ -1388,14 +1390,14 @@ watch(
                   loading="lazy"
                   decoding="async"
                 />
-                <span v-else>Нет медиа</span>
+                <span v-else>{{ t('common.noMediaSelected') }}</span>
               </div>
               <div class="media-picker-controls">
                 <el-select
                   v-model="form.media[field.key]"
                   filterable
                   clearable
-                  placeholder="Выберите медиа"
+                  :placeholder="t('common.selectMedia')"
                 >
                   <el-option
                     v-for="asset in mediaOptions"
@@ -1404,7 +1406,7 @@ watch(
                     :value="asset.image || ''"
                   />
                 </el-select>
-                <el-button plain @click="triggerUpload(field.key)">Загрузить файл</el-button>
+                <el-button plain @click="triggerUpload(field.key)">{{ t('common.uploadFile') }}</el-button>
               </div>
             </div>
           </el-form-item>
@@ -1413,10 +1415,10 @@ watch(
         <section v-if="form.type === 'whyCategories'" class="why-facts-editor">
           <div class="why-facts-header">
             <div>
-              <h3>Факты “Почему мы”</h3>
-              <p>Редактируйте изображения, заголовки и описания карточек для ru, en и uz.</p>
+              <h3>{{ t('content.whyFactsTitle') }}</h3>
+              <p>{{ t('content.whyFactsSubtitle') }}</p>
             </div>
-            <el-button type="primary" plain @click="addWhyFact">Добавить факт</el-button>
+            <el-button type="primary" plain @click="addWhyFact">{{ t('content.addFact') }}</el-button>
           </div>
 
           <article
@@ -1429,20 +1431,20 @@ watch(
                 <img
                   v-if="fact.imageUrl"
                   :src="resolveMediaUrl(fact.imageUrl)"
-                  :alt="fact.translations.ru.title || `Факт ${factIndex + 1}`"
+                  :alt="fact.translations.ru.title || t('content.fact', { number: factIndex + 1 })"
                   loading="lazy"
                   decoding="async"
                 />
-                <span v-else>Нет медиа</span>
+                <span v-else>{{ t('common.noMediaSelected') }}</span>
               </div>
 
               <div class="why-fact-controls">
-                <el-form-item label="Изображение">
+                <el-form-item :label="t('common.image')">
                   <el-select
                     v-model="fact.imageUrl"
                     filterable
                     clearable
-                    placeholder="Выберите медиа"
+                    :placeholder="t('common.selectMedia')"
                   >
                     <el-option
                       v-for="asset in mediaOptions"
@@ -1453,18 +1455,18 @@ watch(
                   </el-select>
                 </el-form-item>
 
-                <el-button plain @click="triggerFactUpload(factIndex)">Загрузить файл</el-button>
+                <el-button plain @click="triggerFactUpload(factIndex)">{{ t('common.uploadFile') }}</el-button>
 
                 <div class="why-fact-grid">
-                  <el-form-item label="Порядок">
+                  <el-form-item :label="t('common.order')">
                     <el-input-number v-model="fact.sortOrder" :min="0" />
                   </el-form-item>
 
-                  <el-form-item label="Статус">
+                  <el-form-item :label="t('common.status')">
                     <el-select v-model="fact.status">
-                      <el-option label="Черновик" value="DRAFT" />
-                      <el-option label="Опубликовано" value="PUBLISHED" />
-                      <el-option label="Архив" value="ARCHIVED" />
+                      <el-option :label="t('enums.publishStatus.DRAFT')" value="DRAFT" />
+                      <el-option :label="t('enums.publishStatus.PUBLISHED')" value="PUBLISHED" />
+                      <el-option :label="t('enums.publishStatus.ARCHIVED')" value="ARCHIVED" />
                     </el-select>
                   </el-form-item>
                 </div>
@@ -1477,15 +1479,15 @@ watch(
                 :key="`${fact.id || factIndex}-${locale.code}`"
                 :label="locale.label"
               >
-                <el-form-item label="Заголовок факта">
+                <el-form-item :label="t('content.factTitle')">
                   <el-input v-model="fact.translations[locale.code].title" />
                 </el-form-item>
 
-                <el-form-item label="Подзаголовок">
+                <el-form-item :label="t('content.factSubtitle')">
                   <el-input v-model="fact.translations[locale.code].subtitle" />
                 </el-form-item>
 
-                <el-form-item label="Описание">
+                <el-form-item :label="t('content.description')">
                   <el-input
                     v-model="fact.translations[locale.code].description"
                     type="textarea"
@@ -1497,12 +1499,12 @@ watch(
 
             <div class="why-fact-actions">
               <el-button type="danger" plain @click="archiveWhyFact(factIndex)">
-                В архив
+                {{ t('content.archiveFact') }}
               </el-button>
             </div>
           </article>
 
-          <el-empty v-if="!form.whyFacts.length" description="Факты не добавлены" />
+          <el-empty v-if="!form.whyFacts.length" :description="t('content.emptyFacts')" />
         </section>
 
         <el-tabs v-model="activeLocale">
@@ -1524,30 +1526,30 @@ watch(
                   class="page-block-item"
                 >
                   <div class="page-block-head">
-                    <strong>Блок {{ blockIndex + 1 }}</strong>
+                    <strong>{{ t('content.block', { number: blockIndex + 1 }) }}</strong>
                     <el-button
                       type="danger"
                       plain
                       size="small"
                       @click="removePageContentBlock(locale.code, blockIndex)"
                     >
-                      Удалить
+                      {{ t('common.delete') }}
                     </el-button>
                   </div>
                   <el-input
                     v-model="getPageContentBlocks(locale.code)[blockIndex].title"
-                    placeholder="Заголовок блока (можно оставить пустым)"
+                    :placeholder="t('content.blockTitlePlaceholder')"
                   />
                   <RichTextEditor
                     :model-value="getPageContentBlocks(locale.code)[blockIndex].text"
-                    placeholder="Начните писать..."
+                    :placeholder="t('content.startWriting')"
                     :min-height="220"
                     @update:model-value="(value: string) => updatePageBlockText(locale.code, blockIndex, value)"
                   />
                 </article>
 
                 <el-button type="primary" plain @click="addPageContentBlock(locale.code)">
-                  Добавить блок
+                  {{ t('content.addBlock') }}
                 </el-button>
               </div>
               <el-input
@@ -1558,7 +1560,7 @@ watch(
               >
                 <template v-if="isDocumentUrlField(field)" #append>
                   <el-button @click="triggerDocumentUpload(locale.code, field.key)">
-                    Загрузить документ
+                    {{ t('content.documentUpload') }}
                   </el-button>
                 </template>
               </el-input>
@@ -1574,14 +1576,14 @@ watch(
                   rel="noopener noreferrer"
                   plain
                 >
-                  Открыть текущий документ
+                  {{ t('content.openCurrentDocument') }}
                 </el-button>
-                <span v-else>Документ еще не загружен</span>
+                <span v-else>{{ t('content.documentMissing') }}</span>
               </div>
               <RichTextEditor
                 v-else-if="field.type === 'richtext'"
                 :model-value="String(form.translations[locale.code][field.key] ?? '')"
-                :placeholder="`${field.label}: начните писать...`"
+                :placeholder="t('content.fieldPlaceholder', { label: field.label })"
                 :min-height="180"
                 @update:model-value="(value: string) => (form.translations[locale.code][field.key] = value)"
               />
@@ -1590,9 +1592,9 @@ watch(
         </el-tabs>
 
         <div class="drawer-actions">
-          <el-button @click="drawerOpen = false">Отмена</el-button>
+          <el-button @click="drawerOpen = false">{{ t('common.cancel') }}</el-button>
           <el-button type="primary" :loading="saving" @click="saveContent">
-            Сохранить
+            {{ t('common.save') }}
           </el-button>
         </div>
       </el-form>

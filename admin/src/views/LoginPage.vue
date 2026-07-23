@@ -4,11 +4,13 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 
 import { getApiErrorMessage } from '@/lib/api-error';
+import { useAdminI18n } from '@/i18n';
 import { useAuthStore } from '@/stores/auth';
 
 const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
+const { locale, locales, t } = useAdminI18n();
 
 const form = reactive({
   email: '',
@@ -28,11 +30,11 @@ const normalizeRedirect = (value: string) => {
 const submit = async () => {
   try {
     await authStore.login(form.email, form.password);
-    ElMessage.success('Вход выполнен');
+    ElMessage.success(t('login.success'));
     const redirect = normalizeRedirect(typeof route.query.redirect === 'string' ? route.query.redirect : '/');
     router.push(redirect);
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось войти'));
+    ElMessage.error(getApiErrorMessage(error, t('login.failed')));
   }
 };
 </script>
@@ -40,9 +42,18 @@ const submit = async () => {
 <template>
   <div class="login-page">
     <el-card class="login-card" shadow="never">
-      <div class="login-title">Вход в админ-панель</div>
-      <div class="login-subtitle">
-        Используй учетную запись с ролью ADMIN или MANAGER
+      <div class="login-top">
+        <div>
+          <div class="login-title">{{ t('login.title') }}</div>
+          <div class="login-subtitle">
+            {{ t('login.subtitle') }}
+          </div>
+        </div>
+        <el-segmented
+          v-model="locale"
+          class="login-language"
+          :options="locales.map((item) => ({ label: item.label, value: item.code }))"
+        />
       </div>
 
       <el-form label-position="top" @submit.prevent="submit">
@@ -50,12 +61,12 @@ const submit = async () => {
           <el-input v-model="form.email" placeholder="superadmin@centrum-holidays.test" />
         </el-form-item>
 
-        <el-form-item label="Пароль">
+        <el-form-item :label="t('login.password')">
           <el-input
             v-model="form.password"
             type="password"
             show-password
-            placeholder="Введите пароль"
+            :placeholder="t('login.passwordPlaceholder')"
           />
         </el-form-item>
 
@@ -65,7 +76,7 @@ const submit = async () => {
           :loading="authStore.loading"
           @click="submit"
         >
-          Войти
+          {{ t('login.submit') }}
         </el-button>
       </el-form>
     </el-card>
@@ -98,9 +109,20 @@ const submit = async () => {
   margin-bottom: 8px;
 }
 
+.login-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.login-language {
+  flex-shrink: 0;
+}
+
 .login-subtitle {
   color: #6b7280;
-  margin-bottom: 24px;
   line-height: 1.5;
 }
 

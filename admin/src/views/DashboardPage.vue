@@ -3,9 +3,11 @@ import { computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 
 import { getApiErrorMessage } from '@/lib/api-error';
+import { useAdminI18n } from '@/i18n';
 import { useDashboardStore } from '@/stores/dashboard';
 
 const dashboardStore = useDashboardStore();
+const { t } = useAdminI18n();
 
 const statCards = computed(() => {
   if (!dashboardStore.data) {
@@ -14,13 +16,13 @@ const statCards = computed(() => {
 
   const stats = dashboardStore.data.stats;
   return [
-    { label: 'Пользователи', value: stats.users },
-    { label: 'Партнеры', value: stats.partners },
-    { label: 'Туры', value: stats.tours },
-    { label: 'Услуги', value: stats.services },
-    { label: 'Новости', value: stats.news },
-    { label: 'Заявки', value: stats.leads },
-    { label: 'Бронирования', value: stats.bookings },
+    { label: t('dashboard.users'), value: stats.users },
+    { label: t('dashboard.partners'), value: stats.partners },
+    { label: t('dashboard.tours'), value: stats.tours },
+    { label: t('dashboard.services'), value: stats.services },
+    { label: t('dashboard.news'), value: stats.news },
+    { label: t('dashboard.leads'), value: stats.leads },
+    { label: t('dashboard.bookings'), value: stats.bookings },
   ];
 });
 
@@ -28,7 +30,7 @@ onMounted(async () => {
   try {
     await dashboardStore.load();
   } catch (error: any) {
-    ElMessage.error(getApiErrorMessage(error, 'Не удалось загрузить dashboard'));
+    ElMessage.error(getApiErrorMessage(error, t('dashboard.loadFailed')));
   }
 });
 </script>
@@ -45,27 +47,27 @@ onMounted(async () => {
     <section class="tables-grid">
       <el-card class="dashboard-table-card" shadow="never">
         <template #header>
-          <div class="card-header">Последние заявки</div>
+          <div class="card-header">{{ t('dashboard.recentLeads') }}</div>
         </template>
 
-        <el-table :data="dashboardStore.data?.recentLeads ?? []" empty-text="Нет данных">
-          <el-table-column prop="name" label="Имя" min-width="160" />
-          <el-table-column prop="email" label="Email" min-width="220" />
-          <el-table-column prop="status" label="Статус" width="140" />
-          <el-table-column prop="createdAt" label="Создано" min-width="180" />
+        <el-table :data="dashboardStore.data?.recentLeads ?? []" :empty-text="t('common.noData')">
+          <el-table-column prop="name" :label="t('common.name')" min-width="160" />
+          <el-table-column prop="email" :label="t('common.email')" min-width="220" />
+          <el-table-column prop="status" :label="t('common.status')" width="140" />
+          <el-table-column prop="createdAt" :label="t('common.createdAt')" min-width="180" />
         </el-table>
       </el-card>
 
       <el-card class="dashboard-table-card" shadow="never">
         <template #header>
-          <div class="card-header">Последние бронирования</div>
+          <div class="card-header">{{ t('dashboard.recentBookings') }}</div>
         </template>
 
-        <el-table :data="dashboardStore.data?.recentBookings ?? []" empty-text="Нет данных">
-          <el-table-column prop="bookingNumber" label="Номер" min-width="170" />
-          <el-table-column prop="customer" label="Клиент" min-width="180" />
-          <el-table-column prop="status" label="Статус" width="140" />
-          <el-table-column prop="createdAt" label="Создано" min-width="180" />
+        <el-table :data="dashboardStore.data?.recentBookings ?? []" :empty-text="t('common.noData')">
+          <el-table-column prop="bookingNumber" :label="t('dashboard.bookingNumber')" min-width="170" />
+          <el-table-column prop="customer" :label="t('dashboard.customer')" min-width="180" />
+          <el-table-column prop="status" :label="t('common.status')" width="140" />
+          <el-table-column prop="createdAt" :label="t('common.createdAt')" min-width="180" />
         </el-table>
       </el-card>
     </section>

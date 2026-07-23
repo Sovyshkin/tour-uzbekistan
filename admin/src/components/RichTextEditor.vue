@@ -2,12 +2,13 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ElMessageBox } from 'element-plus';
 
+import { useAdminI18n } from '@/i18n';
+
 const props = withDefaults(defineProps<{
   modelValue: string;
   placeholder?: string;
   minHeight?: number;
 }>(), {
-  placeholder: 'Начните писать...',
   minHeight: 220,
 });
 
@@ -15,6 +16,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: string];
 }>();
 
+const { t } = useAdminI18n();
 const editorRef = ref<HTMLDivElement | null>(null);
 const sourceMode = ref(false);
 const localValue = ref(props.modelValue || '');
@@ -29,6 +31,7 @@ const MAX_HISTORY_ITEMS = 100;
 const plainText = computed(() => localValue.value.replace(/<[^>]*>/g, ' '));
 const charCount = computed(() => plainText.value.trim().length);
 const wordCount = computed(() => plainText.value.trim().split(/\s+/).filter(Boolean).length);
+const editorPlaceholder = computed(() => props.placeholder || t('richText.placeholder'));
 
 const isSelectionInsideEditor = () => {
   const editor = editorRef.value;
@@ -219,17 +222,17 @@ const formatBlock = (tag: string) => runCommand('formatBlock', tag);
 
 const insertLink = async () => {
   try {
-    const { value } = await ElMessageBox.prompt('Вставьте ссылку', 'Ссылка', {
-      confirmButtonText: 'Добавить',
-      cancelButtonText: 'Отмена',
+    const { value } = await ElMessageBox.prompt(t('richText.linkPrompt'), t('richText.linkTitle'), {
+      confirmButtonText: t('richText.add'),
+      cancelButtonText: t('richText.cancel'),
       inputPlaceholder: 'https://example.com',
       inputPattern: /^https?:\/\/.+/i,
-      inputErrorMessage: 'Ссылка должна начинаться с http:// или https://',
+      inputErrorMessage: t('richText.linkError'),
     });
     restoreSelection();
     runCommand('createLink', value);
   } catch {
-    // Отмена пользователем.
+    // User cancelled the prompt.
   }
 };
 
@@ -273,7 +276,7 @@ onBeforeUnmount(() => {
     <div class="rich-editor-toolbar" @mousedown.prevent>
       <button
         type="button"
-        title="Отменить последнее действие"
+        :title="t('richText.undo')"
         :disabled="!undoStack.length"
         @click="undo"
       >
@@ -281,7 +284,7 @@ onBeforeUnmount(() => {
       </button>
       <button
         type="button"
-        title="Вернуть отмененное действие"
+        :title="t('richText.redo')"
         :disabled="!redoStack.length"
         @click="redo"
       >
@@ -290,64 +293,64 @@ onBeforeUnmount(() => {
 
       <span class="toolbar-divider" />
 
-      <button type="button" title="Жирный" @click="runCommand('bold')">
+      <button type="button" :title="t('richText.bold')" @click="runCommand('bold')">
         B
       </button>
-      <button type="button" title="Курсив" @click="runCommand('italic')">
+      <button type="button" :title="t('richText.italic')" @click="runCommand('italic')">
         I
       </button>
-      <button type="button" title="Подчеркнутый" @click="runCommand('underline')">
+      <button type="button" :title="t('richText.underline')" @click="runCommand('underline')">
         U
       </button>
 
       <span class="toolbar-divider" />
 
-      <button type="button" title="Абзац" @click="formatBlock('p')">P</button>
-      <button type="button" title="Заголовок 2" @click="formatBlock('h2')">H2</button>
-      <button type="button" title="Заголовок 3" @click="formatBlock('h3')">H3</button>
+      <button type="button" :title="t('richText.paragraph')" @click="formatBlock('p')">P</button>
+      <button type="button" :title="t('richText.h2')" @click="formatBlock('h2')">H2</button>
+      <button type="button" :title="t('richText.h3')" @click="formatBlock('h3')">H3</button>
 
       <span class="toolbar-divider" />
 
-      <button type="button" title="Маркированный список" @click="runCommand('insertUnorderedList')">
+      <button type="button" :title="t('richText.bulletList')" @click="runCommand('insertUnorderedList')">
         •
       </button>
-      <button type="button" title="Нумерованный список" @click="runCommand('insertOrderedList')">
+      <button type="button" :title="t('richText.orderedList')" @click="runCommand('insertOrderedList')">
         1.
       </button>
-      <button type="button" title="Уменьшить отступ" @click="runCommand('outdent')">
+      <button type="button" :title="t('richText.outdent')" @click="runCommand('outdent')">
         ←
       </button>
-      <button type="button" title="Увеличить отступ" @click="runCommand('indent')">
+      <button type="button" :title="t('richText.indent')" @click="runCommand('indent')">
         →
       </button>
 
       <span class="toolbar-divider" />
 
-      <button type="button" title="По левому краю" @click="runCommand('justifyLeft')">
+      <button type="button" :title="t('richText.alignLeft')" @click="runCommand('justifyLeft')">
         L
       </button>
-      <button type="button" title="По центру" @click="runCommand('justifyCenter')">
+      <button type="button" :title="t('richText.alignCenter')" @click="runCommand('justifyCenter')">
         C
       </button>
-      <button type="button" title="По правому краю" @click="runCommand('justifyRight')">
+      <button type="button" :title="t('richText.alignRight')" @click="runCommand('justifyRight')">
         R
       </button>
-      <button type="button" title="Горизонтальная линия" @click="runCommand('insertHorizontalRule')">
+      <button type="button" :title="t('richText.horizontalRule')" @click="runCommand('insertHorizontalRule')">
         —
       </button>
 
       <span class="toolbar-divider" />
 
-      <button type="button" title="Цвет текста" @click="runCommand('foreColor', '#285aff')">
+      <button type="button" :title="t('richText.color')" @click="runCommand('foreColor', '#285aff')">
         A
       </button>
-      <button type="button" title="Ссылка" @click="insertLink">
+      <button type="button" :title="t('richText.link')" @click="insertLink">
         URL
       </button>
-      <button type="button" title="Очистить форматирование" @click="clearFormatting">
+      <button type="button" :title="t('richText.clear')" @click="clearFormatting">
         ✕
       </button>
-      <button type="button" :title="sourceMode ? 'Визуальный режим' : 'HTML режим'" @click="sourceMode = !sourceMode">
+      <button type="button" :title="sourceMode ? t('richText.visualMode') : t('richText.htmlMode')" @click="sourceMode = !sourceMode">
         {{ sourceMode ? 'VIEW' : '<>' }}
       </button>
     </div>
@@ -357,7 +360,7 @@ onBeforeUnmount(() => {
       class="rich-editor-source"
       :style="{ minHeight: `${minHeight}px` }"
       :value="localValue"
-      :placeholder="placeholder"
+      :placeholder="editorPlaceholder"
       @beforeinput="handleBeforeInput"
       @input="handleSourceInput"
       @keydown="handleKeydown"
@@ -368,7 +371,7 @@ onBeforeUnmount(() => {
       class="rich-editor-body"
       :style="{ minHeight: `${minHeight}px` }"
       contenteditable="true"
-      :data-placeholder="placeholder"
+      :data-placeholder="editorPlaceholder"
       @beforeinput="handleBeforeInput"
       @input="handleInput"
       @focus="handleFocus"
