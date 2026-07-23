@@ -16,6 +16,8 @@ defineProps({
         :alt="news.title"
         class="w-full h-full object-cover"
         draggable="false"
+        loading="lazy"
+        decoding="async"
       />
     </div>
 

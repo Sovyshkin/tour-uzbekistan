@@ -154,12 +154,63 @@ export function formatBackendDate(value, locale = 'en') {
   }).format(new Date(value));
 }
 
+const optimizedPublicAssets = new Map([
+  ['/assets/icons/8ec662fe56344049271e593f6db12dfdb7df8bdb.png', '/assets/icons/8ec662fe56344049271e593f6db12dfdb7df8bdb.webp'],
+  ['/assets/icons/about-us.jpg', '/assets/icons/about-us.webp'],
+  ['/assets/icons/booking.jpg', '/assets/icons/booking.webp'],
+  ['/assets/icons/card-news1.jpg', '/assets/icons/card-news1.webp'],
+  ['/assets/icons/card-news2.jpg', '/assets/icons/card-news2.webp'],
+  ['/assets/icons/card-news3.png', '/assets/icons/card-news3.webp'],
+  ['/assets/icons/card-news4.jpg', '/assets/icons/card-news4.webp'],
+  ['/assets/icons/card-news5.jpg', '/assets/icons/card-news5.webp'],
+  ['/assets/icons/card-news6.jpg', '/assets/icons/card-news6.webp'],
+  ['/assets/icons/card.png', '/assets/icons/card1.webp'],
+  ['/assets/icons/card1.png', '/assets/icons/card1.webp'],
+  ['/assets/icons/card2.png', '/assets/icons/card2.webp'],
+  ['/assets/icons/card3.png', '/assets/icons/card3.webp'],
+  ['/assets/icons/card4.png', '/assets/icons/card4.webp'],
+  ['/assets/icons/card5.png', '/assets/icons/card5.webp'],
+  ['/assets/icons/card6.png', '/assets/icons/card6.webp'],
+  ['/assets/icons/countryPage.jpg', '/assets/icons/countryPage.webp'],
+  ['/assets/icons/countryPage2.jpg', '/assets/icons/countryPage2.webp'],
+  ['/assets/icons/directions.jpg', '/assets/icons/directions.webp'],
+  ['/assets/icons/dmc-detail.png', '/assets/icons/dmc-detail.webp'],
+  ['/assets/icons/dmc.png', '/assets/icons/dmc.webp'],
+  ['/assets/icons/dmc1.png', '/assets/icons/dmc1.webp'],
+  ['/assets/icons/dmc2.jpg', '/assets/icons/dmc2.webp'],
+  ['/assets/icons/dmc3.jpg', '/assets/icons/dmc3.webp'],
+  ['/assets/icons/gorizontalDMC.jpg', '/assets/icons/gorizontalDMC.webp'],
+  ['/assets/icons/news-detail.jpg', '/assets/icons/news-detail.webp'],
+  ['/assets/icons/news1.jpg', '/assets/icons/news1.webp'],
+  ['/assets/icons/news2.jpg', '/assets/icons/news2.webp'],
+  ['/assets/icons/news3.jpg', '/assets/icons/news3.webp'],
+  ['/assets/icons/services.jpg', '/assets/icons/services.webp'],
+  ['/assets/icons/tours.png', '/assets/icons/tours.webp'],
+  ['/assets/icons/zona-turbulentnosti.jpg', '/assets/icons/zona-turbulentnosti.webp'],
+]);
+
 export function resolveAssetUrl(value) {
   if (!value) {
     return '';
   }
 
+  const optimizedAsset = optimizedPublicAssets.get(value);
+  if (optimizedAsset) {
+    return optimizedAsset;
+  }
+
   if (/^(https?:)?\/\//i.test(value) || value.startsWith('data:')) {
+    try {
+      const url = new URL(value, getRuntimeOrigin());
+      const optimizedPath = optimizedPublicAssets.get(url.pathname);
+      if (optimizedPath) {
+        url.pathname = optimizedPath;
+        return url.toString();
+      }
+    } catch {
+      return value;
+    }
+
     return value;
   }
 

@@ -50,7 +50,7 @@ const { t } = useI18n();
 .bg-image {
   position: absolute;
   inset: 0;
-  background-image: url('/assets/icons/zona-turbulentnosti.jpg');
+  background-image: url('/assets/icons/zona-turbulentnosti.webp');
   background-size: cover;
   background-position: center;
   filter: blur(8px);

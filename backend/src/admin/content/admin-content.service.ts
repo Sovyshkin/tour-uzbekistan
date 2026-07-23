@@ -711,6 +711,46 @@ const DEFAULT_SITE_SETTINGS: DefaultSiteSettingSeed[] = [
     },
   },
   {
+    key: 'pages.about.hero_image',
+    group: 'pages',
+    label: 'О нас: hero изображение',
+    textValue: {
+      ru: '/assets/icons/about-us.webp',
+      en: '/assets/icons/about-us.webp',
+      uz: '/assets/icons/about-us.webp',
+    },
+  },
+  {
+    key: 'pages.directions.hero_image',
+    group: 'pages',
+    label: 'Направления: hero изображение',
+    textValue: {
+      ru: '/assets/icons/directions.webp',
+      en: '/assets/icons/directions.webp',
+      uz: '/assets/icons/directions.webp',
+    },
+  },
+  {
+    key: 'pages.services.hero_image',
+    group: 'pages',
+    label: 'Услуги: hero изображение',
+    textValue: {
+      ru: '/assets/icons/services.webp',
+      en: '/assets/icons/services.webp',
+      uz: '/assets/icons/services.webp',
+    },
+  },
+  {
+    key: 'pages.tours.hero_image',
+    group: 'pages',
+    label: 'Туры: hero изображение',
+    textValue: {
+      ru: '/assets/icons/tours.webp',
+      en: '/assets/icons/tours.webp',
+      uz: '/assets/icons/tours.webp',
+    },
+  },
+  {
     key: 'breadcrumbs.main',
     group: 'pages',
     label: 'Хлебные крошки: Главная',

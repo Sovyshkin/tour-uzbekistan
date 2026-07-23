@@ -4,7 +4,7 @@ import AppContainer from '@/components/AppContainer.vue';
 import CardDMS from '@/components/CardDMS.vue';
 import Line from '@/components/Line.vue';
 import { useI18n } from 'vue-i18n';
-import { getApiLocale, getServices } from '@/api';
+import { getApiLocale, getServices, getSiteSettings, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
 const { t, locale } = useI18n();
@@ -17,6 +17,7 @@ const breadcrumbs = computed(() => [
 ]);
 
 const allServices = ref([]);
+const settings = ref({});
 const meta = ref({
   page: 1,
   pageSize: 6,
@@ -39,6 +40,9 @@ const updateItemsPerPage = () => {
 // Вычисляем общее количество страниц
 const totalPages = computed(() => meta.value.totalPages || 1);
 const paginatedServices = computed(() => allServices.value);
+const heroImage = computed(() =>
+  resolveAssetUrl(settings.value['pages.services.hero_image'] || '/assets/icons/services.webp'),
+);
 
 // Смена страницы
 const goToPage = (page) => {
@@ -103,7 +107,7 @@ const loadServices = async () => {
       slug: service.slug,
       title: service.name || service.title,
       descr: service.shortDescription,
-      url: service.previewImage,
+      url: resolveAssetUrl(service.previewImage),
     }));
     meta.value = data.meta;
   } catch (error) {
@@ -111,11 +115,22 @@ const loadServices = async () => {
   }
 };
 
-watch(() => locale.value, loadServices);
+const loadSettings = async () => {
+  try {
+    settings.value = await getSiteSettings(getApiLocale(locale.value));
+  } catch {
+    settings.value = {};
+  }
+};
+
+watch(() => locale.value, async () => {
+  await Promise.all([loadSettings(), loadServices()]);
+});
 watch(currentPage, loadServices);
 
 onMounted(() => {
   updateItemsPerPage();
+  loadSettings();
   loadServices();
   window.addEventListener('resize', handleResize);
 });
@@ -130,7 +145,7 @@ onUnmounted(() => {
     <!-- Hero -->
     <section class="relative">
       <div class="hero-section">
-        <div class="hero-image" />
+        <div class="hero-image" :style="{ backgroundImage: `url(${heroImage})` }" />
       </div>
     </section>
 
@@ -256,7 +271,6 @@ onUnmounted(() => {
   width: 100%;
   height: 458px;
   max-height: 458px;
-  background-image: url('/assets/icons/services.jpg');
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;

@@ -3,7 +3,7 @@ import { useRoute } from 'vue-router';
 import { ref, computed, onMounted, watch } from 'vue';
 import AppContainer from '@/components/AppContainer.vue';
 import { useI18n } from 'vue-i18n';
-import { getApiLocale, getService, submitLead } from '@/api';
+import { getApiLocale, getService, resolveAssetUrl, submitLead } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateContactFormFields } from '@/utils/formValidation';
 const { t, locale } = useI18n();
@@ -30,7 +30,7 @@ const clearFieldError = (field) => {
 
 const news = ref({
   id: null,
-  heroImage: '/assets/icons/dmc-detail.png',
+  heroImage: '/assets/icons/dmc-detail.webp',
   title: '',
   content: [],
 });
@@ -43,7 +43,12 @@ const breadcrumbs = computed(() => [
 
 const loadService = async () => {
   try {
-    news.value = await getService(newsId, getApiLocale(locale.value));
+    const payload = await getService(newsId, getApiLocale(locale.value));
+    news.value = {
+      ...payload,
+      heroImage: resolveAssetUrl(payload.heroImage),
+      previewImage: resolveAssetUrl(payload.previewImage),
+    };
   } catch (error) {
     notifyError(error.message || t('notifications.loadServiceFailed'), t('notifications.serviceUnavailable'));
   }

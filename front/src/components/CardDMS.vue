@@ -19,6 +19,8 @@ defineProps({
         class="w-full h-[200px] sm:h-[250px] lg:h-[300px] object-cover"
         :src="DMC.url"
         :alt="DMC.title"
+        loading="lazy"
+        decoding="async"
       />
     </div>
     <div

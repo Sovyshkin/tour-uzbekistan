@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import AppContainer from '@/components/AppContainer.vue';
 import CardNews from '@/components/CardNews.vue';
 import { useI18n } from 'vue-i18n';
-import { formatBackendDate, getApiLocale, getNews } from '@/api';
+import { formatBackendDate, getApiLocale, getNews, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 const { t, locale } = useI18n();
 const { error: notifyError } = useNotifications();
@@ -75,7 +75,7 @@ const loadNews = async () => {
     allNews.value = (data.items || []).map((item) => ({
       id: item.id,
       slug: item.slug,
-      image: item.previewImage,
+      image: resolveAssetUrl(item.previewImage),
       title: item.title,
       description: item.excerpt || item.title,
       date: formatBackendDate(item.publishedAt, locale.value),

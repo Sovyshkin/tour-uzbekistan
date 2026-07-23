@@ -32,6 +32,8 @@ defineProps({
         class="object-cover rounded-t-[15px] h-[220px] sm:h-[260px] lg:h-[284px] w-full"
         :src="tour.image"
         :alt="tour.title"
+        loading="lazy"
+        decoding="async"
       />
     </div>
 

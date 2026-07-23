@@ -19,9 +19,11 @@
           {{ $t('footer.air_company') }}
         </p>
         <img
-          src="../assets/icons/centrum.png"
+          src="../assets/icons/centrum-air.svg"
           alt="Centrum Air"
-          class="h-5 lg:h-6"
+          class="footer-air-logo"
+          loading="lazy"
+          decoding="async"
         />
       </div>
     </div>
@@ -112,27 +114,27 @@
           <div class="icons flex flex-col gap-[11px] mb-4 lg:mb-[15px]">
             <div class="flex gap-[11px] justify-start lg:justify-end">
               <a href="#" target="_blank" rel="noopener noreferrer">
-                <img src="../assets/icons/tg.png" alt="Telegram" class="w-6 h-6" />
+                <img src="../assets/icons/tg.png" alt="Telegram" class="w-6 h-6" loading="lazy" decoding="async" />
               </a>
               <a href="#" target="_blank" rel="noopener noreferrer">
-                <img src="../assets/icons/inst.png" alt="Instagram" class="w-6 h-6" />
+                <img src="../assets/icons/inst.png" alt="Instagram" class="w-6 h-6" loading="lazy" decoding="async" />
               </a>
               <a href="#" target="_blank" rel="noopener noreferrer">
-                <img src="../assets/icons/in.png" alt="LinkedIn" class="w-6 h-6" />
+                <img src="../assets/icons/in.png" alt="LinkedIn" class="w-6 h-6" loading="lazy" decoding="async" />
               </a>
               <a href="#" target="_blank" rel="noopener noreferrer">
-                <img src="../assets/icons/vk.png" alt="VK" class="w-6 h-6" />
+                <img src="../assets/icons/vk.png" alt="VK" class="w-6 h-6" loading="lazy" decoding="async" />
               </a>
             </div>
             <div class="flex gap-[11px] justify-start lg:justify-end">
               <a href="#" target="_blank" rel="noopener noreferrer">
-                <img src="../assets/icons/dz.png" alt="Dzen" class="w-6 h-6" />
+                <img src="../assets/icons/dz.png" alt="Dzen" class="w-6 h-6" loading="lazy" decoding="async" />
               </a>
               <a href="#" target="_blank" rel="noopener noreferrer">
-                <img src="../assets/icons/routube.png" alt="Rutube" class="w-6 h-6" />
+                <img src="../assets/icons/routube.png" alt="Rutube" class="w-6 h-6" loading="lazy" decoding="async" />
               </a>
               <a href="#" target="_blank" rel="noopener noreferrer">
-                <img src="../assets/icons/youtube.png" alt="YouTube" class="w-6 h-6" />
+                <img src="../assets/icons/youtube.png" alt="YouTube" class="w-6 h-6" loading="lazy" decoding="async" />
               </a>
             </div>
           </div>
@@ -204,11 +206,21 @@ li {
 @media (max-width: 1023px) {
   img[alt='Centrum Air'] {
     width: 122px;
-    height: 100%;
-    object-fit: cover;
   }
   li {
     font-size: 14px;
+  }
+}
+
+.footer-air-logo {
+  width: 122px;
+  height: auto;
+  object-fit: contain;
+}
+
+@media (min-width: 1024px) {
+  .footer-air-logo {
+    width: 156px;
   }
 }
 </style>

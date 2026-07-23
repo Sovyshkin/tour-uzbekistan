@@ -1,11 +1,11 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, nextTick, onMounted, watch } from 'vue';
 import AppContainer from '@/components/AppContainer.vue';
 import CustomSelect from '@/components/CustomSelect.vue';
 import Carousel from '@/components/Carousel.vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { createBooking, formatBackendDate, getApiLocale, getCountries, getTour, isAuthenticated } from '@/api';
+import { createBooking, getApiLocale, getCountries, getTour, isAuthenticated, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateBookingFormFields } from '@/utils/formValidation';
 const { t, locale } = useI18n();
@@ -21,19 +21,19 @@ const tour = ref({
   title: '',
   subtitle: '',
   route: '',
-  mainImage: '/assets/icons/card1.png',
+  mainImage: '/assets/icons/card1.webp',
   gallery: [],
   description: '',
   detailsInfo: '',
   routesInfo: '',
   reviewsInfo: '',
   countriesInfo: '',
-  duration: '-',
+  duration: '',
   transportInfo: '',
-  transport: '-',
-  tourists: '-',
-  hotels: '-',
-  comfort: '-',
+  transport: '',
+  tourists: '',
+  hotels: '',
+  comfort: '',
   mapImage: '/assets/icons/map.png',
   country: null,
   minGroupSize: null,
@@ -184,7 +184,7 @@ const loadCountries = async () => {
     countries.value = data.map((country) => ({
       id: country.slug,
       label: country.name,
-      icon: country.flagImage,
+      icon: resolveAssetUrl(country.flagImage),
     }));
   } catch {
     countries.value = [];
@@ -195,12 +195,12 @@ const loadCountries = async () => {
 const legacyTour = {
   title: 'Тур "Выходные в Узбекистане"',
   subtitle: '(3 дня / 2 ночи)',
-  mainImage: '/assets/icons/card1.png',
+  mainImage: '/assets/icons/card1.webp',
   gallery: [
-    '/assets/icons/card2.png',
-    '/assets/icons/card3.png',
-    '/assets/icons/card4.png',
-    '/assets/icons/card5.png',
+    '/assets/icons/card2.webp',
+    '/assets/icons/card3.webp',
+    '/assets/icons/card4.webp',
+    '/assets/icons/card5.webp',
   ],
   description:
     "Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem ipsum. It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem ipsum is that it has a more-or-less normal distribution of letters, as opposed to using 'Content here, content here', making it look like readable English. Many desktop publishing packages and web page editors now use Lorem ipsum as their default model text, and a search for 'lorem ipsum' will uncover many web sites still in their infancy.",
@@ -212,7 +212,7 @@ const legacyTour = {
   mapImage: '/assets/icons/map.png',
 };
 
-const activeImage = ref('/assets/icons/card1.png');
+const activeImage = ref('/assets/icons/card1.webp');
 const activeIndex = ref(0);
 
 // Функция выбора фото
@@ -271,7 +271,7 @@ const otherDates = computed(() =>
   tour.value.priceFrom
     ? [
         {
-          date: formatBackendDate(new Date().toISOString(), locale.value),
+          date: '',
           price: `${tour.value.priceFrom}${tour.value.currency ? ` ${tour.value.currency}` : ''}`,
         },
       ]
@@ -280,6 +280,7 @@ const otherDates = computed(() =>
 
 // ─── Табы ───
 const activeTab = ref('details');
+const tourDetailsRef = ref(null);
 const tabs = computed(() => [
   { id: 'details', label: t('openCard.tab_details') },
   { id: 'route', label: t('openCard.tab_route') },
@@ -288,18 +289,35 @@ const tabs = computed(() => [
   { id: 'countries', label: t('openCard.tab_countries') },
 ]);
 
-const stripHtml = (value) => String(value || '').replace(/<[^>]*>/g, '').trim();
-const hasContent = (value) => stripHtml(value).length > 0;
+const stripHtml = (value) =>
+  String(value || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+const hasContent = (value) => {
+  const text = stripHtml(value);
+  return Boolean(text && text !== '-' && text !== '—');
+};
 
 const tabContent = computed(() => ({
   details: tour.value.detailsInfo || tour.value.description,
   route: tour.value.routesInfo || tour.value.route,
   reviews: tour.value.reviewsInfo,
-  transport: tour.value.transportInfo || tour.value.transport,
+  transport: tour.value.transportInfo || '',
   countries: tour.value.countriesInfo,
 }));
 
 const activeTabContent = computed(() => tabContent.value[activeTab.value] || '');
+
+const scrollToDetails = async () => {
+  activeTab.value = 'details';
+  await nextTick();
+  tourDetailsRef.value?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start',
+  });
+};
 
 const loadTour = async () => {
   try {
@@ -308,8 +326,8 @@ const loadTour = async () => {
       id: data.id,
       title: data.title,
       subtitle: `(${data.durationDays} ${t('openCard.days')} / ${data.durationNights} ${t('openCard.nights', data.durationNights)})`,
-      mainImage: data.mainImage || data.heroImage || data.images?.[0]?.imageUrl || '/assets/icons/card1.png',
-      gallery: (data.images || []).map((image) => image.imageUrl).filter(Boolean),
+      mainImage: resolveAssetUrl(data.mainImage || data.heroImage || data.images?.[0]?.imageUrl) || '/assets/icons/card1.webp',
+      gallery: (data.images || []).map((image) => resolveAssetUrl(image.imageUrl)).filter(Boolean),
       route: data.route,
       description: data.description,
       detailsInfo: data.detailsInfo || '',
@@ -318,7 +336,7 @@ const loadTour = async () => {
       countriesInfo: data.countriesInfo || '',
       duration: `${data.durationDays} ${t('openCard.days')} / ${data.durationNights} ${t('openCard.nights', data.durationNights)}`,
       transportInfo: data.transportInfo || '',
-      transport: data.transportInfo || '-',
+      transport: data.transportInfo || '',
       tourists:
         data.minGroupSize && data.maxGroupSize
           ? `${data.minGroupSize}-${data.maxGroupSize}`
@@ -326,10 +344,10 @@ const loadTour = async () => {
             ? `${data.minGroupSize}+`
             : people.value
               ? `${people.value}`
-              : '-',
-      hotels: data.hotelsInfo || '-',
-      comfort: data.comfortLevel ? `${data.comfortLevel}` : '-',
-      mapImage: data.routeMapImage || '/assets/icons/map.png',
+            : '',
+      hotels: data.hotelsInfo || '',
+      comfort: data.comfortLevel ? `${data.comfortLevel}` : '',
+      mapImage: resolveAssetUrl(data.routeMapImage) || '/assets/icons/map.png',
       country: data.country,
       minGroupSize: data.minGroupSize || null,
       maxGroupSize: data.maxGroupSize || null,
@@ -340,6 +358,7 @@ const loadTour = async () => {
       id: day.id,
       title: day.title,
       content: day.description,
+      image: resolveAssetUrl(day.image),
       expanded: index === 0,
     }));
     included.value = data.included || [];
@@ -450,6 +469,9 @@ onMounted(() => {
           :src="currentImage"
           :alt="tour.title"
           class="w-full h-full object-cover"
+          loading="eager"
+          fetchpriority="high"
+          decoding="async"
         />
 
         <!-- Счетчик фото -->
@@ -535,6 +557,9 @@ onMounted(() => {
                 :src="currentImage"
                 :alt="tour.title"
                 class="w-full h-full object-cover"
+                loading="eager"
+                fetchpriority="high"
+                decoding="async"
               />
 
               <!-- Счетчик фото -->
@@ -612,12 +637,17 @@ onMounted(() => {
                   'opacity-40 hover:opacity-70': currentIndex !== i,
                 }"
               >
-                <img :src="img" class="w-full h-full object-cover" />
+                <img
+                  :src="img"
+                  class="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
             </div>
 
             <!-- Табы -->
-            <div class="tour-tabs scrollbar-hide">
+            <div ref="tourDetailsRef" class="tour-tabs scrollbar-hide">
               <button
                 v-for="tab in tabs"
                 :key="tab.id"
@@ -792,6 +822,7 @@ onMounted(() => {
               <!-- Характеристики -->
               <div class="tour-feature-list">
                 <div
+                  v-if="hasContent(tour.duration)"
                   class="tour-feature-row"
                 >
                   <svg
@@ -816,6 +847,7 @@ onMounted(() => {
                   </span>
                 </div>
                 <div
+                  v-if="hasContent(tour.transport)"
                   class="tour-feature-row"
                 >
                   <svg
@@ -837,6 +869,7 @@ onMounted(() => {
                   </span>
                 </div>
                 <div
+                  v-if="hasContent(tour.tourists)"
                   class="tour-feature-row"
                 >
                   <svg
@@ -858,6 +891,7 @@ onMounted(() => {
                   </span>
                 </div>
                 <div
+                  v-if="hasContent(tour.hotels)"
                   class="tour-feature-row"
                 >
                   <svg
@@ -879,6 +913,7 @@ onMounted(() => {
                   </span>
                 </div>
                 <div
+                  v-if="hasContent(tour.comfort)"
                   class="tour-feature-row"
                 >
                   <svg
@@ -910,6 +945,8 @@ onMounted(() => {
                   :src="tour.mapImage"
                   :alt="`${tour.title} ${tour.subtitle}`"
                   class="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <iframe
                   v-else
@@ -923,7 +960,7 @@ onMounted(() => {
 
               <!-- Подробнее -->
               <button
-                @click="activeTab = 'details'"
+                @click="scrollToDetails"
                 class="w-full text-center text-[12px] sm:text-[13px] text-[#666] hover:text-[#285aff] transition mb-4 sm:mb-5 flex items-center justify-center gap-1"
               >
                 {{ t('openCard.more_details') }}
@@ -950,27 +987,12 @@ onMounted(() => {
                   class="flex items-center justify-between mb-[10px] border-b border-b-[#e3e3e4] pb-[10px]"
                 >
                   <span class="text-[12px] sm:text-[16px] text-[#000]"
-                    >{{ otherDates[0]?.date || '-' }}</span
+                    >{{ otherDates[0]?.date || t('openCard.date_on_request') }}</span
                   >
                   <span
                     class="text-[18px] sm:text-[20px] font-medium text-[#FF00E7]"
-                    >{{ otherDates[0]?.price || '-' }}</span
+                    >{{ otherDates[0]?.price || t('openCard.price_on_request') }}</span
                   >
-                </div>
-                <div
-                  class="text-center mb-[5px] flex lg:block gap-[10px] justify-between"
-                >
-                  <p
-                    class="text-[11px] sm:text-[12px] text-[#000] font-light leading-[15px]"
-                  >
-                    29 Сен, Пн - 12 Окт, Вс
-                  </p>
-                  <p
-                    class="text-[11px] sm:text-[12px] text-[#000] leading-[15px]"
-                  >
-                    <span class="font-medium">{{ t('openCard.deadline') }}</span
-                    > 8 Сентябрь 2025
-                  </p>
                 </div>
                 <button
                   @click="openModal"

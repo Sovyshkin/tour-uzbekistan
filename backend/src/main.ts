@@ -24,8 +24,13 @@ async function bootstrap() {
           ]),
         );
 
-  app.use('/uploads', serveStatic(join(process.cwd(), 'uploads')));
-  app.use('/assets', serveStatic(join(process.cwd(), '..', 'front', 'public', 'assets')));
+  const staticCacheOptions = {
+    maxAge: '30d',
+    immutable: true,
+  };
+
+  app.use('/uploads', serveStatic(join(process.cwd(), 'uploads'), staticCacheOptions));
+  app.use('/assets', serveStatic(join(process.cwd(), '..', 'front', 'public', 'assets'), staticCacheOptions));
   app.setGlobalPrefix('api/v1');
   app.enableCors({
     origin: allowedOrigins,

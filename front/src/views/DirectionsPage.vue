@@ -3,7 +3,7 @@ import AppContainer from '@/components/AppContainer.vue';
 import { ref, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import { getApiLocale, getPage, submitLead } from '@/api';
+import { getApiLocale, getPage, getSiteSettings, resolveAssetUrl, submitLead } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateContactFormFields } from '@/utils/formValidation';
 
@@ -11,6 +11,7 @@ const { t, tm, locale } = useI18n();
 const route = useRoute();
 const { success: notifySuccess, error: notifyError } = useNotifications();
 const page = ref(null);
+const settings = ref({});
 
 // Хлебные крошки
 const breadcrumbs = computed(() => [
@@ -45,9 +46,15 @@ const contentBlocks = computed(() => {
   return Array.isArray(fallback) ? fallback : [];
 });
 
+const heroImage = computed(() =>
+  resolveAssetUrl(settings.value['pages.directions.hero_image'] || '/assets/icons/directions.webp'),
+);
+
 const loadPage = async () => {
   try {
-    page.value = await getPage('directions', getApiLocale(locale.value));
+    const apiLocale = getApiLocale(locale.value);
+    page.value = await getPage('directions', apiLocale);
+    settings.value = await getSiteSettings(apiLocale).catch(() => ({}));
   } catch {
     page.value = null;
   }
@@ -94,7 +101,7 @@ const sendLead = async () => {
     <!-- Hero -->
     <section class="relative">
       <div class="hero-section">
-        <div class="hero-image"></div>
+        <div class="hero-image" :style="{ backgroundImage: `url(${heroImage})` }"></div>
       </div>
 
       <AppContainer>
@@ -224,7 +231,6 @@ const sendLead = async () => {
   width: 100%;
   height: 458px;
   max-height: 458px;
-  background-image: url('/assets/icons/directions.jpg');
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;

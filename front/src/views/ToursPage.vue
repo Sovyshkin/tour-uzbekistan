@@ -6,7 +6,7 @@ import AppContainer from '@/components/AppContainer.vue';
 import Button from '@/components/Button.vue';
 import CustomSelect from '@/components/CustomSelect.vue';
 import Card from '@/components/Card.vue';
-import { getApiLocale, getCountries, getTours } from '@/api';
+import { getApiLocale, getCountries, getSiteSettings, getTours, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
 const { t, locale } = useI18n();
@@ -36,6 +36,7 @@ const duration = ref(7);
 const searchText = ref('');
 
 const countries = ref([]);
+const settings = ref({});
 
 // ─── Фильтры ───
 const comfortFilter = ref(null);
@@ -64,6 +65,9 @@ const meta = ref({
 // Пагинация теперь работает с filteredTours
 const totalPages = computed(() => meta.value.totalPages || 1);
 const paginatedTours = computed(() => tours.value);
+const heroImage = computed(() =>
+  resolveAssetUrl(settings.value['pages.tours.hero_image'] || '/assets/icons/tours.webp'),
+);
 
 // Функция поиска (обновляет пагинацию)
 const performSearch = () => {
@@ -132,7 +136,7 @@ const loadCountries = async () => {
     id: country.slug,
     slug: country.slug,
     label: country.name,
-    icon: country.flagImage,
+    icon: resolveAssetUrl(country.flagImage),
   }));
 
   const requestedCountry = route.query.country;
@@ -160,7 +164,7 @@ const loadTours = async () => {
       slug: tour.slug,
       title: tour.title,
       route: tour.route,
-      image: tour.mainImage || tour.heroImage || tour.images?.[0]?.imageUrl || '/assets/icons/card.png',
+      image: resolveAssetUrl(tour.mainImage || tour.heroImage || tour.images?.[0]?.imageUrl) || '/assets/icons/card1.webp',
       duration: {
         day: tour.durationDays,
         night: tour.durationNights,
@@ -174,9 +178,16 @@ const loadTours = async () => {
   }
 };
 
+const loadSettings = async () => {
+  try {
+    settings.value = await getSiteSettings(getApiLocale(locale.value));
+  } catch {
+    settings.value = {};
+  }
+};
+
 watch(() => locale.value, async () => {
-  await loadCountries();
-  await loadTours();
+  await Promise.all([loadSettings(), loadCountries(), loadTours()]);
 });
 
 watch(currentPage, () => {
@@ -189,8 +200,7 @@ watch(perPage, () => {
 });
 
 onMounted(async () => {
-  await loadCountries();
-  await loadTours();
+  await Promise.all([loadSettings(), loadCountries(), loadTours()]);
 });
 </script>
 
@@ -201,11 +211,7 @@ onMounted(async () => {
       <div class="hero-section relative h-[200px] sm:h-[400px] lg:h-[458px]">
         <div
           class="hero-image absolute inset-0 bg-cover bg-center"
-          style="
-            background-image: url('/assets/icons/tours.png');
-            background-repeat: no-repeat;
-            background-size: cover;
-          "
+          :style="{ backgroundImage: `url(${heroImage})`, backgroundRepeat: 'no-repeat', backgroundSize: 'cover' }"
         ></div>
       </div>
     </section>

@@ -4,6 +4,10 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DESTRUCTIVE_SEED !== 'true') {
+    throw new Error('Seed deletes existing data. Set ALLOW_DESTRUCTIVE_SEED=true only when you intentionally want to reset production content.');
+  }
+
   await prisma.pageTranslation.deleteMany();
   await prisma.page.deleteMany();
   await prisma.siteSettingTranslation.deleteMany();
@@ -286,6 +290,30 @@ async function main() {
       en: '',
       uz: '',
     },
+    {
+      key: 'pages.about.hero_image',
+      ru: '/assets/icons/about-us.webp',
+      en: '/assets/icons/about-us.webp',
+      uz: '/assets/icons/about-us.webp',
+    },
+    {
+      key: 'pages.directions.hero_image',
+      ru: '/assets/icons/directions.webp',
+      en: '/assets/icons/directions.webp',
+      uz: '/assets/icons/directions.webp',
+    },
+    {
+      key: 'pages.services.hero_image',
+      ru: '/assets/icons/services.webp',
+      en: '/assets/icons/services.webp',
+      uz: '/assets/icons/services.webp',
+    },
+    {
+      key: 'pages.tours.hero_image',
+      ru: '/assets/icons/tours.webp',
+      en: '/assets/icons/tours.webp',
+      uz: '/assets/icons/tours.webp',
+    },
   ];
 
   for (const setting of homeTextSettings) {
@@ -315,16 +343,16 @@ async function main() {
         group: 'brand',
       },
       {
-        fileName: 'directions.jpg',
-        url: '/assets/icons/directions.jpg',
-        mimeType: 'image/jpeg',
+        fileName: 'directions.webp',
+        url: '/assets/icons/directions.webp',
+        mimeType: 'image/webp',
         altText: 'Directions hero image',
         group: 'home',
       },
       {
-        fileName: 'services.jpg',
-        url: '/assets/icons/services.jpg',
-        mimeType: 'image/jpeg',
+        fileName: 'services.webp',
+        url: '/assets/icons/services.webp',
+        mimeType: 'image/webp',
         altText: 'Services image',
         group: 'services',
       },
@@ -473,7 +501,7 @@ async function main() {
     data: {
       slug: 'uzbekistan',
       isoCode: 'UZ',
-      heroImage: '/assets/icons/countryPage.jpg',
+      heroImage: '/assets/icons/countryPage.webp',
       flagImage: '/assets/icons/uzbek.png',
       isFeatured: true,
       status: 'PUBLISHED',
@@ -554,7 +582,7 @@ async function main() {
     data: {
       slug: 'kazakhstan',
       isoCode: 'KZ',
-      heroImage: '/assets/icons/countryPage2.jpg',
+      heroImage: '/assets/icons/countryPage2.webp',
       flagImage: '/assets/icons/kazah.png',
       isFeatured: true,
       status: 'PUBLISHED',
@@ -591,8 +619,8 @@ async function main() {
       {
         id: '09de34b1-51e8-48a5-aef8-a95d8c5c2e01',
         slug: 'silk-road-discoveries',
-        imageUrl: '/assets/icons/tours.png',
-        mobileImageUrl: '/assets/icons/tours.png',
+        imageUrl: '/assets/icons/tours.webp',
+        mobileImageUrl: '/assets/icons/tours.webp',
         linkUrl: '/tours',
         sortOrder: 1,
         isActive: true,
@@ -600,8 +628,8 @@ async function main() {
       {
         id: 'f52072ca-8024-4bd3-9206-56c78f7068e0',
         slug: 'dmc-services',
-        imageUrl: '/assets/icons/services.jpg',
-        mobileImageUrl: '/assets/icons/services.jpg',
+        imageUrl: '/assets/icons/services.webp',
+        mobileImageUrl: '/assets/icons/services.webp',
         linkUrl: '/services',
         sortOrder: 2,
         isActive: true,
@@ -665,8 +693,8 @@ async function main() {
   const service = await prisma.service.create({
     data: {
       slug: 'customized-itineraries',
-      heroImage: '/assets/icons/card-news2.jpg',
-      previewImage: '/assets/icons/card-news2.jpg',
+      heroImage: '/assets/icons/card-news2.webp',
+      previewImage: '/assets/icons/card-news2.webp',
       sortOrder: 1,
       isFeatured: true,
       leadFormEnabled: true,
@@ -714,8 +742,8 @@ async function main() {
   const news = await prisma.news.create({
     data: {
       slug: 'maldives-launch',
-      heroImage: '/assets/icons/news-detail.jpg',
-      previewImage: '/assets/icons/news1.jpg',
+      heroImage: '/assets/icons/news-detail.webp',
+      previewImage: '/assets/icons/news1.webp',
       publishedAt: new Date('2026-05-20T09:00:00.000Z'),
       status: 'PUBLISHED',
       syncToB2B: true,
@@ -759,7 +787,7 @@ async function main() {
       slug: 'destination-expertise',
       sortOrder: 1,
       status: 'PUBLISHED',
-      heroImage: '/assets/icons/dmc.png',
+      heroImage: '/assets/icons/dmc.webp',
       translations: {
         create: [
           {
@@ -791,14 +819,14 @@ async function main() {
         id: '81a6fa2a-5f4a-4f94-87ea-9ed9942c3011',
         whyCategoryId: whyCategory.id,
         sortOrder: 1,
-        imageUrl: '/assets/icons/dmc1.png',
+        imageUrl: '/assets/icons/dmc1.webp',
         status: 'PUBLISHED',
       },
       {
         id: '09d74e2f-f3db-4b92-a8c2-8d5f61d3d35d',
         whyCategoryId: whyCategory.id,
         sortOrder: 2,
-        imageUrl: '/assets/icons/dmc2.jpg',
+        imageUrl: '/assets/icons/dmc2.webp',
         status: 'PUBLISHED',
       },
     ],
@@ -977,8 +1005,8 @@ async function main() {
       slug: 'weekend-in-uzbekistan',
       type: 'SHORT',
       season: 'ALL_YEAR',
-      heroImage: '/assets/icons/tours.png',
-      mainImage: '/assets/icons/card1.png',
+      heroImage: '/assets/icons/tours.webp',
+      mainImage: '/assets/icons/card1.webp',
       routeMapImage: '/assets/icons/map.png',
       durationDays: 3,
       durationNights: 2,
@@ -1038,7 +1066,7 @@ async function main() {
       tourId: tour.id,
       dayNumber: 1,
       overnightAt: 'Tashkent',
-      image: '/assets/icons/card2.png',
+      image: '/assets/icons/card2.webp',
       translations: {
         create: [
           {
@@ -1072,7 +1100,7 @@ async function main() {
       tourId: tour.id,
       dayNumber: 2,
       overnightAt: 'Samarkand',
-      image: '/assets/icons/card3.png',
+      image: '/assets/icons/card3.webp',
       translations: {
         create: [
           {
@@ -1104,7 +1132,7 @@ async function main() {
   const tourImage = await prisma.tourImage.create({
     data: {
       tourId: tour.id,
-      imageUrl: '/assets/icons/card1.png',
+      imageUrl: '/assets/icons/card1.webp',
       sortOrder: 1,
       isCover: true,
       translations: {
@@ -1134,8 +1162,8 @@ async function main() {
     slug: 'samarkand-bukhara-escape',
     type: 'SHORT',
     season: 'SPRING',
-    heroImage: '/assets/icons/tours.png',
-    mainImage: '/assets/icons/card2.png',
+    heroImage: '/assets/icons/tours.webp',
+    mainImage: '/assets/icons/card2.webp',
     routeMapImage: '/assets/icons/map.png',
     durationDays: 4,
     durationNights: 3,
@@ -1187,7 +1215,7 @@ async function main() {
       {
         dayNumber: 1,
         overnightAt: 'Samarkand',
-        image: '/assets/icons/card2.png',
+        image: '/assets/icons/card2.webp',
         translations: [
           { locale: 'ru', title: '1 день - Самарканд и площадь Регистан', shortTitle: 'Регистан', description: 'Прибытие, заселение и первое знакомство с вечерним Самаркандом.', inclusions: ['Трансфер', 'Гид'] },
           { locale: 'en', title: 'Day 1 - Samarkand and Registan Square', shortTitle: 'Registan', description: 'Arrival, hotel check-in and first impressions of Samarkand by night.', inclusions: ['Transfer', 'Guide'] },
@@ -1197,7 +1225,7 @@ async function main() {
       {
         dayNumber: 2,
         overnightAt: 'Samarkand',
-        image: '/assets/icons/card3.png',
+        image: '/assets/icons/card3.webp',
         translations: [
           { locale: 'ru', title: '2 день - Гур-Эмир и Шахи-Зинда', shortTitle: 'Мавзолеи', description: 'Полный день экскурсий по ансамблям Тимуридской эпохи.', inclusions: ['Гид', 'Входные билеты'] },
           { locale: 'en', title: 'Day 2 - Gur-Emir and Shah-i-Zinda', shortTitle: 'Mausoleums', description: 'A full day dedicated to Timurid heritage landmarks.', inclusions: ['Guide', 'Entrance tickets'] },
@@ -1207,7 +1235,7 @@ async function main() {
       {
         dayNumber: 3,
         overnightAt: 'Bukhara',
-        image: '/assets/icons/card4.png',
+        image: '/assets/icons/card4.webp',
         translations: [
           { locale: 'ru', title: '3 день - Переезд в Бухару', shortTitle: 'Бухара', description: 'Утренний поезд и прогулка по старому городу Бухары.', inclusions: ['Поезд', 'Трансфер'] },
           { locale: 'en', title: 'Day 3 - Transfer to Bukhara', shortTitle: 'Bukhara', description: 'Morning train and an introductory walk in old Bukhara.', inclusions: ['Train', 'Transfer'] },
@@ -1217,7 +1245,7 @@ async function main() {
       {
         dayNumber: 4,
         overnightAt: 'Bukhara',
-        image: '/assets/icons/card5.png',
+        image: '/assets/icons/card5.webp',
         translations: [
           { locale: 'ru', title: '4 день - Ляби-Хауз и вылет', shortTitle: 'Финал', description: 'Последние покупки, прогулка по Ляби-Хаузу и трансфер в аэропорт.', inclusions: ['Трансфер'] },
           { locale: 'en', title: 'Day 4 - Lyabi-Hauz and departure', shortTitle: 'Departure', description: 'Final shopping, a walk around Lyabi-Hauz and airport transfer.', inclusions: ['Transfer'] },
@@ -1227,7 +1255,7 @@ async function main() {
     ],
     images: [
       {
-        imageUrl: '/assets/icons/card2.png',
+        imageUrl: '/assets/icons/card2.webp',
         sortOrder: 1,
         isCover: true,
         translations: [
@@ -1237,7 +1265,7 @@ async function main() {
         ],
       },
       {
-        imageUrl: '/assets/icons/card4.png',
+        imageUrl: '/assets/icons/card4.webp',
         sortOrder: 2,
         isCover: false,
         translations: [
@@ -1254,8 +1282,8 @@ async function main() {
     slug: 'uzbekistan-gastro-journey',
     type: 'MULTI_DAY',
     season: 'AUTUMN',
-    heroImage: '/assets/icons/tours.png',
-    mainImage: '/assets/icons/card3.png',
+    heroImage: '/assets/icons/tours.webp',
+    mainImage: '/assets/icons/card3.webp',
     routeMapImage: '/assets/icons/map.png',
     durationDays: 6,
     durationNights: 5,
@@ -1306,7 +1334,7 @@ async function main() {
       {
         dayNumber: 1,
         overnightAt: 'Tashkent',
-        image: '/assets/icons/card1.png',
+        image: '/assets/icons/card1.webp',
         translations: [
           { locale: 'ru', title: '1 день - Старый Ташкент и чайхана', shortTitle: 'Ташкент', description: 'Старый город, базар Чорсу и ужин в традиционной чайхане.', inclusions: ['Гид', 'Ужин'] },
           { locale: 'en', title: 'Day 1 - Old Tashkent and teahouse dinner', shortTitle: 'Tashkent', description: 'Old city walk, Chorsu Bazaar and a welcome dinner in a traditional teahouse.', inclusions: ['Guide', 'Dinner'] },
@@ -1316,7 +1344,7 @@ async function main() {
       {
         dayNumber: 2,
         overnightAt: 'Samarkand',
-        image: '/assets/icons/card3.png',
+        image: '/assets/icons/card3.webp',
         translations: [
           { locale: 'ru', title: '2 день - Переезд и дегустации в Самарканде', shortTitle: 'Дегустации', description: 'Переезд на Afrosiyob и гастрономическая прогулка по Самарканду.', inclusions: ['Поезд', 'Дегустации'] },
           { locale: 'en', title: 'Day 2 - Transfer and tastings in Samarkand', shortTitle: 'Tastings', description: 'Afrosiyob transfer and an evening food walk in Samarkand.', inclusions: ['Train', 'Tastings'] },
@@ -1326,7 +1354,7 @@ async function main() {
       {
         dayNumber: 3,
         overnightAt: 'Samarkand',
-        image: '/assets/icons/card2.png',
+        image: '/assets/icons/card2.webp',
         translations: [
           { locale: 'ru', title: '3 день - Мастер-класс по плову', shortTitle: 'Плов', description: 'Посещение локального дома и совместное приготовление плова.', inclusions: ['Мастер-класс', 'Обед'] },
           { locale: 'en', title: 'Day 3 - Plov cooking workshop', shortTitle: 'Plov', description: 'Visit to a local home and shared plov cooking session.', inclusions: ['Workshop', 'Lunch'] },
@@ -1336,7 +1364,7 @@ async function main() {
       {
         dayNumber: 4,
         overnightAt: 'Bukhara',
-        image: '/assets/icons/card4.png',
+        image: '/assets/icons/card4.webp',
         translations: [
           { locale: 'ru', title: '4 день - Бухара и рынки специй', shortTitle: 'Бухара', description: 'Переезд и знакомство с торговыми куполами Бухары.', inclusions: ['Поезд', 'Гид'] },
           { locale: 'en', title: 'Day 4 - Bukhara and spice markets', shortTitle: 'Bukhara', description: 'Transfer and introduction to Bukhara’s trading domes.', inclusions: ['Train', 'Guide'] },
@@ -1346,7 +1374,7 @@ async function main() {
       {
         dayNumber: 5,
         overnightAt: 'Bukhara',
-        image: '/assets/icons/card5.png',
+        image: '/assets/icons/card5.webp',
         translations: [
           { locale: 'ru', title: '5 день - Медресе и авторский ужин', shortTitle: 'Ужин', description: 'Экскурсия по старому городу и финальный ужин в атмосферном ресторане.', inclusions: ['Гид', 'Ужин'] },
           { locale: 'en', title: 'Day 5 - Madrasas and signature dinner', shortTitle: 'Dinner', description: 'Old town touring and a farewell dinner in an atmospheric restaurant.', inclusions: ['Guide', 'Dinner'] },
@@ -1356,7 +1384,7 @@ async function main() {
       {
         dayNumber: 6,
         overnightAt: 'Bukhara',
-        image: '/assets/icons/card1.png',
+        image: '/assets/icons/card1.webp',
         translations: [
           { locale: 'ru', title: '6 день - Вылет', shortTitle: 'Вылет', description: 'Свободное время и трансфер к вылету.', inclusions: ['Трансфер'] },
           { locale: 'en', title: 'Day 6 - Departure', shortTitle: 'Departure', description: 'Free time and transfer for departure.', inclusions: ['Transfer'] },
@@ -1366,7 +1394,7 @@ async function main() {
     ],
     images: [
       {
-        imageUrl: '/assets/icons/card3.png',
+        imageUrl: '/assets/icons/card3.webp',
         sortOrder: 1,
         isCover: true,
         translations: [
@@ -1383,8 +1411,8 @@ async function main() {
     slug: 'silk-road-grand-tour',
     type: 'MULTI_DAY',
     season: 'ALL_YEAR',
-    heroImage: '/assets/icons/tours.png',
-    mainImage: '/assets/icons/card5.png',
+    heroImage: '/assets/icons/tours.webp',
+    mainImage: '/assets/icons/card5.webp',
     routeMapImage: '/assets/icons/map.png',
     durationDays: 8,
     durationNights: 7,
@@ -1436,7 +1464,7 @@ async function main() {
       {
         dayNumber: 1,
         overnightAt: 'Tashkent',
-        image: '/assets/icons/card1.png',
+        image: '/assets/icons/card1.webp',
         translations: [
           { locale: 'ru', title: '1 день - Прибытие в Ташкент', shortTitle: 'Ташкент', description: 'Заселение и обзорная прогулка по столице.', inclusions: ['Трансфер', 'Гид'] },
           { locale: 'en', title: 'Day 1 - Arrival in Tashkent', shortTitle: 'Tashkent', description: 'Hotel check-in and city orientation in the capital.', inclusions: ['Transfer', 'Guide'] },
@@ -1446,7 +1474,7 @@ async function main() {
       {
         dayNumber: 2,
         overnightAt: 'Samarkand',
-        image: '/assets/icons/card2.png',
+        image: '/assets/icons/card2.webp',
         translations: [
           { locale: 'ru', title: '2 день - Самарканд', shortTitle: 'Самарканд', description: 'Переезд и первая экскурсия по Самарканду.', inclusions: ['Поезд', 'Гид'] },
           { locale: 'en', title: 'Day 2 - Samarkand', shortTitle: 'Samarkand', description: 'Transfer and first guided exploration of Samarkand.', inclusions: ['Train', 'Guide'] },
@@ -1456,7 +1484,7 @@ async function main() {
       {
         dayNumber: 3,
         overnightAt: 'Samarkand',
-        image: '/assets/icons/card3.png',
+        image: '/assets/icons/card3.webp',
         translations: [
           { locale: 'ru', title: '3 день - Наследие Тимуридов', shortTitle: 'Наследие', description: 'Полный день по мавзолеям и ансамблям Самарканда.', inclusions: ['Гид', 'Билеты'] },
           { locale: 'en', title: 'Day 3 - Timurid heritage', shortTitle: 'Heritage', description: 'A full day among Samarkand’s mausoleums and ensembles.', inclusions: ['Guide', 'Tickets'] },
@@ -1466,7 +1494,7 @@ async function main() {
       {
         dayNumber: 4,
         overnightAt: 'Bukhara',
-        image: '/assets/icons/card4.png',
+        image: '/assets/icons/card4.webp',
         translations: [
           { locale: 'ru', title: '4 день - Бухара', shortTitle: 'Бухара', description: 'Переезд и прогулка по Ляби-Хаузу.', inclusions: ['Поезд', 'Трансфер'] },
           { locale: 'en', title: 'Day 4 - Bukhara', shortTitle: 'Bukhara', description: 'Transfer and evening around Lyabi-Hauz.', inclusions: ['Train', 'Transfer'] },
@@ -1476,7 +1504,7 @@ async function main() {
       {
         dayNumber: 5,
         overnightAt: 'Bukhara',
-        image: '/assets/icons/card5.png',
+        image: '/assets/icons/card5.webp',
         translations: [
           { locale: 'ru', title: '5 день - Старый город Бухары', shortTitle: 'Старый город', description: 'Архитектурные памятники, медресе и торговые купола.', inclusions: ['Гид', 'Билеты'] },
           { locale: 'en', title: 'Day 5 - Old Bukhara', shortTitle: 'Old town', description: 'Architecture, madrasas and the trading domes of Bukhara.', inclusions: ['Guide', 'Tickets'] },
@@ -1486,7 +1514,7 @@ async function main() {
       {
         dayNumber: 6,
         overnightAt: 'Khiva',
-        image: '/assets/icons/card2.png',
+        image: '/assets/icons/card2.webp',
         translations: [
           { locale: 'ru', title: '6 день - Перелет в Ургенч и Хива', shortTitle: 'Хива', description: 'Внутренний перелет и размещение внутри Ичан-Калы.', inclusions: ['Перелет', 'Трансфер'] },
           { locale: 'en', title: 'Day 6 - Flight to Urgench and Khiva', shortTitle: 'Khiva', description: 'Domestic flight and accommodation inside Itchan Kala.', inclusions: ['Flight', 'Transfer'] },
@@ -1496,7 +1524,7 @@ async function main() {
       {
         dayNumber: 7,
         overnightAt: 'Khiva',
-        image: '/assets/icons/card3.png',
+        image: '/assets/icons/card3.webp',
         translations: [
           { locale: 'ru', title: '7 день - Ичан-Кала', shortTitle: 'Ичан-Кала', description: 'Полный день экскурсий по музею под открытым небом.', inclusions: ['Гид', 'Билеты'] },
           { locale: 'en', title: 'Day 7 - Itchan Kala', shortTitle: 'Itchan Kala', description: 'A full day exploring the open-air museum of Khiva.', inclusions: ['Guide', 'Tickets'] },
@@ -1506,7 +1534,7 @@ async function main() {
       {
         dayNumber: 8,
         overnightAt: 'Khiva',
-        image: '/assets/icons/card1.png',
+        image: '/assets/icons/card1.webp',
         translations: [
           { locale: 'ru', title: '8 день - Завершение маршрута', shortTitle: 'Финал', description: 'Трансфер и завершение программы.', inclusions: ['Трансфер'] },
           { locale: 'en', title: 'Day 8 - End of the route', shortTitle: 'Finish', description: 'Transfer and end of the program.', inclusions: ['Transfer'] },
@@ -1516,7 +1544,7 @@ async function main() {
     ],
     images: [
       {
-        imageUrl: '/assets/icons/card5.png',
+        imageUrl: '/assets/icons/card5.webp',
         sortOrder: 1,
         isCover: true,
         translations: [
@@ -1533,8 +1561,8 @@ async function main() {
     slug: 'almaty-lakes-getaway',
     type: 'SHORT',
     season: 'SUMMER',
-    heroImage: '/assets/icons/tours.png',
-    mainImage: '/assets/icons/card4.png',
+    heroImage: '/assets/icons/tours.webp',
+    mainImage: '/assets/icons/card4.webp',
     routeMapImage: '/assets/icons/map.png',
     durationDays: 5,
     durationNights: 4,
@@ -1586,7 +1614,7 @@ async function main() {
       {
         dayNumber: 1,
         overnightAt: 'Almaty',
-        image: '/assets/icons/card4.png',
+        image: '/assets/icons/card4.webp',
         translations: [
           { locale: 'ru', title: '1 день - Алматы', shortTitle: 'Алматы', description: 'Прибытие и прогулка по зеленым районам города.', inclusions: ['Трансфер'] },
           { locale: 'en', title: 'Day 1 - Almaty', shortTitle: 'Almaty', description: 'Arrival and a walk through Almaty’s green districts.', inclusions: ['Transfer'] },
@@ -1596,7 +1624,7 @@ async function main() {
       {
         dayNumber: 2,
         overnightAt: 'Kolsai',
-        image: '/assets/icons/card5.png',
+        image: '/assets/icons/card5.webp',
         translations: [
           { locale: 'ru', title: '2 день - Кольсайские озера', shortTitle: 'Кольсай', description: 'Переезд в горы и прогулка к озерам.', inclusions: ['Трансфер', 'Гид'] },
           { locale: 'en', title: 'Day 2 - Kolsai Lakes', shortTitle: 'Kolsai', description: 'Drive to the mountains and an easy lakeside walk.', inclusions: ['Transfer', 'Guide'] },
@@ -1606,7 +1634,7 @@ async function main() {
       {
         dayNumber: 3,
         overnightAt: 'Kolsai',
-        image: '/assets/icons/card3.png',
+        image: '/assets/icons/card3.webp',
         translations: [
           { locale: 'ru', title: '3 день - Свободный день на природе', shortTitle: 'Природа', description: 'Фотостопы, легкий треккинг и отдых.', inclusions: ['Завтрак'] },
           { locale: 'en', title: 'Day 3 - Free day in nature', shortTitle: 'Nature', description: 'Photo stops, light trekking and rest.', inclusions: ['Breakfast'] },
@@ -1616,7 +1644,7 @@ async function main() {
       {
         dayNumber: 4,
         overnightAt: 'Almaty',
-        image: '/assets/icons/card2.png',
+        image: '/assets/icons/card2.webp',
         translations: [
           { locale: 'ru', title: '4 день - Чарынский каньон', shortTitle: 'Чарын', description: 'Возвращение через Чарынский каньон.', inclusions: ['Трансфер', 'Гид'] },
           { locale: 'en', title: 'Day 4 - Charyn Canyon', shortTitle: 'Charyn', description: 'Return via the dramatic Charyn Canyon.', inclusions: ['Transfer', 'Guide'] },
@@ -1626,7 +1654,7 @@ async function main() {
       {
         dayNumber: 5,
         overnightAt: 'Almaty',
-        image: '/assets/icons/card1.png',
+        image: '/assets/icons/card1.webp',
         translations: [
           { locale: 'ru', title: '5 день - Вылет', shortTitle: 'Вылет', description: 'Трансфер в аэропорт.', inclusions: ['Трансфер'] },
           { locale: 'en', title: 'Day 5 - Departure', shortTitle: 'Departure', description: 'Transfer to the airport.', inclusions: ['Transfer'] },
@@ -1636,7 +1664,7 @@ async function main() {
     ],
     images: [
       {
-        imageUrl: '/assets/icons/card4.png',
+        imageUrl: '/assets/icons/card4.webp',
         sortOrder: 1,
         isCover: true,
         translations: [

@@ -115,7 +115,7 @@ onMounted(loadCategories);
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="{ backgroundImage: `url('${currentCategoryData.heroImage || '/assets/icons/gorizontalDMC.jpg'}')` }"
+          :style="{ backgroundImage: `url('${currentCategoryData.heroImage || '/assets/icons/gorizontalDMC.webp'}')` }"
         />
       </div>
     </section>

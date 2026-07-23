@@ -253,7 +253,7 @@ onMounted(() => {
   width: 100%;
   height: 458px;
   max-height: 458px;
-  background-image: url('/assets/icons/booking.jpg');
+  background-image: url('/assets/icons/booking.webp');
   background-size: cover;
   background-position: center center;
   z-index: 0;

@@ -197,7 +197,13 @@ watch(() => props.modelValue, (val) => {
     <!-- LIST -->
     <div v-if="isOpen && type === 'list'" class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-[#e6e6e7] rounded-[8px] shadow-lg z-50 py-1 max-h-[280px] overflow-y-auto">
       <button v-for="opt in options" :key="opt.id || opt" @click="selectOption(opt)" class="w-full flex items-center gap-3 px-4 py-3 text-[14px] text-left hover:bg-[#f5f5f5] transition" :class="{ 'bg-[#f0f4ff] text-[#285aff]': modelValue === opt || modelValue?.id === opt.id }">
-        <img v-if="opt.icon" :src="opt.icon" class="w-5 h-4 rounded-[4px] object-cover" />
+        <img
+          v-if="opt.icon"
+          :src="opt.icon"
+          class="w-5 h-4 rounded-[4px] object-cover"
+          loading="lazy"
+          decoding="async"
+        />
         <span>{{ opt.label || opt }}</span>
       </button>
     </div>

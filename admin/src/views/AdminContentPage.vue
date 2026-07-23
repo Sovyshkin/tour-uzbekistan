@@ -815,6 +815,55 @@ const triggerDocumentUpload = (locale: LocaleCode, fieldKey: string) => {
   uploadInput.value?.click();
 };
 
+const optimizeImageBeforeUpload = async (file: File) => {
+  const canOptimize = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
+
+  if (!canOptimize || file.size < 600 * 1024) {
+    return file;
+  }
+
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Image decode failed'));
+      img.src = imageUrl;
+    });
+
+    const maxWidth = 1920;
+    const scale = Math.min(1, maxWidth / image.naturalWidth);
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return file;
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/webp', 0.78);
+    });
+
+    if (!blob || blob.size >= file.size) {
+      return file;
+    }
+
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'image';
+    return new File([blob], `${baseName}.webp`, { type: 'image/webp' });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+};
+
 const handleUploadChange = async (event: Event) => {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -823,8 +872,9 @@ const handleUploadChange = async (event: Event) => {
     return;
   }
 
+  const uploadFile = await optimizeImageBeforeUpload(file);
   const uploadData = new FormData();
-  uploadData.append('file', file);
+  uploadData.append('file', uploadFile);
   uploadData.append(
     'group',
     documentUploadTarget.value
@@ -1131,6 +1181,7 @@ watch(
                   :src="resolveMediaUrl(item.image)"
                   :alt="String(item.translations.ru?.altText || item.title)"
                   loading="lazy"
+                  decoding="async"
                 />
                 <div v-else class="media-file-fallback">
                   {{ getMediaExtension(item) }}
@@ -1334,6 +1385,8 @@ watch(
                   v-if="form.media[field.key]"
                   :src="resolveMediaUrl(form.media[field.key])"
                   :alt="field.label"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <span v-else>Нет медиа</span>
               </div>
@@ -1377,6 +1430,8 @@ watch(
                   v-if="fact.imageUrl"
                   :src="resolveMediaUrl(fact.imageUrl)"
                   :alt="fact.translations.ru.title || `Факт ${factIndex + 1}`"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <span v-else>Нет медиа</span>
               </div>

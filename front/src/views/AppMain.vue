@@ -7,7 +7,7 @@ import CardGorzontalDMC from '@/components/CardGorzontalDMC.vue';
 import CardNews from '@/components/CardNews.vue';
 import Carousel from '@/components/Carousel.vue';
 import Line from '@/components/Line.vue';
-import { formatBackendDate, getApiLocale, getHome } from '@/api';
+import { formatBackendDate, getApiLocale, getHome, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
@@ -58,6 +58,8 @@ const cmsText = (key, fallback) => {
   return typeof value === 'string' && value.trim() ? value : fallback;
 };
 
+const cmsAsset = (value) => resolveAssetUrl(value || '');
+
 const mass = computed(() => [
   {
     title: cmsText('home.cards.about.title', t('nav.about')),
@@ -100,7 +102,7 @@ const buttons = computed(() => [
   ...homeData.value.countries.map((country) => ({
     title: country.name,
     category: country.slug,
-    url: country.flagImage,
+    url: cmsAsset(country.flagImage),
   })),
 ]);
 
@@ -150,7 +152,7 @@ const DMC = computed(() =>
     slug: service.slug,
     title: service.name || service.title,
     descr: service.shortDescription,
-    url: service.previewImage,
+    url: cmsAsset(service.previewImage),
   })),
 );
 
@@ -160,7 +162,7 @@ const items = computed(() =>
     .slice(0, 2)
     .map((fact, index) => ({
       number: String(index + 1).padStart(2, '0'),
-      image: fact.imageUrl,
+      image: cmsAsset(fact.imageUrl),
       title: fact.title,
       description: fact.description,
     })),
@@ -170,7 +172,7 @@ const newsList = computed(() =>
   homeData.value.latestNews.map((item) => ({
     id: item.id,
     slug: item.slug,
-    image: item.previewImage,
+    image: cmsAsset(item.previewImage),
     title: item.title,
     description: item.excerpt || item.title,
     date: formatBackendDate(item.publishedAt, locale.value),
@@ -184,7 +186,7 @@ const loadHome = async () => {
       ...payload,
       recommendedTours: (payload.recommendedTours || []).map((tour) => ({
         ...tour,
-        image: tour.image || tour.mainImage || '/assets/icons/card.png',
+        image: cmsAsset(tour.image || tour.mainImage) || '/assets/icons/card1.webp',
         countrySlug: tour.countrySlug || null,
       })),
     };
@@ -204,7 +206,7 @@ onMounted(loadHome);
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="heroBanner?.imageUrl ? { backgroundImage: `url(${heroBanner.imageUrl})` } : undefined"
+          :style="heroBanner?.imageUrl ? { backgroundImage: `url(${cmsAsset(heroBanner.imageUrl)})` } : undefined"
         ></div>
         <AppContainer>
           <div class="hero-content">
@@ -268,6 +270,8 @@ onMounted(loadHome);
               class="w-[18px] h-[14px] rounded-[10px]"
               :src="item.url"
               alt=""
+              loading="lazy"
+              decoding="async"
             />
             {{ item.title }}
           </button>
@@ -321,6 +325,8 @@ onMounted(loadHome);
                   <img
                     :src="country.icon"
                     class="w-5 h-5 rounded-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                   {{ $t(`servedCountries.${country.key}`) }}
                 </p>
@@ -334,6 +340,8 @@ onMounted(loadHome);
                   <img
                     :src="country.icon"
                     class="w-5 h-5 rounded-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                   {{ $t(`servedCountries.${country.key}`) }}
                 </p>
@@ -346,6 +354,8 @@ onMounted(loadHome);
         src="/assets/icons/planet.png"
         alt="Globe"
         class="planet-glow absolute z-0 left-1/2 -translate-x-1/2 lg:left-auto lg:right-[-5%] xl:right-0 lg:translate-x-0 bottom-0 lg:bottom-50 translate-y-[40%] sm:translate-y-[35%] lg:translate-y-[25%] w-[280px] sm:w-[380px] lg:w-[600px] xl:w-[750px] pointer-events-none select-none"
+        loading="lazy"
+        decoding="async"
       />
     </section>
 
@@ -497,7 +507,7 @@ onMounted(loadHome);
   left: 0;
   width: 100%;
   height: 458px;
-  background-image: url('/assets/icons/8ec662fe56344049271e593f6db12dfdb7df8bdb.png');
+  background-image: url('/assets/icons/8ec662fe56344049271e593f6db12dfdb7df8bdb.webp');
   background-size: cover;
   background-position: center;
   z-index: 0;

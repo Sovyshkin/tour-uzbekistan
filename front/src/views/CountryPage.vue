@@ -5,7 +5,7 @@ import { watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppContainer from '@/components/AppContainer.vue';
 import CustomSelect from '@/components/CustomSelect.vue';
-import { getApiLocale, getCountries, getCountry } from '@/api';
+import { getApiLocale, getCountries, getCountry, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
 const { t, locale } = useI18n();
@@ -68,7 +68,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
 // ===== ДАННЫЕ ПО СТРАНАМ (НЕ ПЕРЕВОДИМ) =====
 const countriesData = {
   uzbekistan: {
-    heroImage: '/assets/icons/countryPage.jpg',
+    heroImage: '/assets/icons/countryPage.webp',
     name: 'Узбекистан',
     welcomeTitle: 'Добро пожаловать в Узбекистан',
     intro:
@@ -129,7 +129,7 @@ const countriesData = {
     ],
   },
   kazakhstan: {
-    heroImage: '/assets/icons/countryPage2.jpg',
+    heroImage: '/assets/icons/countryPage2.webp',
     name: 'Казахстан',
     welcomeTitle: 'Добро пожаловать в Казахстан',
     intro:
@@ -184,7 +184,7 @@ const countriesData = {
     ],
   },
   kyrgyzstan: {
-    heroImage: '/assets/icons/countryPage.jpg',
+    heroImage: '/assets/icons/countryPage.webp',
     name: 'Кыргызстан',
     welcomeTitle: 'Добро пожаловать в Кыргызстан',
     intro: 'Lorem Ipsum is simply dummy text...',
@@ -213,7 +213,7 @@ const countriesData = {
     ],
   },
   tajikistan: {
-    heroImage: '/assets/icons/countryPage2.jpg',
+    heroImage: '/assets/icons/countryPage2.webp',
     name: 'Таджикистан',
     welcomeTitle: 'Добро пожаловать в Таджикистан',
     intro: 'Lorem Ipsum is simply dummy text...',
@@ -242,7 +242,7 @@ const countriesData = {
     ],
   },
   caucasus: {
-    heroImage: '/assets/icons/countryPage.jpg',
+    heroImage: '/assets/icons/countryPage.webp',
     name: 'Кавказ',
     welcomeTitle: 'Добро пожаловать на Кавказ',
     intro: 'Lorem Ipsum is simply dummy text...',
@@ -283,7 +283,7 @@ const translatedSections = computed(() => {
 
 const data = computed(() => {
   return countryData.value || {
-    heroImage: '/assets/icons/countryPage.jpg',
+    heroImage: resolveAssetUrl('/assets/icons/countryPage.webp'),
     name: '',
     welcomeTitle: '',
     intro: '',
@@ -310,7 +310,12 @@ const filters = ref({
 
 const loadCountry = async () => {
   try {
-    countryData.value = await getCountry(countryCode.value, getApiLocale(locale.value));
+    const payload = await getCountry(countryCode.value, getApiLocale(locale.value));
+    countryData.value = {
+      ...payload,
+      heroImage: resolveAssetUrl(payload.heroImage),
+      flagImage: resolveAssetUrl(payload.flagImage),
+    };
   } catch (error) {
     countryData.value = null;
     notifyError(error.message || t('notifications.loadCountryFailed'), t('notifications.countryUnavailable'));
@@ -323,7 +328,7 @@ const loadCountryOptions = async () => {
     countryOptions.value = data.map((country) => ({
       id: country.slug,
       label: country.name,
-      icon: country.flagImage,
+      icon: resolveAssetUrl(country.flagImage),
     }));
   } catch {
     countryOptions.value = [];
