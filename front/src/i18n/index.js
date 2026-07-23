@@ -56,8 +56,10 @@ const messages = {
       continue_btn: 'Продолжить',
       terms_text:
         'После регистрации с вами свяжется менеджер для подтверждения данных.',
-      personal_data_agreement: 'Я даю согласие на обработку персональных данных.',
-      privacy_policy_agreement: 'Я ознакомлен(а) и согласен(на) с политикой конфиденциальности.',
+      personal_data_agreement:
+        'Я даю согласие на обработку персональных данных.',
+      privacy_policy_agreement:
+        'Я ознакомлен(а) и согласен(на) с политикой конфиденциальности.',
       partner_terms_agreement: 'Я принимаю условия партнерского соглашения.',
       open_document: 'Открыть документ',
       document_missing: 'документ скоро будет добавлен',
@@ -168,23 +170,28 @@ const messages = {
       loadCountryFailed: 'Не удалось загрузить страну',
     },
     footer: {
-      title: 'Centrum Holidays — Национальный Туроператор Узбекистана',
-      title_mobile: 'Centrum Holidays — Национальный Туроператор Узбекистана',
-      air_company: 'Авиакомпания',
+      tourists: 'Туристам',
+      popular: 'Популярные направления',
+      special: 'Специальные предложения',
+      services: 'Услуги',
+      about_company: 'О компании',
+
+      support: 'Поддержка',
+      faq: 'Вопросы и ответы',
+      privacy_policy: 'Политика Конфиденциальности',
+      user_agreement: 'Пользовательское соглашение',
+
+      contacts: 'Контакты',
+      work_hours: 'Пн - Пт, 09:00 – 18:00',
+
+      copyright:
+        '© «Centrum Holidays» {year}. Цены, указанные на сайте, могут измениться и не являются публичной офертой.',
+
       main_page: 'Главная',
       who_we_are: 'Кто мы',
-      services: 'Услуги',
       direction: 'Направления',
       about_us: 'О нас',
       news: 'Новости',
-      uzbekistan: 'Узбекистан',
-      kazakhstan: 'Казахстан',
-      kyrgyzstan: 'Кыргызстан',
-      tajikistan: 'Таджикистан',
-      caucasus: 'Кавказ',
-      privacy_policy: 'Политика конфиденциальности',
-      copyright: '©',
-      all_rights: 'Centrum Holidays',
     },
     breadcrumbs: {
       main: 'Главная',
@@ -559,23 +566,28 @@ const messages = {
       loadCountryFailed: 'Failed to load country',
     },
     footer: {
-      title: 'Centrum Holidays — National Tour Operator of Uzbekistan',
-      title_mobile: 'Centrum Holidays — National Tour Operator of Uzbekistan',
-      air_company: 'Air Company',
+      tourists: 'For Tourists',
+      popular: 'Popular destinations',
+      special: 'Special offers',
+      services: 'Services',
+      about_company: 'About company',
+
+      support: 'Support',
+      faq: 'Questions & Answers',
+      privacy_policy: 'Privacy Policy',
+      user_agreement: 'User Agreement',
+
+      contacts: 'Contacts',
+      work_hours: 'Mon - Fri, 09:00 – 18:00',
+
+      copyright:
+        '© «Centrum Holidays» {year}. Prices on the website are subject to change and do not constitute a public offer.',
+
       main_page: 'Main page',
       who_we_are: 'Who we are',
-      services: 'Services',
-      direction: 'Direction',
+      direction: 'Directions',
       about_us: 'About us',
       news: 'News',
-      uzbekistan: 'Uzbekistan',
-      kazakhstan: 'Kazakhstan',
-      kyrgyzstan: 'Kyrgyzstan',
-      tajikistan: 'Tajikistan',
-      caucasus: 'Caucasus',
-      privacy_policy: 'Privacy Policy',
-      copyright: 'Copyright',
-      all_rights: 'Centrum Holidays',
     },
     breadcrumbs: {
       main: 'Main',
@@ -657,7 +669,7 @@ const messages = {
       page_title: 'About Us',
       content: [
         {
-          text: 'It was established in 2024 by Abdulaziz Abdurrahmanov as a subsidiary of Centrum Holding. Centrum Holding, the flagship company, is one of the largest tourism holdings in the Republic of Uzbekistan, encompassing the country\'s leading tourism and transportation investments, including Centrum Air, Centrum Holidays Tour Operator, and Air Freightnet.',
+          text: "It was established in 2024 by Abdulaziz Abdurrahmanov as a subsidiary of Centrum Holding. Centrum Holding, the flagship company, is one of the largest tourism holdings in the Republic of Uzbekistan, encompassing the country's leading tourism and transportation investments, including Centrum Air, Centrum Holidays Tour Operator, and Air Freightnet.",
         },
         {
           text: '<strong>Centrum Holidays DMC</strong> is a destination management company based in Uzbekistan, specializing in delivering comprehensive, high-quality travel solutions for international partners and clients. As part of the Centrum Holding ecosystem, the company combines strong local expertise with global service standards to provide seamless leisure, group, and MICE travel experiences.',
@@ -679,7 +691,7 @@ const messages = {
         },
         {
           title: 'Strengthening Destination Leadership',
-          text: 'Centrum Holidays DMC aims to play an active role in shaping Uzbekistan\'s tourism landscape. By continuously developing new routes, experiences, and service concepts, we contribute to destination diversification while maintaining cultural authenticity and service quality.',
+          text: "Centrum Holidays DMC aims to play an active role in shaping Uzbekistan's tourism landscape. By continuously developing new routes, experiences, and service concepts, we contribute to destination diversification while maintaining cultural authenticity and service quality.",
         },
         {
           title: 'Technology and Innovation Focus',
@@ -695,11 +707,11 @@ const messages = {
         },
         {
           title: 'Responsible and Sustainable Growth',
-          text: 'As we grow, we remain committed to responsible tourism practices. Our direction includes supporting local communities, working with trusted suppliers, and promoting sustainable operations that respect the destination\'s cultural and natural heritage.',
+          text: "As we grow, we remain committed to responsible tourism practices. Our direction includes supporting local communities, working with trusted suppliers, and promoting sustainable operations that respect the destination's cultural and natural heritage.",
         },
         {
           title: 'Our Commitment',
-          text: 'Centrum Holidays DMC\'s direction is guided by clarity, consistency, and purpose. By combining strategic growth, innovation, and destination expertise, we are building a DMC that delivers long-term value, today and for the future of tourism in Uzbekistan.',
+          text: "Centrum Holidays DMC's direction is guided by clarity, consistency, and purpose. By combining strategic growth, innovation, and destination expertise, we are building a DMC that delivers long-term value, today and for the future of tourism in Uzbekistan.",
         },
       ],
     },
@@ -838,9 +850,12 @@ const messages = {
       continue_btn: 'Davom etish',
       terms_text:
         "Ro'yxatdan o'tgandan so'ng, menejer siz bilan ma'lumotlarni tasdiqlash uchun bog'lanadi.",
-      personal_data_agreement: 'Shaxsiy ma’lumotlarni qayta ishlashga rozilik beraman.',
-      privacy_policy_agreement: 'Maxfiylik siyosati bilan tanishdim va roziman.',
-      partner_terms_agreement: 'Hamkorlik shartnomasi shartlarini qabul qilaman.',
+      personal_data_agreement:
+        'Shaxsiy ma’lumotlarni qayta ishlashga rozilik beraman.',
+      privacy_policy_agreement:
+        'Maxfiylik siyosati bilan tanishdim va roziman.',
+      partner_terms_agreement:
+        'Hamkorlik shartnomasi shartlarini qabul qilaman.',
       open_document: 'Hujjatni ochish',
       document_missing: 'hujjat tez orada qo‘shiladi',
       agreement_required: 'Majburiy roziliklarni tasdiqlang',
@@ -921,7 +936,7 @@ const messages = {
       loginFailed: 'Kirish amalga oshmadi',
       registrationCompletedTitle: "Ro'yxatdan o'tish yakunlandi",
       registrationCompletedMessage:
-        "Sizning hamkor akkauntingiz tayyor. Endi davom etib, turlar bilan ishlashni boshlashingiz mumkin.",
+        'Sizning hamkor akkauntingiz tayyor. Endi davom etib, turlar bilan ishlashni boshlashingiz mumkin.',
       continue: 'Davom etish',
       registrationFailed: "Ro'yxatdan o'tish amalga oshmadi",
       messageSent: 'Xabar yuborildi',
@@ -949,23 +964,28 @@ const messages = {
       loadCountryFailed: 'Davlatni yuklab bo‘lmadi',
     },
     footer: {
-      title: 'Centrum Holidays — O‘zbekiston Milliy Tur Operatori',
-      title_mobile: 'Centrum Holidays — O‘zbekiston Milliy Tur Operatori',
-      air_company: 'Air Company',
-      main_page: 'Bosh sahifa',
-      who_we_are: 'Biz haqimizda',
+      tourists: 'Sayyohlar uchun',
+      popular: 'Mashhur yo‘nalishlar',
+      special: 'Maxsus takliflar',
       services: 'Xizmatlar',
+      about_company: 'Kompaniya haqida',
+
+      support: 'Qo‘llab-quvvatlash',
+      faq: 'Savol-javoblar',
+      privacy_policy: 'Maxfiylik siyosati',
+      user_agreement: 'Foydalanish shartnomasi',
+
+      contacts: 'Bog‘lanish',
+      work_hours: 'Dush - Jum, 09:00 – 18:00',
+
+      copyright:
+        '© «Centrum Holidays» {year}. Saytda ko‘rsatilgan narxlar o‘zgarishi mumkin va ommaviy oferta hisoblanmaydi.',
+
+      main_page: 'Bosh sahifa',
+      who_we_are: 'Biz kimiz',
       direction: 'Yo‘nalishlar',
       about_us: 'Biz haqimizda',
       news: 'Yangiliklar',
-      uzbekistan: "O'zbekiston",
-      kazakhstan: 'Qozog‘iston',
-      kyrgyzstan: 'Qirg‘iziston',
-      tajikistan: 'Tojikiston',
-      caucasus: 'Kavkaz',
-      privacy_policy: 'Maxfiylik siyosati',
-      copyright: 'Mualliflik huquqi',
-      all_rights: 'Centrum Holidays',
     },
     breadcrumbs: {
       main: 'Bosh sahifa',
