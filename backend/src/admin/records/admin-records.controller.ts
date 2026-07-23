@@ -10,6 +10,7 @@ import { AdminAuditService } from '../audit/admin-audit.service';
 import { AdminRecordCreateDto } from './dto/admin-record-create.dto';
 import { AdminRecordUpdateDto } from './dto/admin-record-update.dto';
 import { AdminRecordType, AdminRecordsQueryDto } from './dto/admin-records-query.dto';
+import { AdminUserPasswordUpdateDto } from './dto/admin-user-password-update.dto';
 import { AdminRecordsService } from './admin-records.service';
 
 @ApiTags('admin-records')
@@ -45,6 +46,47 @@ export class AdminRecordsController {
       action: 'CREATE',
       entityType: `record:${type}`,
       entityTitle: dto.email ?? dto.name ?? dto.slug,
+    });
+    return result;
+  }
+
+  @Patch('users/:id/password')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Change user password. Super admin only' })
+  @ApiOkResponse({ description: 'Updated users list' })
+  async updateUserPassword(
+    @Param('id') id: string,
+    @Body() dto: AdminUserPasswordUpdateDto,
+    @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
+  ) {
+    const result = await this.adminRecordsService.updateUserPassword(id, dto.password, req.user);
+    await this.adminAuditService.log({
+      user: req.user,
+      request: req,
+      action: 'UPDATE',
+      entityType: 'record:users',
+      entityId: id,
+      metadata: { passwordChanged: true },
+    });
+    return result;
+  }
+
+  @Delete('users/:id/permanent')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Permanently delete user. Super admin only' })
+  @ApiOkResponse({ description: 'Updated users list' })
+  async deleteUser(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
+  ) {
+    const result = await this.adminRecordsService.deleteUser(id, req.user);
+    await this.adminAuditService.log({
+      user: req.user,
+      request: req,
+      action: 'ARCHIVE',
+      entityType: 'record:users',
+      entityId: id,
+      metadata: { permanentlyDeleted: true },
     });
     return result;
   }

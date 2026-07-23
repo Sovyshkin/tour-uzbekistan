@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, LeadStatus, Locale, UserStatus } from '@prisma/client';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BookingStatus, LeadStatus, Locale, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../../prisma/prisma.service';
@@ -73,6 +73,53 @@ export class AdminRecordsService {
       default:
         throw new BadRequestException('Unsupported records type');
     }
+  }
+
+  async updateUserPassword(id: string, password: string, actor: { role: UserRole }) {
+    this.ensureSuperAdmin(actor);
+    await this.ensureExists(this.prisma.user.count({ where: { id } }));
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        passwordHash,
+        refreshTokenHash: null,
+      },
+    });
+
+    return this.list(AdminRecordType.USERS);
+  }
+
+  async deleteUser(id: string, actor: { sub: string; role: UserRole }) {
+    this.ensureSuperAdmin(actor);
+
+    if (actor.sub === id) {
+      throw new BadRequestException('You cannot delete your own account');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Record not found');
+    }
+
+    if (user.role === UserRole.ADMIN) {
+      const adminsCount = await this.prisma.user.count({
+        where: { role: UserRole.ADMIN },
+      });
+
+      if (adminsCount <= 1) {
+        throw new BadRequestException('You cannot delete the last admin account');
+      }
+    }
+
+    await this.prisma.user.delete({ where: { id } });
+
+    return this.list(AdminRecordType.USERS);
   }
 
   private async createUser(dto: AdminRecordCreateDto) {
@@ -294,6 +341,12 @@ export class AdminRecordsService {
 
     if (!count) {
       throw new NotFoundException('Record not found');
+    }
+  }
+
+  private ensureSuperAdmin(actor: { role: UserRole }) {
+    if (actor.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Super admin access only');
     }
   }
 }

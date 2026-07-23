@@ -6,12 +6,14 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import http from '@/lib/http';
 import { getApiErrorMessage } from '@/lib/api-error';
 import { useAdminI18n } from '@/i18n';
+import { useAuthStore } from '@/stores/auth';
 import { useDashboardStore } from '@/stores/dashboard';
 
 type RecordType = 'users' | 'partners' | 'leads' | 'bookings';
 type AnyRecord = Record<string, any> & { id: string; title: string };
 
 const route = useRoute();
+const authStore = useAuthStore();
 const dashboardStore = useDashboardStore();
 const { t } = useAdminI18n();
 const loading = ref(false);
@@ -20,6 +22,11 @@ const archivingId = ref('');
 const bulkProcessing = ref(false);
 const creating = ref(false);
 const createOpen = ref(false);
+const passwordDialogOpen = ref(false);
+const passwordSaving = ref(false);
+const passwordTarget = ref<AnyRecord | null>(null);
+const passwordForm = ref({ password: '' });
+const passwordError = ref('');
 const records = ref<AnyRecord[]>([]);
 const recordsTableRef = ref();
 const selectedRecords = ref<AnyRecord[]>([]);
@@ -127,6 +134,7 @@ const loadRecords = async () => {
 };
 
 const canCreate = computed(() => ['users', 'partners'].includes(recordType.value));
+const canManageUserSecurity = computed(() => recordType.value === 'users' && authStore.user?.role === 'ADMIN');
 const selectedCount = computed(() => selectedRecords.value.length);
 
 const resetSelection = () => {
@@ -281,6 +289,74 @@ const archiveRecord = async (row: AnyRecord) => {
     ElMessage.success(t('records.updated'));
   } catch (error: any) {
     ElMessage.error(getApiErrorMessage(error, t('records.actionFailed')));
+  } finally {
+    archivingId.value = '';
+  }
+};
+
+const openPasswordDialog = (row: AnyRecord) => {
+  passwordTarget.value = row;
+  passwordForm.value = { password: '' };
+  passwordError.value = '';
+  passwordDialogOpen.value = true;
+};
+
+const changeUserPassword = async () => {
+  if (!passwordTarget.value) {
+    return;
+  }
+
+  passwordError.value = '';
+
+  if (String(passwordForm.value.password ?? '').length < 8) {
+    passwordError.value = t('records.passwordTooShort');
+    ElMessage.warning(passwordError.value);
+    return;
+  }
+
+  passwordSaving.value = true;
+  try {
+    const response = await http.patch<AnyRecord[]>(
+      `/admin/records/users/${passwordTarget.value.id}/password`,
+      passwordForm.value,
+    );
+    records.value = response.data;
+    passwordDialogOpen.value = false;
+    ElMessage.success(t('records.passwordChanged'));
+  } catch (error: any) {
+    passwordError.value = getApiErrorMessage(error, t('records.passwordChangeFailed'));
+    ElMessage.error({
+      message: passwordError.value,
+      duration: 6000,
+      showClose: true,
+    });
+  } finally {
+    passwordSaving.value = false;
+  }
+};
+
+const deleteUser = async (row: AnyRecord) => {
+  try {
+    await ElMessageBox.confirm(
+      t('records.deleteUserConfirm', { title: row.title }),
+      t('records.deleteUser'),
+      {
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+      },
+    );
+  } catch {
+    return;
+  }
+
+  archivingId.value = row.id;
+  try {
+    const response = await http.delete<AnyRecord[]>(`/admin/records/users/${row.id}/permanent`);
+    records.value = response.data;
+    ElMessage.success(t('records.userDeleted'));
+  } catch (error: any) {
+    ElMessage.error(getApiErrorMessage(error, t('records.userDeleteFailed')));
   } finally {
     archivingId.value = '';
   }
@@ -467,6 +543,25 @@ watch(
               >
                 {{ archiveLabel }}
               </el-button>
+              <template v-if="canManageUserSecurity">
+                <el-button
+                  type="primary"
+                  plain
+                  size="small"
+                  @click="openPasswordDialog(row)"
+                >
+                  {{ t('records.changePassword') }}
+                </el-button>
+                <el-button
+                  v-if="row.id !== authStore.user?.id"
+                  type="danger"
+                  size="small"
+                  :loading="archivingId === row.id"
+                  @click="deleteUser(row)"
+                >
+                  {{ t('common.delete') }}
+                </el-button>
+              </template>
             </div>
           </template>
         </el-table-column>
@@ -563,6 +658,42 @@ watch(
       <template #footer>
         <el-button @click="createOpen = false">{{ t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="creating" @click="createRecord">{{ t('common.create') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="passwordDialogOpen"
+      width="min(460px, calc(100vw - 24px))"
+      :title="t('records.changeUserPassword')"
+    >
+      <el-form label-position="top">
+        <el-alert
+          v-if="passwordError"
+          class="dialog-error"
+          type="error"
+          :title="passwordError"
+          show-icon
+          :closable="false"
+        />
+
+        <el-form-item :label="t('common.user')">
+          <el-input :model-value="passwordTarget?.title ?? ''" disabled />
+        </el-form-item>
+        <el-form-item :label="t('records.newPassword')">
+          <el-input
+            v-model="passwordForm.password"
+            type="password"
+            show-password
+            autocomplete="new-password"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="passwordDialogOpen = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="passwordSaving" @click="changeUserPassword">
+          {{ t('common.save') }}
+        </el-button>
       </template>
     </el-dialog>
   </div>

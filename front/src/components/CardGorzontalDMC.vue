@@ -8,6 +8,10 @@ defineProps({
     type: Number,
     default: 0,
   },
+  narrowImage: {
+    type: Boolean,
+    default: false,
+  },
 });
 </script>
 
@@ -28,7 +32,10 @@ defineProps({
       </div>
 
       <!-- Картинка -->
-      <div class="w-full lg:w-[70%] flex-shrink-0">
+      <div
+        class="w-full flex-shrink-0"
+        :class="narrowImage ? 'lg:w-[35%]' : 'lg:w-[70%]'"
+      >
         <img
           :src="item.image"
           :alt="item.title"

@@ -182,6 +182,7 @@ onMounted(loadCategories);
           :key="`${currentCategory}-${currentPage}-${index}`"
           :item="item"
           :index="index"
+          narrow-image
         />
       </div>
 
