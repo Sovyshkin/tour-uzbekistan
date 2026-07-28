@@ -60,6 +60,30 @@ const cmsText = (key, fallback) => {
 
 const cmsAsset = (value) => resolveAssetUrl(value || '');
 
+const cmsBoolean = (key, fallback = false) => {
+  const value = homeData.value.settings?.[key];
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on', 'вкл', 'да'].includes(normalized)) {
+      return true;
+    }
+    if (['false', '0', 'no', 'off', 'выкл', 'нет'].includes(normalized)) {
+      return false;
+    }
+  }
+
+  return fallback;
+};
+
+const toursAutoplay = computed(() =>
+  cmsBoolean('home.tours_animation_enabled', true) ? 5000 : 0,
+);
+
 const mass = computed(() => [
   {
     title: cmsText('home.cards.about.title', t('nav.about')),
@@ -74,7 +98,7 @@ const mass = computed(() => [
     route: '/directions',
     descr: cmsText(
       'home.cards.directions.description',
-      "Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.",
+      'Discover Uzbekistan, Central Asia and neighboring destinations through curated routes, regional expertise and seamless travel logistics.',
     ),
   },
   {
@@ -282,7 +306,7 @@ onMounted(loadHome);
         :items="filteredTours"
         :visible-count="tourVisible"
         :gap="14"
-        :autoplay="5000"
+        :autoplay="toursAutoplay"
       >
         <template #default="{ item }">
           <Card :tour="item" />

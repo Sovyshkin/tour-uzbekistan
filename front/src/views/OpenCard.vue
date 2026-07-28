@@ -1,11 +1,11 @@
 <script setup>
-import { ref, computed, nextTick, onMounted, watch } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import AppContainer from '@/components/AppContainer.vue';
 import CustomSelect from '@/components/CustomSelect.vue';
 import Carousel from '@/components/Carousel.vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { createBooking, getApiLocale, getCountries, getTour, isAuthenticated, resolveAssetUrl } from '@/api';
+import { createBooking, getApiLocale, getAuth, getCountries, getTour, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateBookingFormFields } from '@/utils/formValidation';
 const { t, locale } = useI18n();
@@ -76,6 +76,16 @@ const closeMobileFilter = () => {
   isMobileFilterOpen.value = false;
 };
 
+const authState = ref(getAuth());
+const isB2BUser = computed(() => authState.value?.user?.role === 'PARTNER');
+const syncAuthState = async () => {
+  const previousRole = authState.value?.user?.role;
+  authState.value = getAuth();
+  if (previousRole !== authState.value?.user?.role) {
+    await loadTour();
+  }
+};
+
 // Данные формы
 const formData = ref({
   sex: '',
@@ -104,7 +114,7 @@ const clearFieldError = (field) => {
 };
 
 const openModal = () => {
-  if (!isAuthenticated()) {
+  if (!isB2BUser.value) {
     router.push({
       name: 'home',
       query: {
@@ -129,7 +139,7 @@ const closeModal = () => {
 };
 
 const submitForm = async () => {
-  if (!isAuthenticated()) {
+  if (!isB2BUser.value) {
     closeModal();
     router.push({
       name: 'home',
@@ -203,7 +213,7 @@ const legacyTour = {
     '/assets/icons/card5.webp',
   ],
   description:
-    "Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem ipsum. It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem ipsum is that it has a more-or-less normal distribution of letters, as opposed to using 'Content here, content here', making it look like readable English. Many desktop publishing packages and web page editors now use Lorem ipsum as their default model text, and a search for 'lorem ipsum' will uncover many web sites still in their infancy.",
+    'Подробное описание тура временно недоступно.',
   duration: '3 дня',
   transport: 'Поезд, автобус',
   tourists: 'от 2 до 16',
@@ -268,7 +278,7 @@ const notIncluded = ref([]);
 
 // ─── Другие даты ───
 const otherDates = computed(() =>
-  tour.value.priceFrom
+  isB2BUser.value && tour.value.priceFrom
     ? [
         {
           date: '',
@@ -375,8 +385,13 @@ watch(() => locale.value, async () => {
 });
 
 onMounted(() => {
+  window.addEventListener('tour-auth-changed', syncAuthState);
   loadCountries();
   loadTour();
+});
+
+onUnmounted(() => {
+  window.removeEventListener('tour-auth-changed', syncAuthState);
 });
 </script>
 
@@ -981,6 +996,7 @@ onMounted(() => {
 
               <!-- Текущая дата и цена -->
               <div
+                v-if="isB2BUser"
                 class="tour-buy-panel"
               >
                 <div
@@ -1003,7 +1019,7 @@ onMounted(() => {
               </div>
 
               <!-- Другие даты -->
-              <div>
+              <div v-if="isB2BUser">
                 <div
                   class="py-[10px] border-t border-b bg-[#f6f6f6] hidden lg:block"
                 >
@@ -1024,6 +1040,7 @@ onMounted(() => {
                   </h4>
                 </div>
                 <div
+                  v-if="isB2BUser"
                   class="tour-dates-panel hidden lg:block"
                 >
                   <div
@@ -1037,7 +1054,7 @@ onMounted(() => {
                     <div class="flex items-center gap-2">
                       <span
                         class="text-[14px] sm:text-[16px] font-medium text-[#FF00E7]"
-                        >{{ d.price }}$</span
+                        >{{ d.price }}</span
                       >
                     </div>
                   </div>
@@ -1211,7 +1228,7 @@ onMounted(() => {
 
           <div class="px-4 sm:px-5 py-4">
             <!-- Цена -->
-            <div class="lg:px-[40px] py-[15px] rounded-b-[15px]">
+            <div v-if="isB2BUser" class="lg:px-[40px] py-[15px] rounded-b-[15px]">
               <div
                 v-for="(d, i) in otherDates"
                 :key="i"

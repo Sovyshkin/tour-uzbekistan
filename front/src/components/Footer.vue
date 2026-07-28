@@ -370,7 +370,17 @@
               </router-link>
             </li>
             <li>
-              <router-link to="/privacy-policy" class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]">
+              <a
+                v-if="privacyPolicyUrl"
+                :href="privacyPolicyUrl"
+                download
+                target="_blank"
+                rel="noopener"
+                class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]"
+              >
+                {{ $t('footer.privacy_policy') }}
+              </a>
+              <router-link v-else to="/privacy-policy" class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]">
                 {{ $t('footer.privacy_policy') }}
               </router-link>
             </li>
@@ -432,22 +442,31 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { getApiLocale, getCountries } from '@/api';
+import { getApiLocale, getCountries, getSiteSettings, resolveAssetUrl } from '@/api';
 
 const { t, locale } = useI18n();
 const currentYear = computed(() => new Date().getFullYear());
 const footerCountries = ref([]);
+const footerSettings = ref({});
 
 const cmsValue = (key, fallback) => {
   const value = t(key);
   return value === key ? fallback : value;
 };
 
-const loadFooterCountries = async () => {
+const loadFooterData = async () => {
+  const apiLocale = getApiLocale(locale.value);
+
   try {
-    footerCountries.value = await getCountries(getApiLocale(locale.value));
+    footerCountries.value = await getCountries(apiLocale);
   } catch {
     footerCountries.value = [];
+  }
+
+  try {
+    footerSettings.value = await getSiteSettings(apiLocale);
+  } catch {
+    footerSettings.value = {};
   }
 };
 
@@ -461,9 +480,13 @@ const footerEmailHref = computed(() => `mailto:${footerEmail.value}`);
 const footerPhoneHref = computed(
   () => `tel:${footerPhone.value.replace(/[^\d+]/g, '')}`,
 );
+const privacyPolicyUrl = computed(() => {
+  const value = footerSettings.value['legal.privacy_policy'] || cmsValue('legal.privacy_policy', '');
+  return value ? resolveAssetUrl(value) : '';
+});
 
-watch(() => locale.value, loadFooterCountries);
-onMounted(loadFooterCountries);
+watch(() => locale.value, loadFooterData);
+onMounted(loadFooterData);
 </script>
 
 <style scoped>

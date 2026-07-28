@@ -272,6 +272,14 @@ watch([() => props.visibleCount, () => props.gap], () => {
     updateDimensionsAndPosition();
   });
 });
+
+watch(
+  () => props.autoplay,
+  () => {
+    stopAutoplay();
+    startAutoplay();
+  },
+);
 </script>
 
 <style scoped>

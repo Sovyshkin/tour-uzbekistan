@@ -4,7 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ContentStatus, Locale, Prisma, UserRole } from '@prisma/client';
+import { Request } from 'express';
 
+import { AdminAuditService } from '../admin/audit/admin-audit.service';
+import {
+  SamoClaimPayload,
+  SamoIncomingResult,
+  SamoIncomingService,
+} from '../integrations/samo-incoming/samo-incoming.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 
@@ -25,9 +32,18 @@ type TourSnapshot = {
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly adminAuditService: AdminAuditService,
+    private readonly samoIncomingService: SamoIncomingService,
+  ) {}
 
-  async createBooking(dto: CreateBookingDto, userId: string, role: string) {
+  async createBooking(
+    dto: CreateBookingDto,
+    userId: string,
+    role: string,
+    request?: Request,
+  ) {
     const partnerUser = await this.getPartnerUser(userId, role);
     const locale = dto.locale ?? partnerUser.preferredLocale ?? Locale.ru;
 
@@ -124,7 +140,46 @@ export class BookingsService {
       },
     });
 
-    return this.mapBooking(booking, snapshot);
+    const samoResult = await this.samoIncomingService.sendBooking(
+      this.buildSamoClaimPayload(booking, snapshot, dto, tour.durationDays),
+    );
+
+    const bookingWithIntegration = await this.prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        metadata: {
+          ...(this.isPlainObject(booking.metadata) ? booking.metadata : {}),
+          samoIncoming: this.toSafeSamoMetadata(samoResult),
+        } as Prisma.InputJsonValue,
+      },
+      include: {
+        translations: {
+          where: { locale },
+          take: 1,
+        },
+      },
+    });
+
+    await this.adminAuditService.log({
+      user: {
+        sub: partnerUser.id,
+        email: partnerUser.email,
+        role: partnerUser.role,
+      },
+      request,
+      action: 'CREATE',
+      entityType: 'record:bookings',
+      entityId: bookingWithIntegration.id,
+      entityTitle: bookingWithIntegration.bookingNumber,
+      metadata: this.buildBookingAuditMetadata(
+        bookingWithIntegration,
+        snapshot,
+        dto,
+        samoResult,
+      ),
+    });
+
+    return this.mapBooking(bookingWithIntegration, snapshot);
   }
 
   async getMyBookings(userId: string, role: string) {
@@ -157,6 +212,7 @@ export class BookingsService {
       where: { id: userId },
       select: {
         id: true,
+        email: true,
         role: true,
         partnerId: true,
         preferredLocale: true,
@@ -187,6 +243,7 @@ export class BookingsService {
       phone: booking.phone ?? null,
       sourcePage: booking.sourcePagePath ?? null,
       specialRequests: booking.translations[0]?.specialRequests ?? null,
+      integration: this.readIntegration(booking.metadata),
       snapshot,
       createdAt: booking.createdAt.toISOString(),
     };
@@ -221,5 +278,102 @@ export class BookingsService {
 
   private generateBookingNumber() {
     return `BK-${Date.now()}`;
+  }
+
+  private buildBookingAuditMetadata(
+    booking: Prisma.BookingGetPayload<{
+      include: { translations: { where: { locale: Locale }; take: 1 } };
+    }>,
+    snapshot: TourSnapshot,
+    dto: CreateBookingDto,
+    samoResult?: SamoIncomingResult,
+  ) {
+    return {
+      booking: {
+        number: booking.bookingNumber,
+        status: booking.status,
+        audience: booking.audience,
+        locale: booking.locale,
+        sourcePage: booking.sourcePagePath ?? null,
+        travelDate: booking.travelDate?.toISOString() ?? null,
+        groupSize: booking.groupSize ?? null,
+      },
+      customer: {
+        firstName: booking.firstName,
+        lastName: booking.lastName,
+        email: booking.email,
+        phone: booking.phone ?? null,
+      },
+      tour: {
+        id: snapshot.tourId,
+        title: snapshot.title,
+        price: snapshot.price,
+        currency: snapshot.currency,
+        transport: snapshot.transport,
+        hotels: snapshot.hotels,
+        requestedHotel: dto.hotelName ?? null,
+        includedServices: snapshot.includedServices,
+        program: snapshot.program.map((day) => ({
+          dayNumber: day.dayNumber,
+          title: day.title,
+          description: day.description,
+        })),
+      },
+      samoIncoming: samoResult ? this.toSafeSamoMetadata(samoResult) : undefined,
+    };
+  }
+
+  private buildSamoClaimPayload(
+    booking: Prisma.BookingGetPayload<{
+      include: { translations: { where: { locale: Locale }; take: 1 } };
+    }>,
+    snapshot: TourSnapshot,
+    dto: CreateBookingDto,
+    durationDays: number,
+  ): SamoClaimPayload {
+    return {
+      bookingId: booking.id,
+      bookingNumber: booking.bookingNumber,
+      createdAt: booking.createdAt,
+      travelDate: booking.travelDate,
+      groupSize: booking.groupSize,
+      hotelName: booking.hotelName,
+      specialRequests: booking.translations[0]?.specialRequests ?? dto.specialRequests,
+      person: {
+        firstName: booking.firstName,
+        lastName: booking.lastName,
+        sex: booking.sex,
+        birthDate: booking.birthDate,
+        documentSeries: booking.documentSeries,
+        documentNumber: booking.documentNumber,
+      },
+      tour: {
+        title: snapshot.title,
+        durationDays,
+        transport: snapshot.transport,
+        hotels: snapshot.hotels,
+        includedServices: snapshot.includedServices,
+      },
+    };
+  }
+
+  private toSafeSamoMetadata(result: SamoIncomingResult) {
+    const { requestXml: _requestXml, ...safeResult } = result;
+    return {
+      ...safeResult,
+      rawResponse: result.rawResponse?.slice(0, 2000),
+    };
+  }
+
+  private readIntegration(value: Prisma.JsonValue | null | undefined) {
+    if (!this.isPlainObject(value) || !this.isPlainObject(value.samoIncoming)) {
+      return null;
+    }
+
+    return value.samoIncoming;
+  }
+
+  private isPlainObject(value: unknown): value is Record<string, Prisma.JsonValue> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
   }
 }

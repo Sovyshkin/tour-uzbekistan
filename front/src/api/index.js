@@ -74,10 +74,12 @@ function getStoredAuth() {
 
 function setStoredAuth(auth) {
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
+  window.dispatchEvent(new CustomEvent('tour-auth-changed'));
 }
 
 function clearStoredAuth() {
   localStorage.removeItem(AUTH_STORAGE_KEY);
+  window.dispatchEvent(new CustomEvent('tour-auth-changed'));
 }
 
 async function request(path, options = {}, retry = true) {
@@ -128,6 +130,11 @@ export function getAuth() {
 
 export function isAuthenticated() {
   return Boolean(getStoredAuth()?.accessToken);
+}
+
+export function isB2BAuthenticated() {
+  const auth = getStoredAuth();
+  return Boolean(auth?.accessToken && auth?.user?.role === 'PARTNER');
 }
 
 export function setAuth(auth) {

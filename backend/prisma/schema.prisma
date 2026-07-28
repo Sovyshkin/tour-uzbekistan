@@ -213,6 +213,7 @@ model Tour {
   priceFrom         Decimal?          @db.Decimal(10, 2)
   currency          String?           @default("USD")
   isFeatured        Boolean           @default(false)
+  sortOrder         Int               @default(0)
   showPriceToB2C    Boolean           @default(false)
   status            ContentStatus     @default(DRAFT)
   country           Country           @relation(fields: [countryId], references: [id], onDelete: Cascade)
@@ -226,6 +227,7 @@ model Tour {
 
   @@index([countryId])
   @@index([status, isFeatured])
+  @@index([status, isFeatured, sortOrder])
   @@index([type, season])
 }
 

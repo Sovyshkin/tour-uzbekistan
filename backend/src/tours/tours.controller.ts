@@ -16,6 +16,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Request } from 'express';
+import { UserRole } from '@prisma/client';
 
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { TourDetailDto } from './dto/tour-detail.dto';
@@ -31,6 +32,8 @@ type RequestWithOptionalUser = Request & {
   } | null;
 };
 
+const isB2BUser = (req: RequestWithOptionalUser) => req.user?.role === UserRole.PARTNER;
+
 @ApiTags('tours')
 @Controller('tours')
 @UseGuards(OptionalJwtAuthGuard)
@@ -42,7 +45,7 @@ export class ToursController {
   @ApiOperation({ summary: 'Get published tours with filters and pagination' })
   @ApiOkResponse({ type: ToursListResponseDto })
   getTours(@Query() query: ToursQueryDto, @Req() req: RequestWithOptionalUser) {
-    return this.toursService.getTours(query, Boolean(req.user));
+    return this.toursService.getTours(query, isB2BUser(req));
   }
 
   @Get(':slug')
@@ -58,7 +61,7 @@ export class ToursController {
     const tour = await this.toursService.getTourBySlug(
       slug,
       query.locale,
-      Boolean(req.user),
+      isB2BUser(req),
     );
 
     if (!tour) {

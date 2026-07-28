@@ -75,6 +75,52 @@ const labelFrom = (labels: Record<string, string>, value: unknown) => {
   return labels[key] ?? key;
 };
 
+const displayValue = (value: unknown) => {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+
+  return String(value);
+};
+
+const formatSourcePage = (row: AnyRecord) =>
+  displayValue(row.sourcePageTitle || row.sourcePagePath);
+
+const formatDateTime = (value: unknown) => {
+  if (!value) {
+    return '—';
+  }
+
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+};
+
+const readSnapshot = (row: AnyRecord) => {
+  const snapshot = row.snapshot;
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    return {};
+  }
+
+  return snapshot as Record<string, any>;
+};
+
+const snapshotServices = (row: AnyRecord) => {
+  const services = readSnapshot(row).includedServices;
+  return Array.isArray(services) ? services.filter((item) => typeof item === 'string') : [];
+};
+
+const snapshotProgram = (row: AnyRecord) => {
+  const program = readSnapshot(row).program;
+  return Array.isArray(program) ? program : [];
+};
+
 const recordType = computed<RecordType>(() => String(route.meta.recordType ?? 'users') as RecordType);
 
 const columns = computed(() => {
@@ -103,8 +149,9 @@ const columns = computed(() => {
       { prop: 'title', label: t('common.name'), minWidth: 180 },
       { prop: 'email', label: t('common.email'), minWidth: 220 },
       { prop: 'phone', label: t('common.phone'), minWidth: 160 },
+      { prop: 'audience', label: t('common.audience'), width: 110 },
       { prop: 'status', label: t('common.status'), width: 150, format: (value: unknown) => labelFrom(leadStatusLabels.value, value) },
-      { prop: 'sourcePagePath', label: t('common.page'), minWidth: 180 },
+      { prop: 'sourcePagePath', label: t('records.sourcePage'), minWidth: 220, format: (_value: unknown, row: AnyRecord) => formatSourcePage(row) },
       { prop: 'tour', label: t('common.tour'), minWidth: 180 },
     ];
   }
@@ -113,8 +160,10 @@ const columns = computed(() => {
     { prop: 'title', label: t('dashboard.bookingNumber'), minWidth: 170 },
     { prop: 'customer', label: t('dashboard.customer'), minWidth: 180 },
     { prop: 'email', label: t('common.email'), minWidth: 220 },
+    { prop: 'audience', label: t('common.audience'), width: 110 },
     { prop: 'status', label: t('common.status'), width: 150, format: (value: unknown) => labelFrom(bookingStatusLabels.value, value) },
     { prop: 'tour', label: t('common.tour'), minWidth: 180 },
+    { prop: 'sourcePagePath', label: t('records.sourcePage'), minWidth: 220 },
     { prop: 'totalPrice', label: t('common.price'), width: 120 },
   ];
 });
@@ -476,6 +525,113 @@ watch(
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="48" />
+        <el-table-column v-if="recordType === 'leads' || recordType === 'bookings'" type="expand" width="48">
+          <template #default="{ row }">
+            <div class="record-details">
+              <div class="detail-card">
+                <h3>{{ t('records.sourceStats') }}</h3>
+                <dl>
+                  <div>
+                    <dt>{{ t('records.sourcePage') }}</dt>
+                    <dd>{{ displayValue(row.sourcePagePath) }}</dd>
+                  </div>
+                  <div v-if="row.sourcePageTitle">
+                    <dt>{{ t('records.sourcePageTitle') }}</dt>
+                    <dd>{{ row.sourcePageTitle }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('common.audience') }}</dt>
+                    <dd>{{ displayValue(row.audience) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('common.createdAt') }}</dt>
+                    <dd>{{ formatDateTime(row.createdAt) }}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div v-if="recordType === 'leads'" class="detail-card">
+                <h3>{{ t('records.b2cRequest') }}</h3>
+                <dl>
+                  <div>
+                    <dt>{{ t('common.tour') }}</dt>
+                    <dd>{{ displayValue(row.tour) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('common.country') }}</dt>
+                    <dd>{{ displayValue(row.country) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('common.service') }}</dt>
+                    <dd>{{ displayValue(row.service) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('common.type') }}</dt>
+                    <dd>{{ displayValue(row.type) }}</dd>
+                  </div>
+                </dl>
+                <div v-if="row.message" class="detail-message">
+                  <span>{{ t('records.message') }}</span>
+                  <p>{{ row.message }}</p>
+                </div>
+              </div>
+
+              <div v-else class="detail-card detail-card-wide">
+                <h3>{{ t('records.b2bBooking') }}</h3>
+                <dl>
+                  <div>
+                    <dt>{{ t('common.tour') }}</dt>
+                    <dd>{{ displayValue(row.tour || readSnapshot(row).title) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('common.country') }}</dt>
+                    <dd>{{ displayValue(row.country) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('common.partner') }}</dt>
+                    <dd>{{ displayValue(row.partner) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('records.requestedHotel') }}</dt>
+                    <dd>{{ displayValue(row.hotelName || readSnapshot(row).hotels) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('records.transport') }}</dt>
+                    <dd>{{ displayValue(readSnapshot(row).transport) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ t('common.price') }}</dt>
+                    <dd>{{ displayValue([row.totalPrice, row.currency].filter(Boolean).join(' ')) }}</dd>
+                  </div>
+                </dl>
+
+                <div v-if="snapshotServices(row).length" class="detail-message">
+                  <span>{{ t('records.includedServices') }}</span>
+                  <div class="detail-tags">
+                    <el-tag v-for="service in snapshotServices(row)" :key="service" type="info">
+                      {{ service }}
+                    </el-tag>
+                  </div>
+                </div>
+
+                <div v-if="snapshotProgram(row).length" class="detail-message">
+                  <span>{{ t('records.tourProgram') }}</span>
+                  <ol class="detail-program">
+                    <li v-for="day in snapshotProgram(row)" :key="`${row.id}-${day.dayNumber}`">
+                      <b>{{ day.dayNumber }}. {{ day.title }}</b>
+                      <p>{{ day.description }}</p>
+                    </li>
+                  </ol>
+                </div>
+
+                <div v-if="row.specialRequests" class="detail-message">
+                  <span>{{ t('records.specialRequests') }}</span>
+                  <p>{{ row.specialRequests }}</p>
+                </div>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column
           v-for="column in columns"
           :key="column.prop"
@@ -485,7 +641,7 @@ watch(
           :width="column.width"
         >
           <template #default="{ row }">
-            {{ column.format ? column.format(row[column.prop]) : row[column.prop] }}
+            {{ column.format ? column.format(row[column.prop], row) : displayValue(row[column.prop]) }}
           </template>
         </el-table-column>
         <el-table-column :label="t('common.management')" width="300">
@@ -786,6 +942,89 @@ watch(
   margin-left: 0;
 }
 
+.record-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 16px 10px;
+  background: #f8fafc;
+}
+
+.detail-card {
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  min-width: 0;
+}
+
+.detail-card-wide {
+  grid-column: 1 / -1;
+}
+
+.detail-card h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.detail-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.detail-card dt {
+  margin-bottom: 4px;
+  color: #8a9099;
+  font-size: 12px;
+}
+
+.detail-card dd {
+  margin: 0;
+  color: #303133;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.detail-message {
+  margin-top: 14px;
+}
+
+.detail-message > span {
+  display: block;
+  margin-bottom: 8px;
+  color: #8a9099;
+  font-size: 12px;
+}
+
+.detail-message p {
+  margin: 0;
+  color: #303133;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-program {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.detail-program p {
+  margin-top: 4px;
+  color: #606266;
+}
+
 @media (max-width: 720px) {
   .records-toolbar {
     align-items: flex-start;
@@ -827,6 +1066,11 @@ watch(
   .record-row-actions .el-button {
     width: 100%;
     min-width: 0;
+  }
+
+  .record-details,
+  .detail-card dl {
+    grid-template-columns: 1fr;
   }
 }
 </style>

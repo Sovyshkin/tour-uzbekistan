@@ -78,6 +78,7 @@ const sendLead = async () => {
       phone: form.value.phone || undefined,
       message: 'Lead from about page',
       sourcePage: route.fullPath,
+      sourcePageTitle: document.title,
       language: getApiLocale(locale.value),
     });
 

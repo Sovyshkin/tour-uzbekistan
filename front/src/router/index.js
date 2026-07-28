@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { isAuthenticated } from '@/api';
+import { isB2BAuthenticated, isAuthenticated } from '@/api';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -68,6 +68,14 @@ const router = createRouter({
       component: () => import('@/views/ForAgentPage.vue'),
     },
     {
+      path: '/agent-cabinet',
+      name: 'agent-cabinet',
+      component: () => import('@/views/AgentCabinetPage.vue'),
+      meta: {
+        requiresPartner: true,
+      },
+    },
+    {
       path: '/register',
       name: 'Register',
       component: () => import('@/views/RegisterPage.vue'),
@@ -96,6 +104,17 @@ const router = createRouter({
 });
 
 router.beforeEach((to) => {
+  if (to.meta.requiresPartner && !isB2BAuthenticated()) {
+    return {
+      name: 'home',
+      query: {
+        auth: 'login',
+        reason: 'unauthorized',
+        redirect: to.fullPath,
+      },
+    };
+  }
+
   if (to.meta.requiresAuth && !isAuthenticated()) {
     return {
       name: 'home',

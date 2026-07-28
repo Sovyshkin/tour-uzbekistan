@@ -314,6 +314,12 @@ async function main() {
       en: '/assets/icons/tours.webp',
       uz: '/assets/icons/tours.webp',
     },
+    {
+      key: 'home.tours_animation_enabled',
+      ru: 'true',
+      en: 'true',
+      uz: 'true',
+    },
   ];
 
   for (const setting of homeTextSettings) {

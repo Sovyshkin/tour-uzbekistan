@@ -35,6 +35,12 @@ export class CreateLeadDto {
   @MaxLength(255)
   sourcePage!: string;
 
+  @ApiPropertyOptional({ example: 'Weekend in Uzbekistan - Centrum Holidays' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  sourcePageTitle?: string;
+
   @ApiProperty({ enum: Locale, enumName: 'Locale', example: Locale.ru })
   @IsEnum(Locale)
   language!: Locale;

@@ -34,6 +34,9 @@ const when = ref('');
 const people = ref(2);
 const duration = ref(7);
 const searchText = ref('');
+const maxPrice = ref(null);
+const maxDuration = ref(null);
+const isSearchDurationActive = ref(false);
 
 const countries = ref([]);
 const settings = ref({});
@@ -71,6 +74,7 @@ const heroImage = computed(() =>
 
 // Функция поиска (обновляет пагинацию)
 const performSearch = () => {
+  isSearchDurationActive.value = Boolean(duration.value);
   currentPage.value = 1;
   loadTours();
 };
@@ -96,10 +100,32 @@ const resetFilters = () => {
   when.value = '';
   searchText.value = '';
   comfortFilter.value = null;
+  maxPrice.value = null;
+  maxDuration.value = null;
+  isSearchDurationActive.value = false;
   seasons.value.forEach((s) => (s.checked = false));
   tourTypes.value.forEach((t) => (t.checked = false));
   currentPage.value = 1;
   loadTours();
+};
+
+const applyRangeFilters = () => {
+  currentPage.value = 1;
+  loadTours();
+};
+
+const setComfortFilter = (stars) => {
+  comfortFilter.value = comfortFilter.value === stars ? null : stars;
+  applyRangeFilters();
+};
+
+const goToPage = (page) => {
+  if (typeof page !== 'number' || page < 1 || page > totalPages.value || page === currentPage.value) return;
+  currentPage.value = page;
+};
+
+const nextPage = () => {
+  goToPage(currentPage.value + 1);
 };
 
 const displayedPages = computed(() => {
@@ -153,9 +179,10 @@ const loadTours = async () => {
       page: currentPage.value,
       pageSize: perPage.value,
       country: where.value?.slug,
-      maxDuration: duration.value || undefined,
+      maxDuration: maxDuration.value || (isSearchDurationActive.value ? duration.value : undefined),
       minStars: comfortFilter.value || undefined,
       maxStars: comfortFilter.value || undefined,
+      maxPrice: maxPrice.value || undefined,
       search: searchText.value || undefined,
     });
 
@@ -171,6 +198,8 @@ const loadTours = async () => {
       },
       country: tour.country,
       comfort: tour.comfortLevel,
+      priceFrom: tour.priceFrom || null,
+      currency: tour.currency || null,
     }));
     meta.value = data.meta;
   } catch (error) {
@@ -186,8 +215,13 @@ const loadSettings = async () => {
   }
 };
 
+const reloadToursAfterAuthChange = () => {
+  loadTours();
+};
+
 watch(() => locale.value, async () => {
-  await Promise.all([loadSettings(), loadCountries(), loadTours()]);
+  await Promise.all([loadSettings(), loadCountries()]);
+  await loadTours();
 });
 
 watch(currentPage, () => {
@@ -200,7 +234,13 @@ watch(perPage, () => {
 });
 
 onMounted(async () => {
-  await Promise.all([loadSettings(), loadCountries(), loadTours()]);
+  window.addEventListener('tour-auth-changed', reloadToursAfterAuthChange);
+  await Promise.all([loadSettings(), loadCountries()]);
+  await loadTours();
+});
+
+onUnmounted(() => {
+  window.removeEventListener('tour-auth-changed', reloadToursAfterAuthChange);
 });
 </script>
 
@@ -361,16 +401,19 @@ onMounted(async () => {
                 </h4>
                 <div class="relative mb-3 xl:mb-4">
                   <input
+                    v-model.number="maxPrice"
                     type="range"
                     class="w-full h-1 bg-[#e6e6e7] rounded-lg appearance-none cursor-pointer accent-[#285aff]"
                     min="0"
                     max="5000"
+                    step="50"
+                    @change="applyRangeFilters"
                   />
                 </div>
                 <div
                   class="flex justify-between text-[11px] xl:text-[12px] text-[#888]"
                 >
-                  <span>000</span><span>000</span>
+                  <span>0 USD</span><span>{{ maxPrice ? `${maxPrice} USD` : '5000+ USD' }}</span>
                 </div>
               </div>
 
@@ -384,16 +427,18 @@ onMounted(async () => {
                 </p>
                 <div class="relative mb-3 xl:mb-4">
                   <input
+                    v-model.number="maxDuration"
                     type="range"
                     class="w-full h-1 bg-[#e6e6e7] rounded-lg appearance-none cursor-pointer accent-[#285aff]"
                     min="0"
-                    max="21"
+                    max="30"
+                    @change="applyRangeFilters"
                   />
                 </div>
                 <div
                   class="flex justify-between text-[11px] xl:text-[12px] text-[#888]"
                 >
-                  <span>00</span><span>00</span>
+                  <span>0</span><span>{{ maxDuration ? maxDuration : '30+' }}</span>
                 </div>
               </div>
 
@@ -493,7 +538,7 @@ onMounted(async () => {
                     v-for="stars in [3, 4, 5]"
                     :key="stars"
                     class="flex items-center gap-2 text-left group"
-                    @click="comfortFilter = stars"
+                    @click="setComfortFilter(stars)"
                   >
                     <div class="flex items-center gap-0.5">
                       <span
@@ -589,20 +634,26 @@ onMounted(async () => {
               class="flex justify-center sm:justify-end items-center gap-1.5 sm:gap-2 mt-6 sm:mt-10"
             >
               <button
-                v-for="page in totalPages"
+                v-for="page in displayedPages"
                 :key="page"
-                @click="currentPage = page"
+                @click="goToPage(page)"
                 class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-[6px] text-[12px] sm:text-[14px] transition"
                 :class="
                   currentPage === page
                     ? 'bg-[#285aff] text-white'
-                    : 'text-[#666] hover:bg-[#f5f5f5]'
+                    : page === '...'
+                      ? 'text-[#999] cursor-default'
+                      : 'text-[#666] hover:bg-[#f5f5f5]'
                 "
+                :disabled="page === '...'"
               >
                 {{ page }}
               </button>
               <button
+                @click="nextPage"
+                :disabled="currentPage >= totalPages"
                 class="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-[#666] hover:bg-[#f5f5f5] rounded-[6px] text-[12px] sm:text-[14px]"
+                :class="currentPage >= totalPages ? 'opacity-40 cursor-not-allowed' : ''"
               >
                 ›
               </button>
@@ -649,14 +700,17 @@ onMounted(async () => {
               </h4>
               <div class="relative mb-3">
                 <input
+                  v-model.number="maxPrice"
                   type="range"
                   class="w-full h-1 bg-[#e6e6e7] rounded-lg appearance-none cursor-pointer accent-[#285aff]"
                   min="0"
                   max="5000"
+                  step="50"
+                  @change="applyRangeFilters"
                 />
               </div>
               <div class="flex justify-between text-[12px] text-[#888]">
-                <span>000</span><span>000</span>
+                <span>0 USD</span><span>{{ maxPrice ? `${maxPrice} USD` : '5000+ USD' }}</span>
               </div>
             </div>
 
@@ -670,14 +724,16 @@ onMounted(async () => {
               </p>
               <div class="relative mb-3">
                 <input
+                  v-model.number="maxDuration"
                   type="range"
                   class="w-full h-1 bg-[#e6e6e7] rounded-lg appearance-none cursor-pointer accent-[#285aff]"
                   min="0"
-                  max="21"
+                  max="30"
+                  @change="applyRangeFilters"
                 />
               </div>
               <div class="flex justify-between text-[12px] text-[#888]">
-                <span>00</span><span>00</span>
+                <span>0</span><span>{{ maxDuration ? maxDuration : '30+' }}</span>
               </div>
             </div>
 
@@ -775,7 +831,7 @@ onMounted(async () => {
                   v-for="stars in [3, 4, 5]"
                   :key="stars"
                   class="flex items-center gap-2 text-left"
-                  @click="comfortFilter = stars"
+                  @click="setComfortFilter(stars)"
                 >
                   <div class="flex items-center gap-0.5">
                     <span

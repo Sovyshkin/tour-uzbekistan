@@ -21,6 +21,8 @@ type DashboardResponse = {
     email: string;
     phone: string | null;
     status: string;
+    sourcePagePath: string | null;
+    tour: string | null;
     createdAt: string;
   }>;
   recentBookings: Array<{
@@ -28,6 +30,8 @@ type DashboardResponse = {
     bookingNumber: string;
     customer: string;
     status: string;
+    sourcePagePath: string | null;
+    tour: string | null;
     createdAt: string;
   }>;
 };

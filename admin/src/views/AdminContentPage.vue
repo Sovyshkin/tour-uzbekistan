@@ -699,7 +699,7 @@ const openCreate = async () => {
   form.type = createType;
   form.slug = `new-${createType}-${Date.now()}`;
   form.status = createType === 'media' || createType === 'siteSettings' ? undefined : 'DRAFT';
-  form.sortOrder = ['countries', 'services'].includes(createType) ? 0 : undefined;
+  form.sortOrder = ['countries', 'tours', 'services'].includes(createType) ? 0 : undefined;
   form.isFeatured = ['countries', 'tours', 'services'].includes(createType) ? false : undefined;
   form.isActive = createType === 'siteSettings' ? true : undefined;
 
@@ -1246,6 +1246,11 @@ watch(
                 <el-tag v-else :type="row.isActive ? 'success' : 'info'">
                   {{ row.isActive ? 'ACTIVE' : 'OFF' }}
                 </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column :label="t('common.order')" width="120">
+              <template #default="{ row }">
+                <span v-if="row.sortOrder !== undefined">{{ row.sortOrder }}</span>
               </template>
             </el-table-column>
             <el-table-column :label="t('common.featured')" width="120">

@@ -92,6 +92,15 @@ defineProps({
         </p>
       </div>
 
+      <div
+        v-if="tour.priceFrom"
+        class="description px-4 py-3 lg:px-[15px] lg:py-[10px] border-b border-b-[#d2d2d4]"
+      >
+        <p class="text-[14px] sm:text-[16px] font-medium text-[#FF00E7]">
+          {{ tour.priceFrom }}{{ tour.currency ? ` ${tour.currency}` : '' }}
+        </p>
+      </div>
+
       <!-- Кнопка (всегда внизу) -->
       <div class="button px-4 py-3 lg:px-[15px] lg:py-[10px] mt-auto">
         <button
@@ -103,7 +112,7 @@ defineProps({
             })
           "
         >
-          {{ t('openCard.buy') }}
+          {{ tour.priceFrom ? t('openCard.buy') : t('openCard.more_details') }}
         </button>
       </div>
     </div>

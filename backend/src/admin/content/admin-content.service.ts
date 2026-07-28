@@ -694,9 +694,9 @@ const DEFAULT_SITE_SETTINGS: DefaultSiteSettingSeed[] = [
     label: 'Документ: политика конфиденциальности',
     textValue: { ru: '', en: '', uz: '' },
     description: {
-      ru: 'Загрузите файл политики конфиденциальности. Ссылка используется на странице регистрации.',
-      en: 'Upload the privacy policy file. The link is used on the registration page.',
-      uz: 'Maxfiylik siyosati faylini yuklang. Havola ro‘yxatdan o‘tish sahifasida ishlatiladi.',
+      ru: 'Загрузите файл политики конфиденциальности. Ссылка используется на странице регистрации и в футере для скачивания.',
+      en: 'Upload the privacy policy file. The link is used on the registration page and in the footer for download.',
+      uz: 'Maxfiylik siyosati faylini yuklang. Havola ro‘yxatdan o‘tish sahifasida va footerda yuklab olish uchun ishlatiladi.',
     },
   },
   {
@@ -1169,6 +1169,21 @@ const DEFAULT_SITE_SETTINGS: DefaultSiteSettingSeed[] = [
     },
   },
   {
+    key: 'home.tours_animation_enabled',
+    group: 'home',
+    label: 'Главная: анимация блока туров',
+    textValue: {
+      ru: 'true',
+      en: 'true',
+      uz: 'true',
+    },
+    description: {
+      ru: 'true - автопрокрутка включена, false - выключена',
+      en: 'true - autoplay enabled, false - disabled',
+      uz: 'true - avtomatik aylantirish yoqilgan, false - o‘chirilgan',
+    },
+  },
+  {
     key: 'common.send',
     group: 'common',
     label: 'Кнопка: Отправить',
@@ -1410,6 +1425,7 @@ export class AdminContentService {
         type: dto.type ?? 'PRIVATE',
         durationDays: dto.durationDays ?? 1,
         durationNights: dto.durationNights ?? 0,
+        sortOrder: dto.sortOrder ?? 0,
         minGroupSize: dto.minGroupSize,
         maxGroupSize: dto.maxGroupSize,
         comfortLevel: dto.comfortLevel,
@@ -1700,7 +1716,7 @@ export class AdminContentService {
 
   private async listTours() {
     const records = await this.prisma.tour.findMany({
-      orderBy: [{ createdAt: 'desc' }],
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
       include: { translations: true },
     });
 
@@ -1711,6 +1727,7 @@ export class AdminContentService {
       title: this.getTitle(record.translations, 'title'),
       status: record.status,
       isFeatured: record.isFeatured,
+      sortOrder: record.sortOrder,
       countryId: record.countryId,
       durationDays: record.durationDays,
       durationNights: record.durationNights,
@@ -1885,6 +1902,7 @@ export class AdminContentService {
         ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
         ...(dto.durationDays !== undefined ? { durationDays: dto.durationDays } : {}),
         ...(dto.durationNights !== undefined ? { durationNights: dto.durationNights } : {}),
+        ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.minGroupSize !== undefined ? { minGroupSize: dto.minGroupSize } : {}),
         ...(dto.maxGroupSize !== undefined ? { maxGroupSize: dto.maxGroupSize } : {}),
         ...(dto.comfortLevel !== undefined ? { comfortLevel: dto.comfortLevel } : {}),

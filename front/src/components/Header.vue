@@ -104,6 +104,9 @@ const submitLogin = async () => {
 const logout = () => {
   clearAuth();
   authState.value = null;
+  if (route.name === 'agent-cabinet') {
+    router.push('/');
+  }
 };
 // ===================
 
@@ -154,6 +157,10 @@ const resetMobileDropdowns = () => {
   isMobileLangOpen.value = false;
 };
 
+const syncAuthState = () => {
+  authState.value = getAuth();
+};
+
 const toggleMobileMenu = async () => {
   isMobileMenuOpen.value = !isMobileMenuOpen.value;
   resetMobileDropdowns();
@@ -178,6 +185,7 @@ const changeLanguage = (langCode) => {
 };
 
 const isAuthenticated = computed(() => Boolean(authState.value?.accessToken));
+const isPartner = computed(() => authState.value?.user?.role === 'PARTNER');
 
 watch(
   () => route.query.auth,
@@ -212,12 +220,14 @@ onMounted(() => {
   loadCountriesList();
   updateMobileMenuTop();
   window.addEventListener('resize', updateMobileMenuTop);
+  window.addEventListener('tour-auth-changed', syncAuthState);
 });
 
 onBeforeUnmount(() => {
   syncBodyScroll();
   document.body.style.overflow = '';
   window.removeEventListener('resize', updateMobileMenuTop);
+  window.removeEventListener('tour-auth-changed', syncAuthState);
 });
 </script>
 
@@ -291,6 +301,9 @@ onBeforeUnmount(() => {
 
         <router-link class="nav-link" to="/tours">{{
           $t('nav.tours')
+        }}</router-link>
+        <router-link v-if="isPartner" class="nav-link" to="/agent-cabinet">{{
+          $t('nav.agent_cabinet')
         }}</router-link>
       </div>
 
@@ -542,6 +555,13 @@ onBeforeUnmount(() => {
             class="mobile-link"
             @click="closeMobileMenu"
             >{{ $t('nav.tours') }}</router-link
+          >
+          <router-link
+            v-if="isPartner"
+            to="/agent-cabinet"
+            class="mobile-link"
+            @click="closeMobileMenu"
+            >{{ $t('nav.agent_cabinet') }}</router-link
           >
         </div>
 

@@ -70,6 +70,7 @@ const sendLead = async () => {
       phone: form.value.phone || undefined,
       message: `Lead from service page: ${news.value.title}`,
       sourcePage: route.fullPath,
+      sourcePageTitle: document.title,
       language: getApiLocale(locale.value),
       serviceId: news.value.id || undefined,
     });

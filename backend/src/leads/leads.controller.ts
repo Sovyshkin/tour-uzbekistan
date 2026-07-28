@@ -1,10 +1,11 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Req } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiCreatedResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { CreateLeadResponseDto } from './dto/create-lead-response.dto';
@@ -19,7 +20,7 @@ export class LeadsController {
   @ApiOperation({ summary: 'Create a lead from public forms' })
   @ApiCreatedResponse({ type: CreateLeadResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed or related entity not found' })
-  createLead(@Body() dto: CreateLeadDto) {
-    return this.leadsService.createLead(dto);
+  createLead(@Body() dto: CreateLeadDto, @Req() req: Request) {
+    return this.leadsService.createLead(dto, req);
   }
 }

@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { createBooking, getApiLocale, isAuthenticated } from '@/api';
+import { createBooking, getApiLocale, isB2BAuthenticated } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateBookingFormFields } from '@/utils/formValidation';
 
@@ -51,7 +51,7 @@ const clearFieldError = (field) => {
 };
 
 const submitForm = async () => {
-  if (!isAuthenticated()) {
+  if (!isB2BAuthenticated()) {
     redirectToLogin();
     return;
   }
@@ -106,7 +106,7 @@ const openModal = (step) => {
 };
 
 onMounted(() => {
-  if (!isAuthenticated()) {
+  if (!isB2BAuthenticated()) {
     redirectToLogin();
   }
 });

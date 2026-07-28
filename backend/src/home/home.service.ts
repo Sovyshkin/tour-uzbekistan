@@ -38,7 +38,7 @@ export class HomeService {
             status: ContentStatus.PUBLISHED,
             isFeatured: true,
           },
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
           include: {
             country: {
               include: {
@@ -151,6 +151,7 @@ export class HomeService {
         country: tour.country.translations[0]?.name ?? null,
         priceFrom: tour.priceFrom?.toString() ?? null,
         currency: tour.currency ?? null,
+        sortOrder: tour.sortOrder,
       })),
       services: services.map((service) => ({
         id: service.id,

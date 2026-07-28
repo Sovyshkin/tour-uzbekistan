@@ -32,7 +32,7 @@ export class BookingsController {
   @ApiOperation({ summary: 'Create a booking as an authenticated partner' })
   @ApiCreatedResponse({ type: BookingResponseDto })
   createBooking(@Body() dto: CreateBookingDto, @Req() req: AuthenticatedRequest) {
-    return this.bookingsService.createBooking(dto, req.user.sub, req.user.role);
+    return this.bookingsService.createBooking(dto, req.user.sub, req.user.role, req);
   }
 
   @Get('me')

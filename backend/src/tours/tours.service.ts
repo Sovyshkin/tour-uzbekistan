@@ -19,7 +19,7 @@ export class ToursService {
       this.prisma.tour.count({ where }),
       this.prisma.tour.findMany({
         where,
-        orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
+        orderBy: [{ isFeatured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
         skip,
         take: pageSize,
         include: this.buildInclude(locale),

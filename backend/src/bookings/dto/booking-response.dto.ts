@@ -38,6 +38,32 @@ class BookingSnapshotDto {
   includedServices!: string[];
 }
 
+class BookingIntegrationDto {
+  @ApiProperty()
+  enabled!: boolean;
+
+  @ApiProperty()
+  sent!: boolean;
+
+  @ApiProperty({ required: false, nullable: true })
+  skippedReason?: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  claimNumber?: number;
+
+  @ApiProperty({ required: false, nullable: true })
+  confirmStatus?: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  result?: number;
+
+  @ApiProperty({ required: false, nullable: true })
+  comment?: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  message?: string;
+}
+
 export class BookingResponseDto {
   @ApiProperty()
   id!: string;
@@ -68,6 +94,9 @@ export class BookingResponseDto {
 
   @ApiProperty({ required: false, nullable: true })
   specialRequests!: string | null;
+
+  @ApiProperty({ type: BookingIntegrationDto, required: false, nullable: true })
+  integration!: BookingIntegrationDto | null;
 
   @ApiProperty({ type: BookingSnapshotDto })
   snapshot!: BookingSnapshotDto;

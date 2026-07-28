@@ -39,7 +39,13 @@ export class AdminDashboardService {
             email: true,
             phone: true,
             status: true,
+            sourcePagePath: true,
             createdAt: true,
+            tour: {
+              include: {
+                translations: { where: { locale: 'ru' }, take: 1 },
+              },
+            },
           },
         }),
         this.prisma.booking.findMany({
@@ -51,7 +57,13 @@ export class AdminDashboardService {
             firstName: true,
             lastName: true,
             status: true,
+            sourcePagePath: true,
             createdAt: true,
+            tour: {
+              include: {
+                translations: { where: { locale: 'ru' }, take: 1 },
+              },
+            },
           },
         }),
       ]);
@@ -71,6 +83,8 @@ export class AdminDashboardService {
       recentLeads: recentLeads.map((lead) => ({
         ...lead,
         phone: lead.phone ?? null,
+        sourcePagePath: lead.sourcePagePath ?? null,
+        tour: lead.tour?.translations[0]?.title ?? null,
         createdAt: lead.createdAt.toISOString(),
       })),
       recentBookings: recentBookings.map((booking) => ({
@@ -78,6 +92,8 @@ export class AdminDashboardService {
         bookingNumber: booking.bookingNumber,
         customer: `${booking.firstName} ${booking.lastName}`.trim(),
         status: booking.status,
+        sourcePagePath: booking.sourcePagePath ?? null,
+        tour: booking.tour?.translations[0]?.title ?? null,
         createdAt: booking.createdAt.toISOString(),
       })),
     };

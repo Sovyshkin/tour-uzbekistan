@@ -53,6 +53,8 @@ onMounted(async () => {
         <el-table :data="dashboardStore.data?.recentLeads ?? []" :empty-text="t('common.noData')">
           <el-table-column prop="name" :label="t('common.name')" min-width="160" />
           <el-table-column prop="email" :label="t('common.email')" min-width="220" />
+          <el-table-column prop="tour" :label="t('common.tour')" min-width="180" />
+          <el-table-column prop="sourcePagePath" :label="t('records.sourcePage')" min-width="220" />
           <el-table-column prop="status" :label="t('common.status')" width="140" />
           <el-table-column prop="createdAt" :label="t('common.createdAt')" min-width="180" />
         </el-table>
@@ -66,6 +68,8 @@ onMounted(async () => {
         <el-table :data="dashboardStore.data?.recentBookings ?? []" :empty-text="t('common.noData')">
           <el-table-column prop="bookingNumber" :label="t('dashboard.bookingNumber')" min-width="170" />
           <el-table-column prop="customer" :label="t('dashboard.customer')" min-width="180" />
+          <el-table-column prop="tour" :label="t('common.tour')" min-width="180" />
+          <el-table-column prop="sourcePagePath" :label="t('records.sourcePage')" min-width="220" />
           <el-table-column prop="status" :label="t('common.status')" width="140" />
           <el-table-column prop="createdAt" :label="t('common.createdAt')" min-width="180" />
         </el-table>
