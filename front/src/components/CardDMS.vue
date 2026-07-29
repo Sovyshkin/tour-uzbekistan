@@ -1,4 +1,6 @@
 <script setup>
+import { imageObjectStyle } from '@/api';
+
 defineProps({
   DMC: {
     type: Object,
@@ -14,11 +16,12 @@ defineProps({
       $router.push({path: `/services/${DMC.slug || DMC.id}`})
     "
   >
-    <div class="img">
+    <div class="img overflow-hidden">
       <img
         class="w-full h-[200px] sm:h-[250px] lg:h-[300px] object-cover"
         :src="DMC.url"
         :alt="DMC.title"
+        :style="imageObjectStyle(DMC.imageSettings)"
         loading="lazy"
         decoding="async"
       />

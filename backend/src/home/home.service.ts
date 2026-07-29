@@ -80,7 +80,6 @@ export class HomeService {
             facts: {
               where: { status: ContentStatus.PUBLISHED },
               orderBy: { sortOrder: 'asc' },
-              take: 2,
               include: {
                 translations: {
                   where: { locale },
@@ -123,6 +122,7 @@ export class HomeService {
         id: banner.id,
         slug: banner.slug,
         imageUrl: banner.imageUrl,
+        imageSettings: banner.imageSettings,
         mobileImageUrl: banner.mobileImageUrl,
         linkUrl: banner.linkUrl,
         title: banner.translations[0]?.title ?? '',
@@ -134,6 +134,7 @@ export class HomeService {
         id: country.id,
         slug: country.slug,
         heroImage: country.heroImage,
+        heroImageSettings: country.heroImageSettings,
         flagImage: country.flagImage,
         name: country.translations[0]?.name ?? '',
         intro: country.translations[0]?.intro ?? null,
@@ -145,6 +146,7 @@ export class HomeService {
         subtitle: tour.translations[0]?.subtitle ?? null,
         route: tour.translations[0]?.route ?? '',
         image: tour.mainImage,
+        imageSettings: tour.mainImageSettings,
         durationDays: tour.durationDays,
         durationNights: tour.durationNights,
         countrySlug: tour.country.slug,
@@ -158,13 +160,16 @@ export class HomeService {
         slug: service.slug,
         name: service.translations[0]?.name ?? '',
         title: service.translations[0]?.title ?? null,
-        shortDescription: service.translations[0]?.shortDescription ?? null,
+        subtitle: service.translations[0]?.subtitle ?? service.translations[0]?.shortDescription ?? null,
+        shortDescription: service.translations[0]?.shortDescription ?? service.translations[0]?.subtitle ?? null,
         previewImage: service.previewImage,
+        previewImageSettings: service.previewImageSettings,
       })),
       whyWe: whyWe.map((category) => ({
         id: category.id,
         slug: category.slug,
         title: category.translations[0]?.title ?? '',
+        subtitle: category.translations[0]?.subtitle ?? null,
         description: category.translations[0]?.description ?? null,
         facts: category.facts.map((fact) => ({
           id: fact.id,
@@ -172,6 +177,7 @@ export class HomeService {
           subtitle: fact.translations[0]?.subtitle ?? null,
           description: fact.translations[0]?.description ?? '',
           imageUrl: fact.imageUrl,
+          imageSettings: fact.imageSettings,
         })),
       })),
       latestNews: latestNews.map((news) => ({
@@ -180,6 +186,7 @@ export class HomeService {
         title: news.translations[0]?.title ?? '',
         excerpt: news.translations[0]?.excerpt ?? null,
         previewImage: news.previewImage,
+        previewImageSettings: news.previewImageSettings,
         publishedAt: news.publishedAt?.toISOString() ?? null,
       })),
     };

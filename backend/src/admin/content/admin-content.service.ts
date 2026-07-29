@@ -31,6 +31,7 @@ type AdminContentRecord = {
   tourType?: string;
   image?: string | null;
   images?: Record<string, string | null>;
+  imageSettings?: Record<string, ImageTransformSettings | null>;
   translations: Record<Locale, Record<string, unknown>>;
   whyFacts?: AdminWhyFactRecord[];
 };
@@ -40,7 +41,14 @@ type AdminWhyFactRecord = {
   sortOrder: number;
   status: ContentStatus;
   imageUrl: string | null;
+  imageSettings?: ImageTransformSettings | null;
   translations: Record<Locale, Record<string, unknown>>;
+};
+
+type ImageTransformSettings = {
+  positionX: number;
+  positionY: number;
+  scale: number;
 };
 
 const LOCALES = [Locale.ru, Locale.en, Locale.uz];
@@ -76,6 +84,28 @@ const isEmptyJsonContent = (value: unknown) => {
   }
 
   return false;
+};
+
+const normalizeImageSettings = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const source = value as Record<string, unknown>;
+  const positionX = Number(source.positionX);
+  const positionY = Number(source.positionY);
+  const scale = Number(source.scale);
+
+  return {
+    positionX: Number.isFinite(positionX) ? Math.min(100, Math.max(0, positionX)) : 50,
+    positionY: Number.isFinite(positionY) ? Math.min(100, Math.max(0, positionY)) : 50,
+    scale: Number.isFinite(scale) ? Math.min(300, Math.max(100, scale)) : 100,
+  };
+};
+
+const readImageSettings = (value: Prisma.JsonValue | null | undefined): ImageTransformSettings | null => {
+  const normalized = normalizeImageSettings(value);
+  return normalized ? (normalized as ImageTransformSettings) : null;
 };
 
 const TRANSLATION_FIELDS: Record<AdminContentType, string[]> = {
@@ -1184,6 +1214,21 @@ const DEFAULT_SITE_SETTINGS: DefaultSiteSettingSeed[] = [
     },
   },
   {
+    key: 'home.why_facts_limit',
+    group: 'home',
+    label: 'Главная: количество фактов Почему мы',
+    textValue: {
+      ru: '2',
+      en: '2',
+      uz: '2',
+    },
+    description: {
+      ru: 'Сколько опубликованных фактов показывать в блоке Почему мы на главной странице',
+      en: 'How many published Why us facts to show on the home page',
+      uz: 'Bosh sahifadagi Nega biz blokida nechta e’lon qilingan fakt ko‘rsatiladi',
+    },
+  },
+  {
     key: 'common.send',
     group: 'common',
     label: 'Кнопка: Отправить',
@@ -1387,6 +1432,7 @@ export class AdminContentService {
         sortOrder: dto.sortOrder ?? 0,
         isFeatured: dto.isFeatured ?? false,
         heroImage: dto.heroImage,
+        heroImageSettings: normalizeImageSettings(dto.heroImageSettings),
         translations: {
           create: LOCALES.map((locale) => {
             const fields = this.getCreateFields(dto, locale);
@@ -1435,7 +1481,9 @@ export class AdminContentService {
         isFeatured: dto.isFeatured ?? false,
         heroImage: previewImage,
         mainImage: previewImage,
+        mainImageSettings: normalizeImageSettings(dto.mainImageSettings ?? dto.heroImageSettings),
         routeMapImage: dto.routeMapImage,
+        routeMapImageSettings: normalizeImageSettings(dto.routeMapImageSettings),
         translations: {
           create: LOCALES.map((locale) => {
             const fields = this.getCreateFields(dto, locale);
@@ -1475,17 +1523,19 @@ export class AdminContentService {
         isFeatured: dto.isFeatured ?? false,
         heroImage: previewImage,
         previewImage,
+        previewImageSettings: normalizeImageSettings(dto.previewImageSettings ?? dto.heroImageSettings),
         translations: {
           create: LOCALES.map((locale) => {
             const fields = this.getCreateFields(dto, locale);
             const name = this.readString(fields.name, `Новая услуга ${locale}`);
+            const shortDescription = this.readServiceCardDescription(fields);
 
             return {
               locale,
               name,
               title: this.readString(fields.title, name),
-              subtitle: this.readNullableString(fields.subtitle),
-              shortDescription: this.readNullableString(fields.shortDescription),
+              subtitle: shortDescription,
+              shortDescription,
               seoTitle: this.readNullableString(fields.seoTitle),
               seoDescription: this.readNullableString(fields.seoDescription),
             };
@@ -1507,6 +1557,7 @@ export class AdminContentService {
         status: dto.status ?? ContentStatus.DRAFT,
         heroImage: previewImage,
         previewImage,
+        previewImageSettings: normalizeImageSettings(dto.previewImageSettings ?? dto.heroImageSettings),
         publishedAt: dto.status === ContentStatus.PUBLISHED ? new Date() : null,
         translations: {
           create: LOCALES.map((locale) => {
@@ -1690,6 +1741,7 @@ export class AdminContentService {
       isActive: record.isActive,
       image: record.imageUrl,
       images: { imageUrl: record.imageUrl },
+      imageSettings: { imageUrl: readImageSettings(record.imageSettings) },
       translations: this.mapTranslations(AdminContentType.HOME_BANNERS, record.translations),
     }));
   }
@@ -1710,6 +1762,7 @@ export class AdminContentService {
       isFeatured: record.isFeatured,
       image: record.heroImage,
       images: { heroImage: record.heroImage },
+      imageSettings: { heroImage: readImageSettings(record.heroImageSettings) },
       translations: this.mapTranslations(AdminContentType.COUNTRIES, record.translations),
     }));
   }
@@ -1742,6 +1795,10 @@ export class AdminContentService {
         mainImage: record.mainImage ?? record.heroImage,
         routeMapImage: record.routeMapImage,
       },
+      imageSettings: {
+        mainImage: readImageSettings(record.mainImageSettings),
+        routeMapImage: readImageSettings(record.routeMapImageSettings),
+      },
       translations: this.mapTranslations(AdminContentType.TOURS, record.translations),
     }));
   }
@@ -1762,6 +1819,7 @@ export class AdminContentService {
       isFeatured: record.isFeatured,
       image: record.previewImage,
       images: { previewImage: record.previewImage ?? record.heroImage },
+      imageSettings: { previewImage: readImageSettings(record.previewImageSettings) },
       translations: this.mapTranslations(AdminContentType.SERVICES, record.translations),
     }));
   }
@@ -1787,12 +1845,14 @@ export class AdminContentService {
       sortOrder: record.sortOrder,
       image: record.heroImage,
       images: { heroImage: record.heroImage },
+      imageSettings: { heroImage: readImageSettings(record.heroImageSettings) },
       translations: this.mapTranslations(AdminContentType.WHY_CATEGORIES, record.translations),
       whyFacts: record.facts.map((fact) => ({
         id: fact.id,
         sortOrder: fact.sortOrder,
         status: fact.status,
         imageUrl: fact.imageUrl,
+        imageSettings: readImageSettings(fact.imageSettings),
         translations: this.mapWhyFactTranslations(fact.translations),
       })),
     }));
@@ -1812,6 +1872,7 @@ export class AdminContentService {
       status: record.status,
       image: record.previewImage,
       images: { previewImage: record.previewImage ?? record.heroImage },
+      imageSettings: { previewImage: readImageSettings(record.previewImageSettings) },
       translations: this.mapTranslations(AdminContentType.NEWS, record.translations),
     }));
   }
@@ -1825,6 +1886,7 @@ export class AdminContentService {
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
         ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl } : {}),
+        ...(dto.imageSettings !== undefined ? { imageSettings: normalizeImageSettings(dto.imageSettings) } : {}),
       },
     });
     await this.updateTranslations(AdminContentType.HOME_BANNERS, id, dto);
@@ -1886,6 +1948,9 @@ export class AdminContentService {
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
         ...(dto.heroImage !== undefined ? { heroImage: dto.heroImage } : {}),
+        ...(dto.heroImageSettings !== undefined
+          ? { heroImageSettings: normalizeImageSettings(dto.heroImageSettings) }
+          : {}),
       },
     });
     await this.updateTranslations(AdminContentType.COUNTRIES, id, dto);
@@ -1909,6 +1974,12 @@ export class AdminContentService {
         ...(dto.priceFrom !== undefined ? { priceFrom: dto.priceFrom } : {}),
         ...(dto.currency !== undefined ? { currency: dto.currency } : {}),
         ...(dto.routeMapImage !== undefined ? { routeMapImage: dto.routeMapImage } : {}),
+        ...(dto.routeMapImageSettings !== undefined
+          ? { routeMapImageSettings: normalizeImageSettings(dto.routeMapImageSettings) }
+          : {}),
+        ...(dto.mainImageSettings !== undefined
+          ? { mainImageSettings: normalizeImageSettings(dto.mainImageSettings) }
+          : {}),
         ...(previewImage !== undefined ? { heroImage: previewImage, mainImage: previewImage } : {}),
       },
     });
@@ -1918,6 +1989,8 @@ export class AdminContentService {
   private async updateService(id: string, dto: AdminContentUpdateDto) {
     await this.ensureExists(this.prisma.service.count({ where: { id } }));
     const previewImage = dto.previewImage ?? dto.heroImage;
+    const normalizedDto = this.normalizeServiceDto(dto);
+
     await this.prisma.service.update({
       where: { id },
       data: {
@@ -1925,10 +1998,38 @@ export class AdminContentService {
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
+        ...(dto.previewImageSettings !== undefined
+          ? { previewImageSettings: normalizeImageSettings(dto.previewImageSettings) }
+          : {}),
         ...(previewImage !== undefined ? { heroImage: previewImage, previewImage } : {}),
       },
     });
-    await this.updateTranslations(AdminContentType.SERVICES, id, dto);
+    await this.updateTranslations(AdminContentType.SERVICES, id, normalizedDto);
+  }
+
+  private normalizeServiceDto(dto: AdminContentUpdateDto): AdminContentUpdateDto {
+    if (!dto.translations) {
+      return dto;
+    }
+
+    return {
+      ...dto,
+      translations: dto.translations.map((translation) => {
+        const fields = { ...translation.fields };
+        const cardDescription = fields.shortDescription ?? fields.subtitle;
+
+        if (cardDescription !== undefined) {
+          fields.shortDescription = cardDescription;
+          fields.subtitle = cardDescription;
+        }
+
+        return { ...translation, fields };
+      }),
+    };
+  }
+
+  private readServiceCardDescription(fields: Record<string, unknown>): string | null {
+    return this.readNullableString(fields.shortDescription ?? fields.subtitle);
   }
 
   private async updateWhyCategory(id: string, dto: AdminContentUpdateDto) {
@@ -1940,6 +2041,9 @@ export class AdminContentService {
         ...(dto.status !== undefined ? { status: dto.status } : {}),
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.heroImage !== undefined ? { heroImage: dto.heroImage } : {}),
+        ...(dto.heroImageSettings !== undefined
+          ? { heroImageSettings: normalizeImageSettings(dto.heroImageSettings) }
+          : {}),
       },
     });
     await this.updateTranslations(AdminContentType.WHY_CATEGORIES, id, dto);
@@ -1957,6 +2061,7 @@ export class AdminContentService {
         sortOrder: fact.sortOrder ?? index,
         status: fact.status ?? ContentStatus.PUBLISHED,
         imageUrl: fact.imageUrl ?? null,
+        imageSettings: normalizeImageSettings(fact.imageSettings),
       };
 
       const record = factId
@@ -2020,6 +2125,9 @@ export class AdminContentService {
       data: {
         ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
+        ...(dto.previewImageSettings !== undefined
+          ? { previewImageSettings: normalizeImageSettings(dto.previewImageSettings) }
+          : {}),
         ...(previewImage !== undefined ? { heroImage: previewImage, previewImage } : {}),
       },
     });

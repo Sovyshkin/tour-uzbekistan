@@ -36,6 +36,26 @@ class AdminWhyFactTranslationUpdateDto {
   fields!: Record<string, unknown>;
 }
 
+class AdminImageSettingsDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  positionX?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  positionY?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  scale?: number;
+}
+
 class AdminWhyFactUpdateDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -57,6 +77,12 @@ class AdminWhyFactUpdateDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  imageSettings?: AdminImageSettingsDto;
 
   @ApiPropertyOptional({ type: [AdminWhyFactTranslationUpdateDto] })
   @IsOptional()
@@ -163,6 +189,36 @@ export class AdminContentUpdateDto {
   @IsOptional()
   @IsString()
   previewImage?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  imageSettings?: AdminImageSettingsDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  heroImageSettings?: AdminImageSettingsDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  mainImageSettings?: AdminImageSettingsDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  routeMapImageSettings?: AdminImageSettingsDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  previewImageSettings?: AdminImageSettingsDto;
 
   @ApiPropertyOptional()
   @IsOptional()

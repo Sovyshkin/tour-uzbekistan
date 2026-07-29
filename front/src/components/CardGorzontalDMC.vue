@@ -1,4 +1,6 @@
 <script setup>
+import { imageObjectStyle } from '@/api';
+
 defineProps({
   item: {
     type: Object,
@@ -33,13 +35,14 @@ defineProps({
 
       <!-- Картинка -->
       <div
-        class="w-full flex-shrink-0"
+        class="w-full flex-shrink-0 overflow-hidden rounded-[12px] lg:rounded-[16px]"
         :class="narrowImage ? 'lg:w-[35%]' : 'lg:w-[70%]'"
       >
         <img
           :src="item.image"
           :alt="item.title"
           class="w-full h-[200px] sm:h-[240px] lg:h-[250px] object-cover rounded-[12px] lg:rounded-[16px]"
+          :style="imageObjectStyle(item.imageSettings)"
           loading="lazy"
           decoding="async"
         />

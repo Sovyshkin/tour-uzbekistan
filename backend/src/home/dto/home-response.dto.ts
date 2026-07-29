@@ -95,6 +95,9 @@ class HomeServiceDto {
   title!: string | null;
 
   @ApiProperty({ required: false, nullable: true })
+  subtitle!: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
   shortDescription!: string | null;
 
   @ApiProperty({ required: false, nullable: true })
@@ -127,6 +130,9 @@ class HomeWhyCategoryDto {
 
   @ApiProperty()
   title!: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  subtitle!: string | null;
 
   @ApiProperty({ required: false, nullable: true })
   description!: string | null;

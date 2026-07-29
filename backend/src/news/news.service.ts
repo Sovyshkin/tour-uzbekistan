@@ -39,6 +39,7 @@ export class NewsService {
         title: item.translations[0]?.title ?? '',
         excerpt: item.translations[0]?.excerpt ?? null,
         previewImage: item.previewImage,
+        previewImageSettings: item.previewImageSettings,
         publishedAt: item.publishedAt?.toISOString() ?? null,
       })),
       meta: {
@@ -77,6 +78,7 @@ export class NewsService {
       excerpt: translation?.excerpt ?? null,
       heroImage: news.heroImage,
       previewImage: news.previewImage,
+      previewImageSettings: news.previewImageSettings,
       publishedAt: news.publishedAt?.toISOString() ?? null,
       content: this.readStringArray(translation?.content),
       seoTitle: translation?.seoTitle ?? null,

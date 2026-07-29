@@ -228,6 +228,55 @@ export function resolveAssetUrl(value) {
   return value;
 }
 
+export function normalizeImageSettings(settings) {
+  const normalizeRange = (value, fallback, min, max) => {
+    const numberValue = Number(value);
+    if (!Number.isFinite(numberValue)) {
+      return fallback;
+    }
+
+    return Math.min(max, Math.max(min, Math.round(numberValue)));
+  };
+
+  if (!settings || typeof settings !== 'object') {
+    return { positionX: 50, positionY: 50, scale: 100 };
+  }
+
+  return {
+    positionX: normalizeRange(settings.positionX, 50, 0, 100),
+    positionY: normalizeRange(settings.positionY, 50, 0, 100),
+    scale: normalizeRange(settings.scale, 100, 100, 300),
+  };
+}
+
+export function imageObjectStyle(settings) {
+  const normalized = normalizeImageSettings(settings);
+
+  return {
+    width: '100%',
+    height: '100%',
+    maxWidth: 'none',
+    objectFit: 'cover',
+    objectPosition: `${normalized.positionX}% ${normalized.positionY}%`,
+    transform: `scale(${normalized.scale / 100})`,
+    transformOrigin: `${normalized.positionX}% ${normalized.positionY}%`,
+  };
+}
+
+export function backgroundImageStyle(imageUrl, settings) {
+  if (!imageUrl) {
+    return undefined;
+  }
+
+  const normalized = normalizeImageSettings(settings);
+
+  return {
+    backgroundImage: `url(${imageUrl})`,
+    backgroundPosition: `${normalized.positionX}% ${normalized.positionY}%`,
+    backgroundSize: normalized.scale === 100 ? 'cover' : `${normalized.scale}% auto`,
+  };
+}
+
 export async function getHome(locale) {
   return request(buildUrl('/home', { locale }));
 }

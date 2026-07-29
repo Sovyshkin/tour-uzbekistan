@@ -192,6 +192,7 @@ const loadTours = async () => {
       title: tour.title,
       route: tour.route,
       image: resolveAssetUrl(tour.mainImage || tour.heroImage || tour.images?.[0]?.imageUrl) || '/assets/icons/card1.webp',
+      imageSettings: tour.mainImageSettings,
       duration: {
         day: tour.durationDays,
         night: tour.durationNights,

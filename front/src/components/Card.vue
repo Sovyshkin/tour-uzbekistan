@@ -1,5 +1,6 @@
 <script setup>
 import { useI18n } from 'vue-i18n';
+import { imageObjectStyle } from '@/api';
 
 const { t } = useI18n();
 defineProps({
@@ -20,7 +21,7 @@ defineProps({
   >
     <!-- Картинка -->
     <div
-      class="img cursor-pointer flex-shrink-0"
+      class="img cursor-pointer flex-shrink-0 overflow-hidden rounded-t-[15px]"
       @click="
         $router.push({
           path: `/tours/${tour.slug || tour.id}`,
@@ -32,6 +33,7 @@ defineProps({
         class="object-cover rounded-t-[15px] h-[220px] sm:h-[260px] lg:h-[284px] w-full"
         :src="tour.image"
         :alt="tour.title"
+        :style="imageObjectStyle(tour.imageSettings)"
         loading="lazy"
         decoding="async"
       />

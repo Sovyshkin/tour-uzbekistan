@@ -3,7 +3,7 @@ import { useRoute } from 'vue-router';
 import { ref, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppContainer from '@/components/AppContainer.vue';
-import { getApiLocale, getNewsItem, resolveAssetUrl, submitLead } from '@/api';
+import { backgroundImageStyle, getApiLocale, getNewsItem, resolveAssetUrl, submitLead } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateContactFormFields } from '@/utils/formValidation';
 
@@ -50,6 +50,7 @@ const loadNews = async () => {
       ...payload,
       heroImage: resolveAssetUrl(payload.heroImage),
       previewImage: resolveAssetUrl(payload.previewImage),
+      previewImageSettings: payload.previewImageSettings,
     };
   } catch (error) {
     notifyError(error.message || t('notifications.loadNewsItemFailed'), t('notifications.newsItemUnavailable'));
@@ -92,7 +93,7 @@ onMounted(loadNews);
     <!-- Hero -->
     <section class="relative">
       <div class="hero-section">
-        <div class="hero-image" :style="{ backgroundImage: `url(${news.heroImage || news.previewImage})` }" />
+        <div class="hero-image" :style="backgroundImageStyle(news.heroImage || news.previewImage, news.previewImageSettings)" />
       </div>
 
       <AppContainer>

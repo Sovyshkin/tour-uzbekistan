@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch, type CSSProperties } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
@@ -40,6 +40,7 @@ type ContentRecord = {
   tourType?: string;
   image?: string | null;
   images?: Record<string, string | null>;
+  imageSettings?: Partial<Record<ImageFieldKey, ImageTransformSettings | null>>;
   whyFacts?: WhyFactForm[];
   translations: Record<LocaleCode, Record<string, any>>;
 };
@@ -57,6 +58,12 @@ type ImageFieldConfig = {
   label: string;
 };
 
+type ImageTransformSettings = {
+  positionX: number;
+  positionY: number;
+  scale: number;
+};
+
 type PageContentBlock = {
   title: string;
   text: string;
@@ -67,6 +74,7 @@ type WhyFactForm = {
   sortOrder: number;
   status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
   imageUrl: string;
+  imageSettings: ImageTransformSettings;
   translations: Record<LocaleCode, {
     title: string;
     subtitle: string;
@@ -148,10 +156,9 @@ const typeFields = computed<Record<ContentType, FieldConfig[]>>(() => ({
     { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
   services: [
-    { key: 'name', label: t('content.fields.name') },
-    { key: 'title', label: t('content.fields.title') },
-    { key: 'subtitle', label: t('content.fields.subtitle'), type: 'textarea' },
-    { key: 'shortDescription', label: t('content.fields.shortDescription'), type: 'textarea' },
+    { key: 'name', label: t('content.fields.serviceListName') },
+    { key: 'title', label: t('content.fields.serviceCardTitle') },
+    { key: 'shortDescription', label: t('content.fields.serviceSubtitle'), type: 'textarea' },
     { key: 'seoTitle', label: t('content.fields.seoTitle') },
     { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
@@ -330,6 +337,7 @@ const form = reactive<{
   currency?: string;
   tourType?: string;
   media: Partial<Record<ImageFieldKey, string>>;
+  imageSettings: Partial<Record<ImageFieldKey, ImageTransformSettings>>;
   whyFacts: WhyFactForm[];
   translations: Record<LocaleCode, Record<string, unknown>>;
 }>({
@@ -350,6 +358,7 @@ const form = reactive<{
   currency: undefined,
   tourType: undefined,
   media: {},
+  imageSettings: {},
   whyFacts: [],
   translations: {
     ru: {},
@@ -411,10 +420,62 @@ const resetForm = () => {
   form.currency = undefined;
   form.tourType = undefined;
   form.media = {};
+  form.imageSettings = {};
   form.whyFacts = [];
   form.translations = { ru: {}, en: {}, uz: {} };
   activeLocale.value = 'ru';
 };
+
+const defaultImageSettings = (): ImageTransformSettings => ({
+  positionX: 50,
+  positionY: 50,
+  scale: 100,
+});
+
+const normalizeImageSettings = (value: unknown): ImageTransformSettings => {
+  if (!value || typeof value !== 'object') {
+    return defaultImageSettings();
+  }
+
+  const source = value as Partial<ImageTransformSettings>;
+  const normalizeRange = (rawValue: unknown, fallback: number, min: number, max: number) => {
+    const numberValue = Number(rawValue);
+    if (!Number.isFinite(numberValue)) {
+      return fallback;
+    }
+
+    return Math.min(max, Math.max(min, Math.round(numberValue)));
+  };
+
+  return {
+    positionX: normalizeRange(source.positionX, 50, 0, 100),
+    positionY: normalizeRange(source.positionY, 50, 0, 100),
+    scale: normalizeRange(source.scale, 100, 100, 300),
+  };
+};
+
+const ensureImageSettings = (fieldKey: ImageFieldKey) => {
+  if (!form.imageSettings[fieldKey]) {
+    form.imageSettings[fieldKey] = defaultImageSettings();
+  }
+
+  return form.imageSettings[fieldKey]!;
+};
+
+const imageTransformStyle = (settings?: ImageTransformSettings | null): CSSProperties => {
+  const normalized = normalizeImageSettings(settings);
+  return {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    objectPosition: `${normalized.positionX}% ${normalized.positionY}%`,
+    transform: `scale(${normalized.scale / 100})`,
+    transformOrigin: `${normalized.positionX}% ${normalized.positionY}%`,
+  };
+};
+
+const imageSettingsPayloadKey = (fieldKey: ImageFieldKey) =>
+  fieldKey === 'imageUrl' ? 'imageSettings' : `${fieldKey}Settings`;
 
 const normalizeValue = (value: unknown) => {
   if (value === null || value === undefined) {
@@ -508,6 +569,7 @@ const normalizeWhyFacts = (value?: WhyFactForm[]): WhyFactForm[] =>
       sortOrder: Number.isFinite(Number(fact.sortOrder)) ? Number(fact.sortOrder) : index,
       status: fact.status ?? 'PUBLISHED',
       imageUrl: fact.imageUrl ?? '',
+      imageSettings: normalizeImageSettings(fact.imageSettings),
       translations: {
         ru: {
           title: normalizeWhyFactText(sourceTranslations.ru?.title),
@@ -533,6 +595,7 @@ const addWhyFact = () => {
     sortOrder: form.whyFacts.length,
     status: 'PUBLISHED',
     imageUrl: '',
+    imageSettings: defaultImageSettings(),
     translations: emptyWhyFactTranslations(),
   });
 };
@@ -544,7 +607,24 @@ const archiveWhyFact = (index: number) => {
 const triggerFactUpload = (index: number) => {
   uploadFactTargetIndex.value = index;
   uploadTargetField.value = null;
+  documentUploadTarget.value = null;
   uploadInput.value?.click();
+};
+
+const setImageFieldMedia = (fieldKey: ImageFieldKey, value: string | null | undefined) => {
+  form.media[fieldKey] = value ?? '';
+  form.imageSettings[fieldKey] = defaultImageSettings();
+};
+
+const setFactImageMedia = (factIndex: number, value: string | null | undefined) => {
+  const fact = form.whyFacts[factIndex];
+
+  if (!fact) {
+    return;
+  }
+
+  fact.imageUrl = value ?? '';
+  fact.imageSettings = defaultImageSettings();
 };
 
 const isPageContentField = (field: FieldConfig) => form.type === 'pages' && field.key === 'content';
@@ -661,6 +741,7 @@ const openEditor = async (record: ContentRecord) => {
     await loadMediaOptions();
     for (const field of imageFieldsByType.value[record.type] ?? []) {
       form.media[field.key] = record.images?.[field.key] ?? '';
+      form.imageSettings[field.key] = normalizeImageSettings(record.imageSettings?.[field.key]);
     }
   }
 
@@ -707,6 +788,7 @@ const openCreate = async () => {
     await loadMediaOptions();
     for (const field of imageFieldsByType.value[createType] ?? []) {
       form.media[field.key] = '';
+      form.imageSettings[field.key] = defaultImageSettings();
     }
   }
 
@@ -773,6 +855,7 @@ const saveContent = async () => {
 
     for (const field of imageFieldsByType.value[form.type] ?? []) {
       payload[field.key] = form.media[field.key] ?? '';
+      payload[imageSettingsPayloadKey(field.key)] = normalizeImageSettings(form.imageSettings[field.key]);
     }
 
     if (form.type === 'whyCategories') {
@@ -781,6 +864,7 @@ const saveContent = async () => {
         sortOrder: fact.sortOrder,
         status: fact.status,
         imageUrl: fact.imageUrl,
+        imageSettings: normalizeImageSettings(fact.imageSettings),
         translations: locales.value.map((locale) => ({
           locale: locale.code,
           fields: fact.translations[locale.code],
@@ -806,6 +890,7 @@ const saveContent = async () => {
 
 const triggerUpload = (field?: ImageFieldKey) => {
   documentUploadTarget.value = null;
+  uploadFactTargetIndex.value = null;
   uploadTargetField.value = field ?? null;
   uploadInput.value?.click();
 };
@@ -900,9 +985,11 @@ const handleUploadChange = async (event: Event) => {
       const fact = form.whyFacts[uploadFactTargetIndex.value];
       if (fact) {
         fact.imageUrl = response.data.url;
+        fact.imageSettings = defaultImageSettings();
       }
     } else if (uploadTargetField.value) {
       form.media[uploadTargetField.value] = response.data.url;
+      form.imageSettings[uploadTargetField.value] = defaultImageSettings();
     }
 
     ElMessage.success(t('content.mediaUploaded'));
@@ -1392,6 +1479,7 @@ watch(
                   v-if="form.media[field.key]"
                   :src="resolveMediaUrl(form.media[field.key])"
                   :alt="field.label"
+                  :style="imageTransformStyle(form.imageSettings[field.key])"
                   loading="lazy"
                   decoding="async"
                 />
@@ -1403,6 +1491,7 @@ watch(
                   filterable
                   clearable
                   :placeholder="t('common.selectMedia')"
+                  @change="(value: string) => setImageFieldMedia(field.key, value)"
                 >
                   <el-option
                     v-for="asset in mediaOptions"
@@ -1412,6 +1501,28 @@ watch(
                   />
                 </el-select>
                 <el-button plain @click="triggerUpload(field.key)">{{ t('common.uploadFile') }}</el-button>
+              </div>
+              <div v-if="form.media[field.key]" class="image-transform-controls">
+                <div class="image-transform-head">
+                  <span>{{ t('content.imagePositionAndScale') }}</span>
+                  <el-button size="small" plain @click="form.imageSettings[field.key] = defaultImageSettings()">
+                    {{ t('common.reset') }}
+                  </el-button>
+                </div>
+                <div class="image-transform-grid">
+                  <label>
+                    <span>{{ t('content.positionX') }}</span>
+                    <el-slider v-model="ensureImageSettings(field.key).positionX" :min="0" :max="100" />
+                  </label>
+                  <label>
+                    <span>{{ t('content.positionY') }}</span>
+                    <el-slider v-model="ensureImageSettings(field.key).positionY" :min="0" :max="100" />
+                  </label>
+                  <label>
+                    <span>{{ t('content.imageScale') }}</span>
+                    <el-slider v-model="ensureImageSettings(field.key).scale" :min="100" :max="300" />
+                  </label>
+                </div>
               </div>
             </div>
           </el-form-item>
@@ -1437,6 +1548,7 @@ watch(
                   v-if="fact.imageUrl"
                   :src="resolveMediaUrl(fact.imageUrl)"
                   :alt="fact.translations.ru.title || t('content.fact', { number: factIndex + 1 })"
+                  :style="imageTransformStyle(fact.imageSettings)"
                   loading="lazy"
                   decoding="async"
                 />
@@ -1450,6 +1562,7 @@ watch(
                     filterable
                     clearable
                     :placeholder="t('common.selectMedia')"
+                    @change="(value: string) => setFactImageMedia(factIndex, value)"
                   >
                     <el-option
                       v-for="asset in mediaOptions"
@@ -1461,6 +1574,29 @@ watch(
                 </el-form-item>
 
                 <el-button plain @click="triggerFactUpload(factIndex)">{{ t('common.uploadFile') }}</el-button>
+
+                <div v-if="fact.imageUrl" class="image-transform-controls compact">
+                  <div class="image-transform-head">
+                    <span>{{ t('content.imagePositionAndScale') }}</span>
+                    <el-button size="small" plain @click="fact.imageSettings = defaultImageSettings()">
+                      {{ t('common.reset') }}
+                    </el-button>
+                  </div>
+                  <div class="image-transform-grid">
+                    <label>
+                      <span>{{ t('content.positionX') }}</span>
+                      <el-slider v-model="fact.imageSettings.positionX" :min="0" :max="100" />
+                    </label>
+                    <label>
+                      <span>{{ t('content.positionY') }}</span>
+                      <el-slider v-model="fact.imageSettings.positionY" :min="0" :max="100" />
+                    </label>
+                    <label>
+                      <span>{{ t('content.imageScale') }}</span>
+                      <el-slider v-model="fact.imageSettings.scale" :min="100" :max="300" />
+                    </label>
+                  </div>
+                </div>
 
                 <div class="why-fact-grid">
                   <el-form-item :label="t('common.order')">
@@ -1831,6 +1967,51 @@ watch(
 .media-picker-controls .el-button {
   margin-left: 0;
   flex-shrink: 0;
+}
+
+.image-transform-controls {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.image-transform-controls.compact {
+  grid-column: auto;
+}
+
+.image-transform-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.image-transform-head .el-button {
+  margin-left: 0;
+  flex-shrink: 0;
+}
+
+.image-transform-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.image-transform-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.3;
 }
 
 .why-facts-editor {
@@ -2231,6 +2412,19 @@ watch(
 
   .media-picker-controls .el-button {
     width: 100%;
+  }
+
+  .image-transform-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .image-transform-head .el-button {
+    width: 100%;
+  }
+
+  .image-transform-grid {
+    grid-template-columns: 1fr;
   }
 
   .why-facts-editor {

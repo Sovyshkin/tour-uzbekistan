@@ -1,4 +1,6 @@
 <script setup>
+import { imageObjectStyle } from '@/api';
+
 defineProps({
   news: {
     type: Object,
@@ -15,6 +17,7 @@ defineProps({
         :src="news.image" 
         :alt="news.title"
         class="w-full h-full object-cover"
+        :style="imageObjectStyle(news.imageSettings)"
         draggable="false"
         loading="lazy"
         decoding="async"

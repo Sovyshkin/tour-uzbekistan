@@ -5,7 +5,7 @@ import { watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppContainer from '@/components/AppContainer.vue';
 import CustomSelect from '@/components/CustomSelect.vue';
-import { getApiLocale, getCountries, getCountry, resolveAssetUrl } from '@/api';
+import { backgroundImageStyle, getApiLocale, getCountries, getCountry, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
 const { t, locale } = useI18n();
@@ -284,6 +284,7 @@ const translatedSections = computed(() => {
 const data = computed(() => {
   return countryData.value || {
     heroImage: resolveAssetUrl('/assets/icons/countryPage.webp'),
+    heroImageSettings: null,
     name: '',
     welcomeTitle: '',
     intro: '',
@@ -314,6 +315,7 @@ const loadCountry = async () => {
     countryData.value = {
       ...payload,
       heroImage: resolveAssetUrl(payload.heroImage),
+      heroImageSettings: payload.heroImageSettings,
       flagImage: resolveAssetUrl(payload.flagImage),
     };
   } catch (error) {
@@ -355,7 +357,7 @@ onMounted(() => {
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="{ backgroundImage: `url(${data.heroImage})` }"
+          :style="backgroundImageStyle(data.heroImage, data.heroImageSettings)"
         />
       </div>
     </section>

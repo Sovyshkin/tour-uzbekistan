@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import AppContainer from '@/components/AppContainer.vue';
 import CardGorzontalDMC from '@/components/CardGorzontalDMC.vue';
 import { useI18n } from 'vue-i18n';
-import { getApiLocale, getWhyUsCategories, resolveAssetUrl } from '@/api';
+import { backgroundImageStyle, getApiLocale, getWhyUsCategories, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
 const { t, locale } = useI18n();
@@ -88,10 +88,12 @@ const loadCategories = async () => {
       title: category.title,
       description: category.description,
       heroImage: resolveAssetUrl(category.heroImage),
+      heroImageSettings: category.heroImageSettings,
       pages: Array.from({ length: Math.ceil((category.facts || []).length / 3) }, (_, pageIndex) =>
         (category.facts || []).slice(pageIndex * 3, pageIndex * 3 + 3).map((fact, factIndex) => ({
           number: String(pageIndex * 3 + factIndex + 1).padStart(2, '0'),
           image: resolveAssetUrl(fact.imageUrl),
+          imageSettings: fact.imageSettings,
           title: fact.title,
           description: fact.description,
         })),
@@ -115,7 +117,7 @@ onMounted(loadCategories);
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="{ backgroundImage: `url('${currentCategoryData.heroImage || '/assets/icons/gorizontalDMC.webp'}')` }"
+          :style="backgroundImageStyle(currentCategoryData.heroImage || '/assets/icons/gorizontalDMC.webp', currentCategoryData.heroImageSettings)"
         />
       </div>
     </section>

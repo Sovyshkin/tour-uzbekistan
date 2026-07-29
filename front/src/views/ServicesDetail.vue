@@ -3,7 +3,7 @@ import { useRoute } from 'vue-router';
 import { ref, computed, onMounted, watch } from 'vue';
 import AppContainer from '@/components/AppContainer.vue';
 import { useI18n } from 'vue-i18n';
-import { getApiLocale, getService, resolveAssetUrl, submitLead } from '@/api';
+import { backgroundImageStyle, getApiLocale, getService, resolveAssetUrl, submitLead } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateContactFormFields } from '@/utils/formValidation';
 const { t, locale } = useI18n();
@@ -32,6 +32,8 @@ const news = ref({
   id: null,
   heroImage: '/assets/icons/dmc-detail.webp',
   title: '',
+  subtitle: '',
+  shortDescription: '',
   content: [],
 });
 
@@ -46,8 +48,11 @@ const loadService = async () => {
     const payload = await getService(newsId, getApiLocale(locale.value));
     news.value = {
       ...payload,
+      subtitle: payload.subtitle || payload.shortDescription || '',
+      shortDescription: payload.shortDescription || payload.subtitle || '',
       heroImage: resolveAssetUrl(payload.heroImage),
       previewImage: resolveAssetUrl(payload.previewImage),
+      previewImageSettings: payload.previewImageSettings,
     };
   } catch (error) {
     notifyError(error.message || t('notifications.loadServiceFailed'), t('notifications.serviceUnavailable'));
@@ -93,7 +98,7 @@ onMounted(loadService);
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="{ backgroundImage: `url(${news.heroImage || news.previewImage})` }"
+          :style="backgroundImageStyle(news.heroImage || news.previewImage, news.previewImageSettings)"
         />
       </div>
 
@@ -193,6 +198,7 @@ onMounted(loadService);
         <!-- Контент -->
         <div class="content-wrapper">
           <h1 class="page-title">{{ news.title }}</h1>
+          <p v-if="news.subtitle" class="page-subtitle">{{ news.subtitle }}</p>
           <div class="text-blocks">
             <p
               v-for="(paragraph, idx) in news.content"
@@ -334,6 +340,14 @@ onMounted(loadService);
   margin-bottom: 40px;
 }
 
+.page-subtitle {
+  max-width: 900px;
+  margin: -20px 0 34px;
+  color: #4f4f55;
+  font-size: 24px;
+  line-height: 1.35;
+}
+
 .text-blocks {
   display: flex;
   flex-direction: column;
@@ -383,6 +397,11 @@ onMounted(loadService);
   .page-title {
     font-size: 32px;
     margin-bottom: 24px;
+  }
+
+  .page-subtitle {
+    margin: -8px 0 24px;
+    font-size: 18px;
   }
 
   .text-block {

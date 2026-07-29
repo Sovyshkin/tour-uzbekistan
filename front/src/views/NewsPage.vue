@@ -76,6 +76,7 @@ const loadNews = async () => {
       id: item.id,
       slug: item.slug,
       image: resolveAssetUrl(item.previewImage),
+      imageSettings: item.previewImageSettings,
       title: item.title,
       description: item.excerpt || item.title,
       date: formatBackendDate(item.publishedAt, locale.value),

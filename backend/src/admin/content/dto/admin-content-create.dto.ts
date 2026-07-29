@@ -24,6 +24,26 @@ class AdminContentTranslationCreateDto {
   fields!: Record<string, unknown>;
 }
 
+class AdminImageSettingsDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  positionX?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  positionY?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  scale?: number;
+}
+
 export class AdminContentCreateDto {
   @ApiPropertyOptional()
   @IsString()
@@ -125,6 +145,36 @@ export class AdminContentCreateDto {
   @IsOptional()
   @IsString()
   previewImage?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  imageSettings?: AdminImageSettingsDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  heroImageSettings?: AdminImageSettingsDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  mainImageSettings?: AdminImageSettingsDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  routeMapImageSettings?: AdminImageSettingsDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  previewImageSettings?: AdminImageSettingsDto;
 
   @ApiPropertyOptional({ type: [AdminContentTranslationCreateDto] })
   @IsArray()

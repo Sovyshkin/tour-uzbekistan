@@ -7,7 +7,7 @@ import CardGorzontalDMC from '@/components/CardGorzontalDMC.vue';
 import CardNews from '@/components/CardNews.vue';
 import Carousel from '@/components/Carousel.vue';
 import Line from '@/components/Line.vue';
-import { formatBackendDate, getApiLocale, getHome, resolveAssetUrl } from '@/api';
+import { backgroundImageStyle, formatBackendDate, getApiLocale, getHome, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
@@ -137,6 +137,7 @@ const allTours = computed(() =>
     title: tour.title,
     route: tour.route,
     image: tour.image,
+    imageSettings: tour.imageSettings,
     category: tour.countrySlug,
     duration: {
       day: tour.durationDays,
@@ -174,19 +175,36 @@ const DMC = computed(() =>
   homeData.value.services.map((service) => ({
     id: service.id,
     slug: service.slug,
-    title: service.name || service.title,
-    descr: service.shortDescription,
+    title: service.title || service.name,
+    descr: service.shortDescription || service.subtitle,
     url: cmsAsset(service.previewImage),
+    imageSettings: service.previewImageSettings,
   })),
+);
+
+const mainWhyCategory = computed(() => homeData.value.whyWe[0] || null);
+
+const whyFactsLimit = computed(() => {
+  const rawValue = Number(cmsText('home.why_facts_limit', '2'));
+  return Number.isFinite(rawValue) && rawValue > 0 ? Math.floor(rawValue) : 2;
+});
+
+const whyBlockTitle = computed(() =>
+  mainWhyCategory.value?.title || cmsText('home.why_title', t('home.why_title')),
+);
+
+const whyBlockSubtitle = computed(() =>
+  mainWhyCategory.value?.subtitle || mainWhyCategory.value?.description || cmsText('home.why_text', t('home.why_text')),
 );
 
 const items = computed(() =>
   homeData.value.whyWe
     .flatMap((category) => category.facts || [])
-    .slice(0, 2)
+    .slice(0, whyFactsLimit.value)
     .map((fact, index) => ({
       number: String(index + 1).padStart(2, '0'),
       image: cmsAsset(fact.imageUrl),
+      imageSettings: fact.imageSettings,
       title: fact.title,
       description: fact.description,
     })),
@@ -197,6 +215,7 @@ const newsList = computed(() =>
     id: item.id,
     slug: item.slug,
     image: cmsAsset(item.previewImage),
+    imageSettings: item.previewImageSettings,
     title: item.title,
     description: item.excerpt || item.title,
     date: formatBackendDate(item.publishedAt, locale.value),
@@ -230,7 +249,7 @@ onMounted(loadHome);
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="heroBanner?.imageUrl ? { backgroundImage: `url(${cmsAsset(heroBanner.imageUrl)})` } : undefined"
+          :style="heroBanner?.imageUrl ? backgroundImageStyle(cmsAsset(heroBanner.imageUrl), heroBanner.imageSettings) : undefined"
         ></div>
         <AppContainer>
           <div class="hero-content">
@@ -427,23 +446,23 @@ onMounted(loadHome);
     <section class="mb-[20px]">
       <AppContainer>
         <div class="w-full border border-[#b1b1b4] mb-8 lg:mb-[65px]"></div>
-        <div class="flex justify-between items-center mb-4 lg:mb-[25px]">
+        <div class="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-start mb-4 lg:mb-[25px]">
           <h2 class="text-[24px] lg:text-[32px] font-medium">
             <span class="lg:hidden uppercase font-medium italic">{{
-              cmsText('home.why_mobile', $t('home.why_mobile'))
+              whyBlockTitle
             }}</span>
-            <span class="hidden lg:inline">{{ cmsText('home.why_title', $t('home.why_title')) }}</span>
+            <span class="hidden lg:inline">{{ whyBlockTitle }}</span>
           </h2>
           <Button
             :title="cmsText('home.view_all', $t('home.view_all'))"
-            :style="'px-[34px] border-[#bfbfbf]'"
+            :style="'px-[34px] border-[#bfbfbf] shrink-0 self-start'"
             @click="$router.push({ name: 'whyWe' })"
           />
         </div>
         <p
           class="text-[12px] lg:text-[16px] leading-[1.5] lg:leading-[1.6] mb-6 lg:mb-[40px] text-[#333]"
         >
-          {{ cmsText('home.why_text', $t('home.why_text')) }}
+          {{ whyBlockSubtitle }}
         </p>
         <CardGorzontalDMC
           v-for="(item, i) in items"

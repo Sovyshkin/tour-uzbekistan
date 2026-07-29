@@ -105,9 +105,10 @@ const loadServices = async () => {
     allServices.value = (data.items || []).map((service) => ({
       id: service.id,
       slug: service.slug,
-      title: service.name || service.title,
-      descr: service.shortDescription,
+      title: service.title || service.name,
+      descr: service.shortDescription || service.subtitle,
       url: resolveAssetUrl(service.previewImage),
+      imageSettings: service.previewImageSettings,
     }));
     meta.value = data.meta;
   } catch (error) {

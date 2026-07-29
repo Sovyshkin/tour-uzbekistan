@@ -162,6 +162,7 @@ model Country {
   slug            String               @unique
   isoCode         String?              @unique
   heroImage       String?
+  heroImageSettings Json?
   flagImage       String?
   sortOrder       Int                  @default(0)
   isFeatured      Boolean              @default(false)
@@ -204,7 +205,9 @@ model Tour {
   season            Season            @default(ALL_YEAR)
   heroImage         String?
   mainImage         String?
+  mainImageSettings Json?
   routeMapImage     String?
+  routeMapImageSettings Json?
   durationDays      Int
   durationNights    Int
   minGroupSize      Int?
@@ -316,6 +319,7 @@ model Service {
   slug            String               @unique
   heroImage       String?
   previewImage    String?
+  previewImageSettings Json?
   sortOrder       Int                  @default(0)
   isFeatured      Boolean              @default(false)
   leadFormEnabled Boolean              @default(true)
@@ -350,6 +354,7 @@ model HomeBanner {
   id           String                  @id @default(uuid()) @db.Uuid
   slug         String                  @unique
   imageUrl     String
+  imageSettings Json?
   mobileImageUrl String?
   linkUrl      String?
   sortOrder    Int                     @default(0)
@@ -449,6 +454,7 @@ model News {
   slug            String            @unique
   heroImage       String?
   previewImage    String?
+  previewImageSettings Json?
   publishedAt     DateTime?
   status          ContentStatus     @default(DRAFT)
   syncToB2B       Boolean           @default(true)
@@ -483,6 +489,7 @@ model WhyCategory {
   sortOrder       Int                     @default(0)
   status          ContentStatus           @default(DRAFT)
   heroImage       String?
+  heroImageSettings Json?
   facts           WhyFact[]
   translations    WhyCategoryTranslation[]
   createdAt       DateTime                @default(now())
@@ -511,6 +518,7 @@ model WhyFact {
   whyCategoryId   String              @db.Uuid
   sortOrder       Int                 @default(0)
   imageUrl        String?
+  imageSettings   Json?
   status          ContentStatus       @default(DRAFT)
   whyCategory     WhyCategory         @relation(fields: [whyCategoryId], references: [id], onDelete: Cascade)
   translations    WhyFactTranslation[]
