@@ -238,14 +238,24 @@ export function normalizeImageSettings(settings) {
     return Math.min(max, Math.max(min, Math.round(numberValue)));
   };
 
-  if (!settings || typeof settings !== 'object') {
+  let source = settings;
+
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch {
+      source = null;
+    }
+  }
+
+  if (!source || typeof source !== 'object') {
     return { positionX: 50, positionY: 50, scale: 100 };
   }
 
   return {
-    positionX: normalizeRange(settings.positionX, 50, 0, 100),
-    positionY: normalizeRange(settings.positionY, 50, 0, 100),
-    scale: normalizeRange(settings.scale, 100, 100, 300),
+    positionX: normalizeRange(source.positionX, 50, 0, 100),
+    positionY: normalizeRange(source.positionY, 50, 0, 100),
+    scale: normalizeRange(source.scale, 100, 100, 300),
   };
 }
 
@@ -256,10 +266,12 @@ export function imageObjectStyle(settings) {
     width: '100%',
     height: '100%',
     maxWidth: 'none',
+    display: 'block',
     objectFit: 'cover',
     objectPosition: `${normalized.positionX}% ${normalized.positionY}%`,
     transform: `scale(${normalized.scale / 100})`,
     transformOrigin: `${normalized.positionX}% ${normalized.positionY}%`,
+    willChange: 'transform, object-position',
   };
 }
 

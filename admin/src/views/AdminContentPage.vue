@@ -433,11 +433,21 @@ const defaultImageSettings = (): ImageTransformSettings => ({
 });
 
 const normalizeImageSettings = (value: unknown): ImageTransformSettings => {
-  if (!value || typeof value !== 'object') {
+  let sourceValue = value;
+
+  if (typeof sourceValue === 'string') {
+    try {
+      sourceValue = JSON.parse(sourceValue);
+    } catch {
+      sourceValue = null;
+    }
+  }
+
+  if (!sourceValue || typeof sourceValue !== 'object') {
     return defaultImageSettings();
   }
 
-  const source = value as Partial<ImageTransformSettings>;
+  const source = sourceValue as Partial<ImageTransformSettings>;
   const normalizeRange = (rawValue: unknown, fallback: number, min: number, max: number) => {
     const numberValue = Number(rawValue);
     if (!Number.isFinite(numberValue)) {
@@ -467,10 +477,12 @@ const imageTransformStyle = (settings?: ImageTransformSettings | null): CSSPrope
   return {
     width: '100%',
     height: '100%',
+    display: 'block',
     objectFit: 'cover',
     objectPosition: `${normalized.positionX}% ${normalized.positionY}%`,
     transform: `scale(${normalized.scale / 100})`,
     transformOrigin: `${normalized.positionX}% ${normalized.positionY}%`,
+    willChange: 'transform, object-position',
   };
 };
 

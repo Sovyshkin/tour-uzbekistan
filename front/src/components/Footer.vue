@@ -335,24 +335,9 @@
             {{ $t('footer.tourists') }}
           </h4>
           <ul class="flex flex-col gap-3 sm:gap-4">
-            <li>
-              <router-link to="/popular" class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]">
-                {{ $t('footer.popular') }}
-              </router-link>
-            </li>
-            <li>
-              <router-link to="/special" class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]">
-                {{ $t('footer.special') }}
-              </router-link>
-            </li>
-            <li>
-              <router-link to="/services" class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]">
-                {{ $t('footer.services') }}
-              </router-link>
-            </li>
-            <li>
-              <router-link to="/about" class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]">
-                {{ $t('footer.about_company') }}
+            <li v-for="link in touristLinks" :key="link.label">
+              <router-link :to="link.to" class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]">
+                {{ link.label }}
               </router-link>
             </li>
           </ul>
@@ -364,29 +349,19 @@
             {{ $t('footer.support') }}
           </h4>
           <ul class="flex flex-col gap-3 sm:gap-4">
-            <li>
-              <router-link to="/faq" class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]">
-                {{ $t('footer.faq') }}
-              </router-link>
-            </li>
-            <li>
+            <li v-for="link in supportLinks" :key="link.label">
               <a
-                v-if="privacyPolicyUrl"
-                :href="privacyPolicyUrl"
-                download
+                v-if="link.href"
+                :href="link.href"
+                :download="link.download"
                 target="_blank"
                 rel="noopener"
                 class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]"
               >
-                {{ $t('footer.privacy_policy') }}
+                {{ link.label }}
               </a>
-              <router-link v-else to="/privacy-policy" class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]">
-                {{ $t('footer.privacy_policy') }}
-              </router-link>
-            </li>
-            <li>
-              <router-link to="/terms" class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]">
-                {{ $t('footer.user_agreement') }}
+              <router-link v-else :to="link.to" class="hover:text-[#285aff] transition text-[14px] lg:text-[16px]">
+                {{ link.label }}
               </router-link>
             </li>
           </ul>
@@ -419,11 +394,11 @@
             </div>
 
             <!-- Соцсети -->
-            <div class="flex gap-3 mt-4">
-              <a href="#" class="social-icon"><span class="font-bold text-[16px]"><svg xmlns="http://www.w3.org/2000/svg" width="9" height="17" viewBox="0 0 9 17" fill="none"><path d="M5.83333 9.58333H7.91667L8.75 6.25H5.83333V4.58333C5.83333 3.72552 5.83333 2.91667 7.5 2.91667H8.75V0.11675C8.47858 0.0807083 7.4525 0 6.36908 0C4.107 0 2.5 1.38072 2.5 3.91642V6.25H0V9.58333H2.5V16.6667H5.83333V9.58333Z" fill="#1877F2"/></svg></span></a>
-              <a href="#" class="social-icon"><span class="font-bold text-[16px]"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M18.6975 6.39247C18.6549 5.46106 18.507 4.82498 18.2907 4.26853C18.071 3.68465 17.7266 3.15573 17.2814 2.71868C16.8444 2.27348 16.3155 1.92897 15.7316 1.70917C15.175 1.49298 14.539 1.34519 13.6076 1.30288C12.6745 1.26015 12.3763 1.25 10.0001 1.25C7.62376 1.25 7.32561 1.26015 6.39247 1.30264C5.46106 1.34519 4.82515 1.49312 4.26853 1.70941C3.68464 1.9291 3.15571 2.27355 2.71864 2.71871C2.27344 3.15572 1.92894 3.68459 1.70914 4.26843C1.49295 4.82505 1.34516 5.4611 1.30284 6.39236C1.26015 7.32561 1.25 7.62363 1.25 9.99992C1.25 12.3763 1.26015 12.6745 1.30288 13.6076C1.34533 14.5389 1.49326 15.175 1.70955 15.7316C1.92924 16.3154 2.27367 16.8443 2.71881 17.2813C3.15584 17.7265 3.68475 18.0709 4.26863 18.2906C4.82515 18.507 5.4612 18.6548 6.3926 18.6974C7.32589 18.74 7.62387 18.75 10.0002 18.75C12.3765 18.75 12.6746 18.74 13.6078 18.6974C14.5392 18.6548 15.1751 18.507 15.7317 18.2906C16.313 18.0658 16.8409 17.7221 17.2815 17.2814C17.7222 16.8407 18.0659 16.3128 18.2907 15.7316C18.5071 15.175 18.6549 14.5389 18.6975 13.6076C18.74 12.6744 18.7501 12.3763 18.7501 10.0001C18.7501 7.62363 18.74 7.32561 18.6975 6.39247ZM17.1225 13.536C17.0836 14.3891 16.941 14.8524 16.8212 15.1607C16.6757 15.5381 16.4527 15.8808 16.1667 16.1668C15.8807 16.4528 15.5379 16.6758 15.1606 16.8214C14.8523 16.9411 14.389 17.0837 13.5358 17.1226C12.6134 17.1648 12.3366 17.1736 10.0001 17.1736C7.66345 17.1736 7.38679 17.1648 6.46418 17.1226C5.61118 17.0837 5.14791 16.9411 4.83947 16.8214C4.45943 16.681 4.11566 16.4574 3.83342 16.1668C3.54278 15.8845 3.31909 15.5408 3.17881 15.1607C3.05904 14.8524 2.91644 14.3891 2.87758 13.536C2.83554 12.6134 2.82658 12.3366 2.82658 10.0002C2.82658 7.66368 2.83554 7.38707 2.87758 6.46431C2.91654 5.61118 3.05904 5.14787 3.17881 4.83961C3.31913 4.45954 3.54281 4.11572 3.83342 3.83342C4.11566 3.54277 4.45949 3.31912 4.83961 3.17894C4.14791 3.05904 5.61118 2.91658 6.46435 2.87758C7.38693 2.83554 7.66372 2.82658 10.0001 2.82658C12.3365 2.82658 12.6131 2.83554 13.5359 2.87771C14.389 2.91658 14.8522 3.05918 15.1606 3.17894C15.5406 3.31926 15.8843 3.54289 16.1666 3.83342C16.4573 4.11565 16.6809 4.45949 16.8211 4.83961C16.941 5.14791 17.0836 5.61118 17.1225 6.46435C17.1645 7.38693 17.1735 7.66372 17.1735 10.0001C17.1735 12.3366 17.1646 12.6132 17.1225 13.536Z" fill="url(#paint0_linear_3088_450)"/><path d="M9.99992 5.50676C7.51842 5.50676 5.50673 7.51852 5.50673 10.0001C5.50673 12.4816 7.51842 14.4932 9.99992 14.4932C12.4816 14.4932 14.4932 12.4816 14.4932 10.0001C14.4932 7.51852 12.4815 5.50676 9.99992 5.50676ZM9.99992 12.9167C8.38919 12.9166 7.08328 11.6108 7.08341 9.99992C7.08341 8.38919 8.38919 7.08328 10.0001 7.08328C11.6109 7.08341 12.9167 8.38919 12.9167 9.99992C12.9167 11.6108 11.6108 12.9167 9.99992 12.9167Z" fill="url(#paint1_linear_3088_450)"/><path d="M15.7208 5.3293C15.7208 5.90916 15.2507 6.37924 14.6708 6.37924C14.0908 6.37924 13.6207 5.90913 13.6207 5.3293C13.6207 4.74927 14.0908 4.27919 14.6708 4.27919C15.2507 4.27919 15.7208 4.7493 15.7208 5.3293Z" fill="url(#paint2_linear_3088_450)"/><defs><linearGradient id="paint0_linear_3088_450" x1="2.71857" y1="17.2814" x2="17.2815" y2="2.71844" gradientUnits="userSpaceOnUse"><stop stop-color="#FFD600"/><stop offset="0.5" stop-color="#FF0100"/><stop offset="1" stop-color="#D800B9"/></linearGradient><linearGradient id="paint1_linear_3088_450" x1="3.81287" y1="16.1872" x2="16.1873" y2="3.81277" gradientUnits="userSpaceOnUse"><stop stop-color="#FF6400"/><stop offset="0.5" stop-color="#FF0100"/><stop offset="1" stop-color="#FD0056"/></linearGradient><linearGradient id="paint2_linear_3088_450" x1="13.9282" y1="6.07169" x2="15.4131" y2="4.58678" gradientUnits="userSpaceOnUse"><stop stop-color="#F30072"/><stop offset="1" stop-color="#E50097"/></linearGradient></defs></svg></span></a>
-              <a href="#" class="social-icon"><span class="font-bold text-[16px]"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4.28857 2.10442C4.88155 2.2104 5.38081 2.58265 5.64621 3.11782C5.7408 3.30789 5.79861 3.50059 5.82664 3.71956C5.84591 3.87109 5.83978 4.12247 5.8135 4.26962C5.68562 4.99574 5.15308 5.57295 4.44185 5.75951C4.30784 5.79455 4.19398 5.81032 4.03894 5.81732C3.30232 5.8471 2.62 5.43981 2.29154 4.77326C2.03578 4.25473 2.03578 3.64599 2.29066 3.12658C2.57445 2.54937 3.114 2.16836 3.76304 2.08953C3.87428 2.07551 4.17383 2.08427 4.28857 2.10442ZM14.3351 7.20386C14.8063 7.24941 15.2696 7.37378 15.6533 7.5586C15.9502 7.70137 16.2883 7.91946 16.5957 8.16822C16.9391 8.44587 17.1808 8.78572 17.462 9.38483C17.6897 9.87007 17.815 10.2835 17.8798 10.76C17.8938 10.8616 17.8947 11.1349 17.8973 14.3923L17.8999 17.916H16.3014H14.7029V14.9529C14.7029 12.9523 14.7003 11.9608 14.6942 11.8986C14.6206 11.1576 14.2807 10.6268 13.7027 10.3483C13.566 10.2826 13.4749 10.2493 13.3313 10.2125C12.7628 10.0663 12.091 10.1486 11.5909 10.4245C11.1258 10.6811 10.7754 11.2076 10.644 11.8461C10.5924 12.0983 10.595 11.924 10.595 15.0492V17.916H9.00087H7.40675V12.6475V7.37904H8.9089H10.4111V8.13756V8.89521L10.4759 8.80849C10.6116 8.62543 10.8621 8.36354 11.0478 8.20938C11.7652 7.6129 12.6866 7.24327 13.5783 7.1951C13.7456 7.18634 14.2072 7.1916 14.3351 7.20386ZM5.60241 12.6475V17.916H3.96887H2.33533V12.6475V7.37904H3.96887H5.60241V12.6475Z" fill="#0A66C2"/></svg></span></a>
-              <a href="#" class="social-icon"><span class="font-bold text-[16px]"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M14.7704 2.5H17.3161L11.756 8.85337L18.2969 17.5H13.1767L9.16346 12.2572L4.57692 17.5H2.02764L7.97356 10.7031L1.70312 2.5H6.95312L10.5769 7.29207L14.7704 2.5ZM13.8762 15.9784H15.2861L6.1851 3.94231H4.67067L13.8762 15.9784Z" fill="#1C252E"/></svg></span></a>
+            <div class="flex gap-3 mt-4" @click.capture="handleSocialClick">
+              <a href="" class="social-icon"><span class="font-bold text-[16px]"><svg xmlns="http://www.w3.org/2000/svg" width="9" height="17" viewBox="0 0 9 17" fill="none"><path d="M5.83333 9.58333H7.91667L8.75 6.25H5.83333V4.58333C5.83333 3.72552 5.83333 2.91667 7.5 2.91667H8.75V0.11675C8.47858 0.0807083 7.4525 0 6.36908 0C4.107 0 2.5 1.38072 2.5 3.91642V6.25H0V9.58333H2.5V16.6667H5.83333V9.58333Z" fill="#1877F2"/></svg></span></a>
+              <a href="" class="social-icon"><span class="font-bold text-[16px]"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M18.6975 6.39247C18.6549 5.46106 18.507 4.82498 18.2907 4.26853C18.071 3.68465 17.7266 3.15573 17.2814 2.71868C16.8444 2.27348 16.3155 1.92897 15.7316 1.70917C15.175 1.49298 14.539 1.34519 13.6076 1.30288C12.6745 1.26015 12.3763 1.25 10.0001 1.25C7.62376 1.25 7.32561 1.26015 6.39247 1.30264C5.46106 1.34519 4.82515 1.49312 4.26853 1.70941C3.68464 1.9291 3.15571 2.27355 2.71864 2.71871C2.27344 3.15572 1.92894 3.68459 1.70914 4.26843C1.49295 4.82505 1.34516 5.4611 1.30284 6.39236C1.26015 7.32561 1.25 7.62363 1.25 9.99992C1.25 12.3763 1.26015 12.6745 1.30288 13.6076C1.34533 14.5389 1.49326 15.175 1.70955 15.7316C1.92924 16.3154 2.27367 16.8443 2.71881 17.2813C3.15584 17.7265 3.68475 18.0709 4.26863 18.2906C4.82515 18.507 5.4612 18.6548 6.3926 18.6974C7.32589 18.74 7.62387 18.75 10.0002 18.75C12.3765 18.75 12.6746 18.74 13.6078 18.6974C14.5392 18.6548 15.1751 18.507 15.7317 18.2906C16.313 18.0658 16.8409 17.7221 17.2815 17.2814C17.7222 16.8407 18.0659 16.3128 18.2907 15.7316C18.5071 15.175 18.6549 14.5389 18.6975 13.6076C18.74 12.6744 18.7501 12.3763 18.7501 10.0001C18.7501 7.62363 18.74 7.32561 18.6975 6.39247ZM17.1225 13.536C17.0836 14.3891 16.941 14.8524 16.8212 15.1607C16.6757 15.5381 16.4527 15.8808 16.1667 16.1668C15.8807 16.4528 15.5379 16.6758 15.1606 16.8214C14.8523 16.9411 14.389 17.0837 13.5358 17.1226C12.6134 17.1648 12.3366 17.1736 10.0001 17.1736C7.66345 17.1736 7.38679 17.1648 6.46418 17.1226C5.61118 17.0837 5.14791 16.9411 4.83947 16.8214C4.45943 16.681 4.11566 16.4574 3.83342 16.1668C3.54278 15.8845 3.31909 15.5408 3.17881 15.1607C3.05904 14.8524 2.91644 14.3891 2.87758 13.536C2.83554 12.6134 2.82658 12.3366 2.82658 10.0002C2.82658 7.66368 2.83554 7.38707 2.87758 6.46431C2.91654 5.61118 3.05904 5.14787 3.17881 4.83961C3.31913 4.45954 3.54281 4.11572 3.83342 3.83342C4.11566 3.54277 4.45949 3.31912 4.83961 3.17894C4.14791 3.05904 5.61118 2.91658 6.46435 2.87758C7.38693 2.83554 7.66372 2.82658 10.0001 2.82658C12.3365 2.82658 12.6131 2.83554 13.5359 2.87771C14.389 2.91658 14.8522 3.05918 15.1606 3.17894C15.5406 3.31926 15.8843 3.54289 16.1666 3.83342C16.4573 4.11565 16.6809 4.45949 16.8211 4.83961C16.941 5.14791 17.0836 5.61118 17.1225 6.46435C17.1645 7.38693 17.1735 7.66372 17.1735 10.0001C17.1735 12.3366 17.1646 12.6132 17.1225 13.536Z" fill="url(#paint0_linear_3088_450)"/><path d="M9.99992 5.50676C7.51842 5.50676 5.50673 7.51852 5.50673 10.0001C5.50673 12.4816 7.51842 14.4932 9.99992 14.4932C12.4816 14.4932 14.4932 12.4816 14.4932 10.0001C14.4932 7.51852 12.4815 5.50676 9.99992 5.50676ZM9.99992 12.9167C8.38919 12.9166 7.08328 11.6108 7.08341 9.99992C7.08341 8.38919 8.38919 7.08328 10.0001 7.08328C11.6109 7.08341 12.9167 8.38919 12.9167 9.99992C12.9167 11.6108 11.6108 12.9167 9.99992 12.9167Z" fill="url(#paint1_linear_3088_450)"/><path d="M15.7208 5.3293C15.7208 5.90916 15.2507 6.37924 14.6708 6.37924C14.0908 6.37924 13.6207 5.90913 13.6207 5.3293C13.6207 4.74927 14.0908 4.27919 14.6708 4.27919C15.2507 4.27919 15.7208 4.7493 15.7208 5.3293Z" fill="url(#paint2_linear_3088_450)"/><defs><linearGradient id="paint0_linear_3088_450" x1="2.71857" y1="17.2814" x2="17.2815" y2="2.71844" gradientUnits="userSpaceOnUse"><stop stop-color="#FFD600"/><stop offset="0.5" stop-color="#FF0100"/><stop offset="1" stop-color="#D800B9"/></linearGradient><linearGradient id="paint1_linear_3088_450" x1="3.81287" y1="16.1872" x2="16.1873" y2="3.81277" gradientUnits="userSpaceOnUse"><stop stop-color="#FF6400"/><stop offset="0.5" stop-color="#FF0100"/><stop offset="1" stop-color="#FD0056"/></linearGradient><linearGradient id="paint2_linear_3088_450" x1="13.9282" y1="6.07169" x2="15.4131" y2="4.58678" gradientUnits="userSpaceOnUse"><stop stop-color="#F30072"/><stop offset="1" stop-color="#E50097"/></linearGradient></defs></svg></span></a>
+              <a href="" class="social-icon"><span class="font-bold text-[16px]"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4.28857 2.10442C4.88155 2.2104 5.38081 2.58265 5.64621 3.11782C5.7408 3.30789 5.79861 3.50059 5.82664 3.71956C5.84591 3.87109 5.83978 4.12247 5.8135 4.26962C5.68562 4.99574 5.15308 5.57295 4.44185 5.75951C4.30784 5.79455 4.19398 5.81032 4.03894 5.81732C3.30232 5.8471 2.62 5.43981 2.29154 4.77326C2.03578 4.25473 2.03578 3.64599 2.29066 3.12658C2.57445 2.54937 3.114 2.16836 3.76304 2.08953C3.87428 2.07551 4.17383 2.08427 4.28857 2.10442ZM14.3351 7.20386C14.8063 7.24941 15.2696 7.37378 15.6533 7.5586C15.9502 7.70137 16.2883 7.91946 16.5957 8.16822C16.9391 8.44587 17.1808 8.78572 17.462 9.38483C17.6897 9.87007 17.815 10.2835 17.8798 10.76C17.8938 10.8616 17.8947 11.1349 17.8973 14.3923L17.8999 17.916H16.3014H14.7029V14.9529C14.7029 12.9523 14.7003 11.9608 14.6942 11.8986C14.6206 11.1576 14.2807 10.6268 13.7027 10.3483C13.566 10.2826 13.4749 10.2493 13.3313 10.2125C12.7628 10.0663 12.091 10.1486 11.5909 10.4245C11.1258 10.6811 10.7754 11.2076 10.644 11.8461C10.5924 12.0983 10.595 11.924 10.595 15.0492V17.916H9.00087H7.40675V12.6475V7.37904H8.9089H10.4111V8.13756V8.89521L10.4759 8.80849C10.6116 8.62543 10.8621 8.36354 11.0478 8.20938C11.7652 7.6129 12.6866 7.24327 13.5783 7.1951C13.7456 7.18634 14.2072 7.1916 14.3351 7.20386ZM5.60241 12.6475V17.916H3.96887H2.33533V12.6475V7.37904H3.96887H5.60241V12.6475Z" fill="#0A66C2"/></svg></span></a>
+              <a href="" class="social-icon"><span class="font-bold text-[16px]"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M14.7704 2.5H17.3161L11.756 8.85337L18.2969 17.5H13.1767L9.16346 12.2572L4.57692 17.5H2.02764L7.97356 10.7031L1.70312 2.5H6.95312L10.5769 7.29207L14.7704 2.5ZM13.8762 15.9784H15.2861L6.1851 3.94231H4.67067L13.8762 15.9784Z" fill="#1C252E"/></svg></span></a>
             </div>
           </div>
         </div>
@@ -480,10 +455,84 @@ const footerEmailHref = computed(() => `mailto:${footerEmail.value}`);
 const footerPhoneHref = computed(
   () => `tel:${footerPhone.value.replace(/[^\d+]/g, '')}`,
 );
-const privacyPolicyUrl = computed(() => {
-  const value = footerSettings.value['legal.privacy_policy'] || cmsValue('legal.privacy_policy', '');
+
+const settingUrl = (...keys) => {
+  const value = keys
+    .map((key) => footerSettings.value[key] || cmsValue(key, ''))
+    .find(Boolean);
+
   return value ? resolveAssetUrl(value) : '';
+};
+
+const privacyPolicyUrl = computed(() => {
+  return settingUrl('legal.privacy_policy');
 });
+const partnerAgreementUrl = computed(() => {
+  return settingUrl('legal.partner_agreement');
+});
+
+const touristLinks = computed(() => [
+  { label: t('footer.popular'), to: '/directions' },
+  { label: t('footer.special'), to: '/tours' },
+  { label: t('footer.services'), to: '/services' },
+  { label: t('footer.about_company'), to: '/about' },
+]);
+
+const supportLinks = computed(() => [
+  { label: t('footer.faq'), to: '/for-agent' },
+  {
+    label: t('footer.privacy_policy'),
+    to: '/register',
+    href: privacyPolicyUrl.value,
+    download: true,
+  },
+  {
+    label: t('footer.user_agreement'),
+    to: '/for-agent',
+    href: partnerAgreementUrl.value,
+    download: true,
+  },
+]);
+
+const socialUrl = (name) => {
+  const settings = footerSettings.value || {};
+  const contacts = settings['contacts.main'] && typeof settings['contacts.main'] === 'object'
+    ? settings['contacts.main']
+    : {};
+  const aliases = {
+    facebook: ['footer.facebook', 'social.facebook', 'facebook', 'facebookUrl'],
+    instagram: ['footer.instagram', 'social.instagram', 'instagram', 'instagramUrl'],
+    linkedin: ['footer.linkedin', 'social.linkedin', 'linkedin', 'linkedinUrl'],
+    twitter: ['footer.twitter', 'footer.x', 'social.twitter', 'social.x', 'twitter', 'x', 'twitterUrl'],
+  };
+  const fallback = {
+    facebook: 'https://www.facebook.com/',
+    instagram: 'https://www.instagram.com/',
+    linkedin: 'https://www.linkedin.com/',
+    twitter: 'https://x.com/',
+  };
+  const value = aliases[name]
+    ?.map((key) => settings[key] || contacts[key] || cmsValue(key, ''))
+    .find(Boolean);
+
+  return value || fallback[name] || '/';
+};
+
+const handleSocialClick = (event) => {
+  const anchor = event.target.closest?.('.social-icon');
+  if (!anchor) {
+    return;
+  }
+
+  const socialIcons = Array.from(anchor.parentElement?.querySelectorAll('.social-icon') || []);
+  const socialName = ['facebook', 'instagram', 'linkedin', 'twitter'][socialIcons.indexOf(anchor)];
+  const url = socialUrl(socialName);
+
+  if (url) {
+    event.preventDefault();
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+};
 
 watch(() => locale.value, loadFooterData);
 onMounted(loadFooterData);

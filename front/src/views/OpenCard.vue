@@ -5,11 +5,11 @@ import CustomSelect from '@/components/CustomSelect.vue';
 import Carousel from '@/components/Carousel.vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { createBooking, getApiLocale, getAuth, getCountries, getTour, resolveAssetUrl } from '@/api';
+import { createBooking, getApiLocale, getAuth, getCountries, getTour, resolveAssetUrl, submitLead } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
-import { validateBookingFormFields } from '@/utils/formValidation';
+import { validateBookingFormFields, validateContactFormFields } from '@/utils/formValidation';
 const { t, locale } = useI18n();
-const { error: notifyError } = useNotifications();
+const { error: notifyError, success: notifySuccess } = useNotifications();
 
 // ─── Хлебные крошки ───
 const route = useRoute();
@@ -67,6 +67,8 @@ const duration = ref(7);
 
 const isModalOpen = ref(false);
 const modalStep = ref(1); // 1 - форма, 2 - успех
+const isLeadModalOpen = ref(false);
+const leadStep = ref(1);
 
 const isMobileFilterOpen = ref(false);
 const openMobileFilter = () => {
@@ -102,6 +104,13 @@ const formData = ref({
   validUntil: '',
 });
 const formErrors = ref({});
+const leadForm = ref({
+  name: '',
+  phone: '',
+  email: '',
+  message: '',
+});
+const leadErrors = ref({});
 
 const clearFieldError = (field) => {
   if (!formErrors.value[field]) {
@@ -113,16 +122,19 @@ const clearFieldError = (field) => {
   formErrors.value = nextErrors;
 };
 
+const clearLeadError = (field) => {
+  if (!leadErrors.value[field]) {
+    return;
+  }
+
+  const nextErrors = { ...leadErrors.value };
+  delete nextErrors[field];
+  leadErrors.value = nextErrors;
+};
+
 const openModal = () => {
   if (!isB2BUser.value) {
-    router.push({
-      name: 'home',
-      query: {
-        auth: 'login',
-        reason: 'unauthorized',
-        redirect: route.fullPath,
-      },
-    });
+    openLeadModal();
     return;
   }
 
@@ -132,23 +144,29 @@ const openModal = () => {
   document.body.style.overflow = 'hidden';
 };
 
+const openLeadModal = () => {
+  leadErrors.value = {};
+  leadStep.value = 1;
+  isLeadModalOpen.value = true;
+  document.body.style.overflow = 'hidden';
+};
+
 const closeModal = () => {
   isModalOpen.value = false;
   formErrors.value = {};
   document.body.style.overflow = '';
 };
 
+const closeLeadModal = () => {
+  isLeadModalOpen.value = false;
+  leadErrors.value = {};
+  document.body.style.overflow = '';
+};
+
 const submitForm = async () => {
   if (!isB2BUser.value) {
     closeModal();
-    router.push({
-      name: 'home',
-      query: {
-        auth: 'login',
-        reason: 'unauthorized',
-        redirect: route.fullPath,
-      },
-    });
+    openLeadModal();
     return;
   }
 
@@ -183,6 +201,43 @@ const submitForm = async () => {
     modalStep.value = 2;
   } catch (error) {
     notifyError(error.message || t('notifications.createBookingFailed'), t('notifications.bookingFailed'));
+  }
+};
+
+const submitLeadRequest = async () => {
+  const validationErrors = validateContactFormFields(leadForm.value);
+  leadErrors.value = validationErrors;
+
+  if (Object.keys(validationErrors).length) {
+    notifyError(Object.values(validationErrors)[0], t('notifications.validationTitle'));
+    return;
+  }
+
+  try {
+    await submitLead({
+      name: leadForm.value.name,
+      email: leadForm.value.email,
+      phone: leadForm.value.phone || undefined,
+      message:
+        leadForm.value.message ||
+        `Tour request: ${tour.value.title}${tour.value.subtitle ? ` ${tour.value.subtitle}` : ''}`,
+      sourcePage: route.fullPath,
+      sourcePageTitle: document.title,
+      language: getApiLocale(locale.value),
+      tourId: tour.value.id || undefined,
+    });
+
+    leadForm.value = {
+      name: '',
+      phone: '',
+      email: '',
+      message: '',
+    };
+    leadErrors.value = {};
+    leadStep.value = 2;
+    notifySuccess(t('notifications.messageSent'));
+  } catch (error) {
+    notifyError(error.message || t('notifications.sendMessageFailed'), t('notifications.messageNotSent'));
   }
 };
 
@@ -996,10 +1051,10 @@ onUnmounted(() => {
 
               <!-- Текущая дата и цена -->
               <div
-                v-if="isB2BUser"
                 class="tour-buy-panel"
               >
                 <div
+                  v-if="isB2BUser"
                   class="flex items-center justify-between mb-[10px] border-b border-b-[#e3e3e4] pb-[10px]"
                 >
                   <span class="text-[12px] sm:text-[16px] text-[#000]"
@@ -1192,6 +1247,93 @@ onUnmounted(() => {
                 {{ t('openCard.modal_close') }}
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="modal">
+      <div v-if="isLeadModalOpen" class="modal-overlay" @click="closeLeadModal">
+        <div class="lead-modal-container" @click.stop>
+          <button class="modal-close" type="button" @click="closeLeadModal" aria-label="Close">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <div v-if="leadStep === 1" class="modal-content">
+            <p class="lead-modal-eyebrow">{{ t('openCard.lead_eyebrow') }}</p>
+            <h2 class="lead-modal-title">{{ t('openCard.lead_title') }}</h2>
+            <p class="lead-modal-text">
+              {{ t('openCard.lead_text') }}
+            </p>
+
+            <form @submit.prevent="submitLeadRequest" class="modal-form">
+              <div class="form-group">
+                <label>{{ t('about.name') }}</label>
+                <input
+                  type="text"
+                  v-model="leadForm.name"
+                  :class="{ 'input-error': leadErrors.name }"
+                  @input="clearLeadError('name')"
+                  required
+                />
+                <p v-if="leadErrors.name" class="field-error">{{ leadErrors.name }}</p>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>{{ t('about.phone') }}</label>
+                  <input
+                    type="tel"
+                    v-model="leadForm.phone"
+                    :class="{ 'input-error': leadErrors.phone }"
+                    @input="clearLeadError('phone')"
+                  />
+                  <p v-if="leadErrors.phone" class="field-error">{{ leadErrors.phone }}</p>
+                </div>
+                <div class="form-group">
+                  <label>{{ t('about.email') }}</label>
+                  <input
+                    type="email"
+                    v-model="leadForm.email"
+                    :class="{ 'input-error': leadErrors.email }"
+                    @input="clearLeadError('email')"
+                    required
+                  />
+                  <p v-if="leadErrors.email" class="field-error">{{ leadErrors.email }}</p>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>{{ t('openCard.lead_message') }}</label>
+                <textarea
+                  v-model="leadForm.message"
+                  :placeholder="tour.title"
+                  rows="4"
+                ></textarea>
+              </div>
+
+              <button type="submit" class="modal-submit">
+                {{ t('openCard.lead_submit') }}
+              </button>
+            </form>
+          </div>
+
+          <div v-else class="modal-success">
+            <div class="success-icon">✓</div>
+            <h2 class="success-title">{{ t('openCard.lead_success_title') }}</h2>
+            <p class="success-text">{{ t('openCard.lead_success_text') }}</p>
+            <button class="modal-submit" type="button" @click="closeLeadModal">
+              {{ t('openCard.modal_close') }}
+            </button>
           </div>
         </div>
       </div>
@@ -1565,6 +1707,16 @@ onUnmounted(() => {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
 }
 
+.lead-modal-container {
+  position: relative;
+  width: min(92vw, 560px);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.24);
+}
+
 .modal-close {
   position: absolute;
   top: 16px;
@@ -1632,7 +1784,20 @@ onUnmounted(() => {
   background-color: #f6f6f6;
 }
 
-.form-group input:focus {
+.form-group textarea {
+  min-height: 112px;
+  padding: 24px 12px 12px;
+  border: 1px solid #000;
+  border-radius: 15px;
+  font-size: 16px;
+  line-height: 1.45;
+  resize: vertical;
+  background-color: #f6f6f6;
+  transition: border 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
   outline: none;
   border-color: #285aff;
 }
@@ -1693,6 +1858,30 @@ onUnmounted(() => {
 .success-text {
   color: #666;
   margin-bottom: 32px;
+}
+
+.lead-modal-eyebrow {
+  margin-bottom: 8px;
+  color: #285aff;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lead-modal-title {
+  margin-bottom: 10px;
+  color: #000;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.08;
+}
+
+.lead-modal-text {
+  margin-bottom: 22px;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 /* Анимация */

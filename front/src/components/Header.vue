@@ -66,9 +66,14 @@ const closeRoleModal = () => {
   }
 };
 
-const selectTourist = () => {
+const selectTourist = async () => {
   closeRoleModal();
-  router.push('/tours');
+  isMobileMenuOpen.value = false;
+  isMobileLangOpen.value = false;
+
+  if (route.name === 'for-agent' || route.query.auth === 'login') {
+    await router.push('/');
+  }
 };
 
 const selectAgent = () => {
@@ -614,13 +619,15 @@ onBeforeUnmount(() => {
               </div>
               <div class="flex border-t border-[#e6e6e7]">
                 <button
-                  @click="selectTourist"
+                  type="button"
+                  @click.stop.prevent="selectTourist"
                   class="flex-1 py-4 text-[14px] text-[#333] hover:bg-[#f5f5f5] transition border-r border-[#e6e6e7] cursor-pointer"
                 >
                   {{ t('roleModal.tourist') }}
                 </button>
                 <button
-                  @click="selectAgent"
+                  type="button"
+                  @click.stop.prevent="selectAgent"
                   class="flex-1 py-4 text-[14px] text-white bg-[#ff00cc] hover:bg-[#e000b8] transition font-medium cursor-pointer"
                 >
                   {{ t('roleModal.agent') }}
