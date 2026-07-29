@@ -479,16 +479,16 @@ const touristLinks = computed(() => [
 ]);
 
 const supportLinks = computed(() => [
-  { label: t('footer.faq'), to: '/for-agent' },
+  { label: t('footer.faq'), to: '/faq' },
   {
     label: t('footer.privacy_policy'),
-    to: '/register',
+    to: '/privacy-policy',
     href: privacyPolicyUrl.value,
     download: true,
   },
   {
     label: t('footer.user_agreement'),
-    to: '/for-agent',
+    to: '/terms',
     href: partnerAgreementUrl.value,
     download: true,
   },

@@ -80,6 +80,30 @@ const router = createRouter({
       name: 'Register',
       component: () => import('@/views/RegisterPage.vue'),
     },
+    {
+      path: '/faq',
+      name: 'faq',
+      component: () => import('@/views/GenericPage.vue'),
+      meta: {
+        pageSlug: 'faq',
+      },
+    },
+    {
+      path: '/privacy-policy',
+      name: 'privacy-policy',
+      component: () => import('@/views/GenericPage.vue'),
+      meta: {
+        pageSlug: 'privacy-policy',
+      },
+    },
+    {
+      path: '/terms',
+      name: 'terms',
+      component: () => import('@/views/GenericPage.vue'),
+      meta: {
+        pageSlug: 'terms',
+      },
+    },
     // Для стран (динамический маршрут)
     {
       path: '/countries/:country',

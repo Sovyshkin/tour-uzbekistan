@@ -603,6 +603,183 @@ const DEFAULT_PAGES: DefaultPageSeed[] = [
       },
     },
   },
+  {
+    slug: 'faq',
+    path: '/faq',
+    sortOrder: 90,
+    translations: {
+      ru: {
+        title: 'Вопросы и ответы',
+        menuLabel: 'Вопросы и ответы',
+        heroTitle: 'Вопросы и ответы',
+        heroSubtitle: 'Ответы на частые вопросы о турах, заявках и работе с Centrum Holidays DMC',
+        seoTitle: 'Вопросы и ответы - Centrum Holidays',
+        seoDescription: 'Ответы на частые вопросы клиентов и партнеров Centrum Holidays.',
+      },
+      en: {
+        title: 'Questions and answers',
+        menuLabel: 'Questions and answers',
+        heroTitle: 'Questions and answers',
+        heroSubtitle: 'Answers to common questions about tours, requests and cooperation with Centrum Holidays DMC',
+        seoTitle: 'Questions and answers - Centrum Holidays',
+        seoDescription: 'Answers to common questions from Centrum Holidays clients and partners.',
+      },
+      uz: {
+        title: 'Savol-javoblar',
+        menuLabel: 'Savol-javoblar',
+        heroTitle: 'Savol-javoblar',
+        heroSubtitle: 'Turlar, arizalar va Centrum Holidays DMC bilan ishlash bo‘yicha tez-tez so‘raladigan savollar',
+        seoTitle: 'Savol-javoblar - Centrum Holidays',
+        seoDescription: 'Centrum Holidays mijozlari va hamkorlari uchun tez-tez so‘raladigan savollar.',
+      },
+    },
+    content: {
+      ru: [
+        {
+          title: 'Как отправить заявку?',
+          text: 'Выберите интересующий тур или услугу и отправьте форму обратной связи. Менеджер свяжется с вами для уточнения деталей.',
+        },
+        {
+          title: 'Как агент может забронировать тур?',
+          text: 'Агенту нужно войти в личный кабинет. После авторизации на странице тура появится доступ к бронированию и истории заявок.',
+        },
+      ],
+      en: [
+        {
+          title: 'How do I send a request?',
+          text: 'Choose a tour or service and submit the contact form. A manager will contact you to clarify the details.',
+        },
+        {
+          title: 'How can an agent book a tour?',
+          text: 'The agent should sign in to the account. After authorization, tour booking and request history become available.',
+        },
+      ],
+      uz: [
+        {
+          title: 'Qanday qilib ariza yuboriladi?',
+          text: 'Kerakli tur yoki xizmatni tanlang va aloqa formasini yuboring. Menejer tafsilotlarni aniqlashtirish uchun siz bilan bog‘lanadi.',
+        },
+        {
+          title: 'Agent turni qanday bron qiladi?',
+          text: 'Agent shaxsiy kabinetga kirishi kerak. Avtorizatsiyadan so‘ng tur sahifasida bron qilish va arizalar tarixi ochiladi.',
+        },
+      ],
+    },
+  },
+  {
+    slug: 'privacy-policy',
+    path: '/privacy-policy',
+    sortOrder: 100,
+    translations: {
+      ru: {
+        title: 'Политика конфиденциальности',
+        menuLabel: 'Политика конфиденциальности',
+        heroTitle: 'Политика конфиденциальности',
+        heroSubtitle: 'Информация о сборе, хранении и обработке персональных данных',
+        seoTitle: 'Политика конфиденциальности - Centrum Holidays',
+        seoDescription: 'Политика конфиденциальности Centrum Holidays.',
+      },
+      en: {
+        title: 'Privacy Policy',
+        menuLabel: 'Privacy Policy',
+        heroTitle: 'Privacy Policy',
+        heroSubtitle: 'Information about collection, storage and processing of personal data',
+        seoTitle: 'Privacy Policy - Centrum Holidays',
+        seoDescription: 'Centrum Holidays privacy policy.',
+      },
+      uz: {
+        title: 'Maxfiylik siyosati',
+        menuLabel: 'Maxfiylik siyosati',
+        heroTitle: 'Maxfiylik siyosati',
+        heroSubtitle: 'Shaxsiy ma’lumotlarni yig‘ish, saqlash va qayta ishlash haqida ma’lumot',
+        seoTitle: 'Maxfiylik siyosati - Centrum Holidays',
+        seoDescription: 'Centrum Holidays maxfiylik siyosati.',
+      },
+    },
+    content: {
+      ru: [
+        {
+          text: 'Centrum Holidays DMC обрабатывает персональные данные пользователей только для обработки заявок, бронирований, обратной связи и выполнения договорных обязательств.',
+        },
+        {
+          text: 'Пользователь может запросить уточнение, изменение или удаление своих персональных данных, направив обращение по контактам, указанным на сайте.',
+        },
+      ],
+      en: [
+        {
+          text: 'Centrum Holidays DMC processes personal data only to handle requests, bookings, feedback and contractual obligations.',
+        },
+        {
+          text: 'A user may request correction, update or deletion of personal data using the contacts provided on the website.',
+        },
+      ],
+      uz: [
+        {
+          text: 'Centrum Holidays DMC shaxsiy ma’lumotlarni faqat arizalar, bronlar, fikr-mulohazalar va shartnoma majburiyatlarini bajarish uchun qayta ishlaydi.',
+        },
+        {
+          text: 'Foydalanuvchi saytda ko‘rsatilgan aloqa ma’lumotlari orqali shaxsiy ma’lumotlarini aniqlashtirish, o‘zgartirish yoki o‘chirishni so‘rashi mumkin.',
+        },
+      ],
+    },
+  },
+  {
+    slug: 'terms',
+    path: '/terms',
+    sortOrder: 110,
+    translations: {
+      ru: {
+        title: 'Пользовательское соглашение',
+        menuLabel: 'Пользовательское соглашение',
+        heroTitle: 'Пользовательское соглашение',
+        heroSubtitle: 'Основные условия использования сайта и отправки заявок',
+        seoTitle: 'Пользовательское соглашение - Centrum Holidays',
+        seoDescription: 'Пользовательское соглашение Centrum Holidays.',
+      },
+      en: {
+        title: 'User Agreement',
+        menuLabel: 'User Agreement',
+        heroTitle: 'User Agreement',
+        heroSubtitle: 'Main terms of using the website and sending requests',
+        seoTitle: 'User Agreement - Centrum Holidays',
+        seoDescription: 'Centrum Holidays user agreement.',
+      },
+      uz: {
+        title: 'Foydalanish shartnomasi',
+        menuLabel: 'Foydalanish shartnomasi',
+        heroTitle: 'Foydalanish shartnomasi',
+        heroSubtitle: 'Saytdan foydalanish va arizalar yuborishning asosiy shartlari',
+        seoTitle: 'Foydalanish shartnomasi - Centrum Holidays',
+        seoDescription: 'Centrum Holidays foydalanish shartnomasi.',
+      },
+    },
+    content: {
+      ru: [
+        {
+          text: 'Используя сайт Centrum Holidays DMC, пользователь подтверждает согласие с условиями сервиса и корректность передаваемых данных.',
+        },
+        {
+          text: 'Информация на сайте носит справочный характер. Финальные условия тура, стоимость и состав услуг подтверждаются менеджером.',
+        },
+      ],
+      en: [
+        {
+          text: 'By using the Centrum Holidays DMC website, the user agrees to the service terms and confirms that submitted data is accurate.',
+        },
+        {
+          text: 'Information on the website is for reference. Final tour terms, price and included services are confirmed by a manager.',
+        },
+      ],
+      uz: [
+        {
+          text: 'Centrum Holidays DMC saytidan foydalanish orqali foydalanuvchi xizmat shartlariga roziligini va yuborilgan ma’lumotlar to‘g‘riligini tasdiqlaydi.',
+        },
+        {
+          text: 'Saytdagi ma’lumotlar ma’lumot uchun berilgan. Turning yakuniy shartlari, narxi va xizmatlar tarkibi menejer tomonidan tasdiqlanadi.',
+        },
+      ],
+    },
+  },
 ];
 
 const DEFAULT_SITE_SETTINGS: DefaultSiteSettingSeed[] = [
