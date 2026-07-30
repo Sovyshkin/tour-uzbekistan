@@ -54,6 +54,12 @@ class AdminImageSettingsDto {
   @Type(() => Number)
   @IsNumber()
   scale?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  frameSize?: number;
 }
 
 class AdminWhyFactUpdateDto {
