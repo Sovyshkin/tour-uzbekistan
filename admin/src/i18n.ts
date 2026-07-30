@@ -361,6 +361,7 @@ const messages = {
       positionX: 'Позиция X',
       positionY: 'Позиция Y',
       imageScale: 'Масштаб',
+      frameSize: 'Размер рамки',
     },
     richText: {
       placeholder: 'Начните писать...',
@@ -744,6 +745,7 @@ const messages = {
       positionX: 'Position X',
       positionY: 'Position Y',
       imageScale: 'Scale',
+      frameSize: 'Frame size',
     },
     richText: {
       placeholder: 'Start writing...',

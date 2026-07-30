@@ -25,7 +25,10 @@ defineProps({
       'border-b border-[#eeeeee]': index === 1,
     }"
   >
-    <div class="flex flex-col lg:flex-row gap-5 lg:gap-4 xl:gap-5 items-start">
+    <div
+      class="dmc-horizontal-card"
+      :class="{ 'dmc-horizontal-card--narrow-image': narrowImage }"
+    >
       <!-- Номер: только на десктопе -->
       <div class="hidden lg:block flex-shrink-0 w-[72px]">
         <span class="text-[42px] font-medium italic text-black leading-none">
@@ -34,10 +37,7 @@ defineProps({
       </div>
 
       <!-- Картинка -->
-      <div
-        class="w-full flex-shrink-0 overflow-hidden rounded-[12px] lg:rounded-[16px]"
-        :class="narrowImage ? 'lg:w-[35%]' : 'lg:w-[70%]'"
-      >
+      <div class="dmc-horizontal-card__image-wrap">
         <img
           :src="item.image"
           :alt="item.title"
@@ -49,15 +49,15 @@ defineProps({
       </div>
 
       <!-- Текст -->
-      <div class="flex flex-col gap-2 lg:gap-3 lg:pt-1 lg:max-w-[220px] xl:max-w-[245px]">
+      <div class="dmc-horizontal-card__content">
         <h3
-          class="text-[14px] lg:text-[18px] xl:text-[20px] font-medium italic text-black leading-tight"
+          class="dmc-horizontal-card__title"
         >
           {{ item.title }}
         </h3>
         <!-- p 8px на мобильном -->
         <p
-          class="text-[12px] hidden lg:block lg:text-[12px] xl:text-[13px] text-[#333] leading-[1.5] lg:leading-[1.45] tracking-[-0.01em]"
+          class="dmc-horizontal-card__description"
         >
           {{ item.description }}
         </p>
@@ -68,5 +68,87 @@ defineProps({
 <style>
 .gorizontal:last-child {
   border-bottom: 1px solid #eeeeee;
+}
+
+.dmc-horizontal-card {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.dmc-horizontal-card__image-wrap {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.dmc-horizontal-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.dmc-horizontal-card__title {
+  font-size: 14px;
+  font-weight: 500;
+  font-style: italic;
+  line-height: 1.12;
+  color: #000;
+}
+
+.dmc-horizontal-card__description {
+  display: none;
+  color: #333;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (min-width: 1024px) {
+  .dmc-horizontal-card {
+    grid-template-columns: 72px minmax(420px, 1fr) minmax(360px, 0.72fr);
+    gap: 20px;
+  }
+
+  .dmc-horizontal-card--narrow-image {
+    grid-template-columns: 72px minmax(380px, 0.82fr) minmax(420px, 1fr);
+    column-gap: 28px;
+  }
+
+  .dmc-horizontal-card__image-wrap {
+    border-radius: 16px;
+  }
+
+  .dmc-horizontal-card__content {
+    gap: 12px;
+    padding-top: 4px;
+    max-width: 560px;
+  }
+
+  .dmc-horizontal-card__title {
+    font-size: 20px;
+  }
+
+  .dmc-horizontal-card__description {
+    display: block;
+    font-size: 15px;
+    line-height: 1.48;
+    letter-spacing: 0;
+  }
+}
+
+@media (min-width: 1280px) {
+  .dmc-horizontal-card {
+    grid-template-columns: 72px minmax(500px, 1fr) minmax(420px, 0.72fr);
+  }
+
+  .dmc-horizontal-card--narrow-image {
+    grid-template-columns: 72px minmax(500px, 0.78fr) minmax(460px, 1fr);
+  }
+
+  .dmc-horizontal-card__description {
+    font-size: 16px;
+  }
 }
 </style>

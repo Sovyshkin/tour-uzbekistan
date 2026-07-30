@@ -49,6 +49,7 @@ type ImageTransformSettings = {
   positionX: number;
   positionY: number;
   scale: number;
+  frameSize?: number;
 };
 
 const LOCALES = [Locale.ru, Locale.en, Locale.uz];
@@ -95,11 +96,13 @@ const normalizeImageSettings = (value: unknown): Prisma.InputJsonValue | undefin
   const positionX = Number(source.positionX);
   const positionY = Number(source.positionY);
   const scale = Number(source.scale);
+  const frameSize = Number(source.frameSize);
 
   return {
     positionX: Number.isFinite(positionX) ? Math.min(100, Math.max(0, positionX)) : 50,
     positionY: Number.isFinite(positionY) ? Math.min(100, Math.max(0, positionY)) : 50,
     scale: Number.isFinite(scale) ? Math.min(300, Math.max(100, scale)) : 100,
+    frameSize: Number.isFinite(frameSize) ? Math.min(95, Math.max(30, frameSize)) : 72,
   };
 };
 

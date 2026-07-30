@@ -62,6 +62,7 @@ type ImageTransformSettings = {
   positionX: number;
   positionY: number;
   scale: number;
+  frameSize: number;
 };
 
 type ImageCropTarget = {
@@ -445,6 +446,7 @@ const defaultImageSettings = (): ImageTransformSettings => ({
   positionX: 50,
   positionY: 50,
   scale: 100,
+  frameSize: 72,
 });
 
 const normalizeImageSettings = (value: unknown): ImageTransformSettings => {
@@ -476,6 +478,7 @@ const normalizeImageSettings = (value: unknown): ImageTransformSettings => {
     positionX: normalizeRange(source.positionX, 50, 0, 100),
     positionY: normalizeRange(source.positionY, 50, 0, 100),
     scale: normalizeRange(source.scale, 100, 100, 300),
+    frameSize: normalizeRange(source.frameSize, 72, 30, 95),
   };
 };
 
@@ -509,6 +512,7 @@ const cropFrameStyle = (settings?: ImageTransformSettings | null): CSSProperties
   return {
     left: `${normalized.positionX}%`,
     top: `${normalized.positionY}%`,
+    '--crop-frame-size': `${normalized.frameSize}%`,
   };
 };
 
@@ -776,17 +780,82 @@ const updatePageBlockText = (localeCode: LocaleCode, blockIndex: number, value: 
   form.translations[localeCode].content = blocks;
 };
 
+const optimizedPublicAssets = new Map([
+  ['/assets/icons/8ec662fe56344049271e593f6db12dfdb7df8bdb.png', '/assets/icons/8ec662fe56344049271e593f6db12dfdb7df8bdb.webp'],
+  ['/assets/icons/about-us.jpg', '/assets/icons/about-us.webp'],
+  ['/assets/icons/booking.jpg', '/assets/icons/booking.webp'],
+  ['/assets/icons/card-news1.jpg', '/assets/icons/card-news1.webp'],
+  ['/assets/icons/card-news2.jpg', '/assets/icons/card-news2.webp'],
+  ['/assets/icons/card-news3.png', '/assets/icons/card-news3.webp'],
+  ['/assets/icons/card-news4.jpg', '/assets/icons/card-news4.webp'],
+  ['/assets/icons/card-news5.jpg', '/assets/icons/card-news5.webp'],
+  ['/assets/icons/card-news6.jpg', '/assets/icons/card-news6.webp'],
+  ['/assets/icons/card.png', '/assets/icons/card1.webp'],
+  ['/assets/icons/card1.png', '/assets/icons/card1.webp'],
+  ['/assets/icons/card2.png', '/assets/icons/card2.webp'],
+  ['/assets/icons/card3.png', '/assets/icons/card3.webp'],
+  ['/assets/icons/card4.png', '/assets/icons/card4.webp'],
+  ['/assets/icons/card5.png', '/assets/icons/card5.webp'],
+  ['/assets/icons/card6.png', '/assets/icons/card6.webp'],
+  ['/assets/icons/countryPage.jpg', '/assets/icons/countryPage.webp'],
+  ['/assets/icons/countryPage2.jpg', '/assets/icons/countryPage2.webp'],
+  ['/assets/icons/directions.jpg', '/assets/icons/directions.webp'],
+  ['/assets/icons/dmc-detail.png', '/assets/icons/dmc-detail.webp'],
+  ['/assets/icons/dmc.png', '/assets/icons/dmc.webp'],
+  ['/assets/icons/dmc1.png', '/assets/icons/dmc1.webp'],
+  ['/assets/icons/dmc2.jpg', '/assets/icons/dmc2.webp'],
+  ['/assets/icons/dmc3.jpg', '/assets/icons/dmc3.webp'],
+  ['/assets/icons/gorizontalDMC.jpg', '/assets/icons/gorizontalDMC.webp'],
+  ['/assets/icons/news-detail.jpg', '/assets/icons/news-detail.webp'],
+  ['/assets/icons/news1.jpg', '/assets/icons/news1.webp'],
+  ['/assets/icons/news2.jpg', '/assets/icons/news2.webp'],
+  ['/assets/icons/news3.jpg', '/assets/icons/news3.webp'],
+  ['/assets/icons/services.jpg', '/assets/icons/services.webp'],
+  ['/assets/icons/tours.png', '/assets/icons/tours.webp'],
+  ['/assets/icons/zona-turbulentnosti.jpg', '/assets/icons/zona-turbulentnosti.webp'],
+]);
+
+const getOptimizedMediaPath = (url: string) => {
+  const optimizedAsset = optimizedPublicAssets.get(url);
+
+  if (optimizedAsset) {
+    return optimizedAsset;
+  }
+
+  if (!/^https?:\/\//i.test(url)) {
+    return url;
+  }
+
+  try {
+    const parsedUrl = new URL(url, window.location.origin);
+    const optimizedPath = optimizedPublicAssets.get(parsedUrl.pathname);
+
+    if (optimizedPath) {
+      parsedUrl.pathname = optimizedPath;
+      return parsedUrl.toString();
+    }
+  } catch {
+    return url;
+  }
+
+  return url;
+};
+
 const resolveMediaUrl = (url?: string | null) => {
   if (!url) {
     return '';
   }
 
-  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) {
-    return url;
+  const optimizedUrl = getOptimizedMediaPath(url);
+
+  if (/^https?:\/\//i.test(optimizedUrl) || optimizedUrl.startsWith('data:')) {
+    return optimizedUrl;
   }
 
-  return `${apiOrigin.value}${url.startsWith('/') ? url : `/${url}`}`;
+  return `${apiOrigin.value}${optimizedUrl.startsWith('/') ? optimizedUrl : `/${optimizedUrl}`}`;
 };
+
+const canCropImageField = (fieldKey: ImageFieldKey) => fieldKey !== 'routeMapImage';
 
 const loadType = async (type: ContentType) => {
   const response = await http.get<ContentRecord[]>('/admin/content', {
@@ -1601,6 +1670,7 @@ watch(
                   :style="imageTransformStyle(form.imageSettings[field.key])"
                   loading="lazy"
                   decoding="async"
+                  fetchpriority="low"
                 />
                 <span v-else>{{ t('common.noMediaSelected') }}</span>
               </div>
@@ -1621,7 +1691,7 @@ watch(
                 </el-select>
                 <el-button plain @click="triggerUpload(field.key)">{{ t('common.uploadFile') }}</el-button>
               </div>
-              <div v-if="form.media[field.key]" class="image-transform-controls">
+              <div v-if="form.media[field.key] && canCropImageField(field.key)" class="image-transform-controls">
                 <div class="image-transform-head">
                   <span>{{ t('content.imagePositionAndScale') }}</span>
                   <el-button size="small" plain @click="form.imageSettings[field.key] = defaultImageSettings()">
@@ -1638,6 +1708,9 @@ watch(
                       :alt="field.label"
                       :style="imageTransformStyle(form.imageSettings[field.key])"
                       draggable="false"
+                      loading="lazy"
+                      decoding="async"
+                      fetchpriority="low"
                     />
                     <div class="image-crop-frame" :style="cropFrameStyle(form.imageSettings[field.key])" />
                   </div>
@@ -1645,10 +1718,15 @@ watch(
                     <div class="image-crop-meta">
                       <span>{{ t('content.positionX') }}: {{ normalizeImageSettings(form.imageSettings[field.key]).positionX }}%</span>
                       <span>{{ t('content.positionY') }}: {{ normalizeImageSettings(form.imageSettings[field.key]).positionY }}%</span>
+                      <span>{{ t('content.frameSize') }}: {{ normalizeImageSettings(form.imageSettings[field.key]).frameSize }}%</span>
                     </div>
                     <label>
                       <span>{{ t('content.imageScale') }}</span>
                       <el-slider v-model="ensureImageSettings(field.key).scale" :min="100" :max="300" />
+                    </label>
+                    <label>
+                      <span>{{ t('content.frameSize') }}</span>
+                      <el-slider v-model="ensureImageSettings(field.key).frameSize" :min="30" :max="95" />
                     </label>
                   </div>
                 </div>
@@ -1690,6 +1768,7 @@ watch(
                   :style="imageTransformStyle(fact.imageSettings)"
                   loading="lazy"
                   decoding="async"
+                  fetchpriority="low"
                 />
                 <span v-else>{{ t('common.noMediaSelected') }}</span>
               </div>
@@ -1731,6 +1810,9 @@ watch(
                         :alt="fact.translations.ru.title || t('content.fact', { number: factIndex + 1 })"
                         :style="imageTransformStyle(fact.imageSettings)"
                         draggable="false"
+                        loading="lazy"
+                        decoding="async"
+                        fetchpriority="low"
                       />
                       <div class="image-crop-frame" :style="cropFrameStyle(fact.imageSettings)" />
                     </div>
@@ -1738,10 +1820,15 @@ watch(
                       <div class="image-crop-meta">
                         <span>{{ t('content.positionX') }}: {{ normalizeImageSettings(fact.imageSettings).positionX }}%</span>
                         <span>{{ t('content.positionY') }}: {{ normalizeImageSettings(fact.imageSettings).positionY }}%</span>
+                        <span>{{ t('content.frameSize') }}: {{ normalizeImageSettings(fact.imageSettings).frameSize }}%</span>
                       </div>
                       <label>
                         <span>{{ t('content.imageScale') }}</span>
                         <el-slider v-model="fact.imageSettings.scale" :min="100" :max="300" />
+                      </label>
+                      <label>
+                        <span>{{ t('content.frameSize') }}</span>
+                        <el-slider v-model="fact.imageSettings.frameSize" :min="30" :max="95" />
                       </label>
                     </div>
                   </div>
@@ -2230,7 +2317,7 @@ watch(
 .image-crop-frame {
   position: absolute;
   z-index: 2;
-  width: min(58%, 220px);
+  width: min(var(--crop-frame-size, 72%), calc(100% - 32px));
   aspect-ratio: 1.55;
   transform: translate(-50%, -50%);
   pointer-events: none;
