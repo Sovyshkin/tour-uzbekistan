@@ -442,6 +442,12 @@ const footerText = (key, params = {}) => {
   return interpolateText(text === key ? '' : text, params);
 };
 
+const footerSetting = (key, fallback) => {
+  const value = footerSettings.value?.[key];
+
+  return typeof value === 'string' && value.trim() ? value.trim() : cmsValue(key, fallback);
+};
+
 const loadFooterData = async () => {
   const apiLocale = getApiLocale(locale.value);
 
@@ -459,10 +465,10 @@ const loadFooterData = async () => {
 };
 
 const footerEmail = computed(() =>
-  cmsValue('footer.email', 'info@centrumholidaysdmc.uz'),
+  footerSetting('footer.email', 'info@centrumholidaysdmc.uz'),
 );
 const footerPhone = computed(() =>
-  cmsValue('footer.phone', '+998(77) 290-08-80'),
+  footerSetting('footer.phone', '+998(77) 290-08-80'),
 );
 const footerEmailHref = computed(() => `mailto:${footerEmail.value}`);
 const footerPhoneHref = computed(
