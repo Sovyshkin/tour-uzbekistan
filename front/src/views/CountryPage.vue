@@ -12,6 +12,7 @@ const { t, locale } = useI18n();
 const route = useRoute();
 const countryCode = computed(() => route.params.country || 'uzbekistan');
 const countryData = ref(null);
+const countryLoaded = ref(false);
 const countryOptions = ref([]);
 const { error: notifyError } = useNotifications();
 
@@ -283,7 +284,7 @@ const translatedSections = computed(() => {
 
 const data = computed(() => {
   return countryData.value || {
-    heroImage: resolveAssetUrl('/assets/icons/countryPage.webp'),
+    heroImage: '',
     heroImageSettings: null,
     name: '',
     welcomeTitle: '',
@@ -293,6 +294,13 @@ const data = computed(() => {
     toc: [],
     sections: [],
   };
+});
+const heroStyle = computed(() => {
+  if (!countryLoaded.value) {
+    return undefined;
+  }
+
+  return backgroundImageStyle(data.value.heroImage || resolveAssetUrl('/assets/icons/countryPage.webp'), data.value.heroImageSettings);
 });
 
 // Хлебные крошки (переведены)
@@ -310,6 +318,8 @@ const filters = ref({
 });
 
 const loadCountry = async () => {
+  countryLoaded.value = false;
+
   try {
     const payload = await getCountry(countryCode.value, getApiLocale(locale.value));
     countryData.value = {
@@ -321,6 +331,8 @@ const loadCountry = async () => {
   } catch (error) {
     countryData.value = null;
     notifyError(error.message || t('notifications.loadCountryFailed'), t('notifications.countryUnavailable'));
+  } finally {
+    countryLoaded.value = true;
   }
 };
 
@@ -357,7 +369,7 @@ onMounted(() => {
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="backgroundImageStyle(data.heroImage)"
+          :style="heroStyle"
         />
       </div>
     </section>

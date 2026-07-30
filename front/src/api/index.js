@@ -281,15 +281,14 @@ export function normalizeImageSettings(settings) {
 export function imageObjectStyle(settings) {
   const normalized = normalizeImageSettings(settings);
   const frameZoom = 100 / normalized.frameSize;
-  const useContain = normalized.hasFrameSize && normalized.frameSize >= 100;
-  const effectiveScale = useContain ? normalized.scale / 100 : (normalized.scale / 100) * frameZoom;
+  const effectiveScale = (normalized.scale / 100) * frameZoom;
 
   return {
     width: '100%',
     height: '100%',
     maxWidth: 'none',
     display: 'block',
-    objectFit: useContain ? 'contain' : 'cover',
+    objectFit: 'cover',
     objectPosition: `${normalized.positionX}% ${normalized.positionY}%`,
     transform: `scale(${effectiveScale})`,
     transformOrigin: `${normalized.positionX}% ${normalized.positionY}%`,

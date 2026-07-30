@@ -21,7 +21,7 @@ defineProps({
   >
     <!-- Картинка -->
     <div
-      class="img cursor-pointer flex-shrink-0 overflow-hidden rounded-t-[15px]"
+      class="img cursor-pointer flex-shrink-0 overflow-hidden rounded-t-[15px] h-[220px] sm:h-[260px] lg:h-[284px]"
       @click="
         $router.push({
           path: `/tours/${tour.slug || tour.id}`,
@@ -30,7 +30,7 @@ defineProps({
       "
     >
       <img
-        class="object-cover rounded-t-[15px] h-[220px] sm:h-[260px] lg:h-[284px] w-full"
+        class="object-cover rounded-t-[15px] h-full w-full"
         :src="tour.image"
         :alt="tour.title"
         :style="imageObjectStyle(tour.imageSettings)"

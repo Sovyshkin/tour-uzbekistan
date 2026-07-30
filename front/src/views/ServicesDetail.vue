@@ -30,11 +30,20 @@ const clearFieldError = (field) => {
 
 const news = ref({
   id: null,
-  heroImage: '/assets/icons/dmc-detail.webp',
+  heroImage: '',
   title: '',
   subtitle: '',
   shortDescription: '',
   content: [],
+});
+const serviceLoaded = ref(false);
+
+const heroStyle = computed(() => {
+  if (!serviceLoaded.value) {
+    return undefined;
+  }
+
+  return backgroundImageStyle(news.value.heroImage || news.value.previewImage || '/assets/icons/dmc-detail.webp');
 });
 
 const breadcrumbs = computed(() => [
@@ -44,6 +53,8 @@ const breadcrumbs = computed(() => [
 ]);
 
 const loadService = async () => {
+  serviceLoaded.value = false;
+
   try {
     const payload = await getService(newsId, getApiLocale(locale.value));
     news.value = {
@@ -56,6 +67,8 @@ const loadService = async () => {
     };
   } catch (error) {
     notifyError(error.message || t('notifications.loadServiceFailed'), t('notifications.serviceUnavailable'));
+  } finally {
+    serviceLoaded.value = true;
   }
 };
 
@@ -98,7 +111,7 @@ onMounted(loadService);
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="backgroundImageStyle(news.heroImage || news.previewImage)"
+          :style="heroStyle"
         />
       </div>
 

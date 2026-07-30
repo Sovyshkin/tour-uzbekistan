@@ -31,9 +31,18 @@ const clearFieldError = (field) => {
 
 const news = ref({
   id: null,
-  heroImage: '/assets/icons/news-detail.webp',
+  heroImage: '',
   title: '',
   content: [],
+});
+const newsLoaded = ref(false);
+
+const heroStyle = computed(() => {
+  if (!newsLoaded.value) {
+    return undefined;
+  }
+
+  return backgroundImageStyle(news.value.heroImage || news.value.previewImage || '/assets/icons/news-detail.webp');
 });
 
 // Хлебные крошки (переведены)
@@ -44,6 +53,8 @@ const breadcrumbs = computed(() => [
 ]);
 
 const loadNews = async () => {
+  newsLoaded.value = false;
+
   try {
     const payload = await getNewsItem(newsId, getApiLocale(locale.value));
     news.value = {
@@ -54,6 +65,8 @@ const loadNews = async () => {
     };
   } catch (error) {
     notifyError(error.message || t('notifications.loadNewsItemFailed'), t('notifications.newsItemUnavailable'));
+  } finally {
+    newsLoaded.value = true;
   }
 };
 
@@ -93,7 +106,7 @@ onMounted(loadNews);
     <!-- Hero -->
     <section class="relative">
       <div class="hero-section">
-        <div class="hero-image" :style="backgroundImageStyle(news.heroImage || news.previewImage)" />
+        <div class="hero-image" :style="heroStyle" />
       </div>
 
       <AppContainer>

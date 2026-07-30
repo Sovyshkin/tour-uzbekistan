@@ -18,6 +18,7 @@ const breadcrumbs = computed(() => [
 
 const allServices = ref([]);
 const settings = ref({});
+const settingsLoaded = ref(false);
 const meta = ref({
   page: 1,
   pageSize: 6,
@@ -41,7 +42,9 @@ const updateItemsPerPage = () => {
 const totalPages = computed(() => meta.value.totalPages || 1);
 const paginatedServices = computed(() => allServices.value);
 const heroImage = computed(() =>
-  resolveAssetUrl(settings.value['pages.services.hero_image'] || '/assets/icons/services.webp'),
+  settingsLoaded.value
+    ? resolveAssetUrl(settings.value['pages.services.hero_image'] || '/assets/icons/services.webp')
+    : '',
 );
 
 // Смена страницы
@@ -117,10 +120,14 @@ const loadServices = async () => {
 };
 
 const loadSettings = async () => {
+  settingsLoaded.value = false;
+
   try {
     settings.value = await getSiteSettings(getApiLocale(locale.value));
   } catch {
     settings.value = {};
+  } finally {
+    settingsLoaded.value = true;
   }
 };
 
@@ -146,7 +153,10 @@ onUnmounted(() => {
     <!-- Hero -->
     <section class="relative">
       <div class="hero-section">
-        <div class="hero-image" :style="{ backgroundImage: `url(${heroImage})` }" />
+        <div
+          class="hero-image"
+          :style="heroImage ? { backgroundImage: `url(${heroImage})` } : undefined"
+        />
       </div>
     </section>
 

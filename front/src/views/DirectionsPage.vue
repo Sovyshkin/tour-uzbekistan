@@ -12,6 +12,7 @@ const route = useRoute();
 const { success: notifySuccess, error: notifyError } = useNotifications();
 const page = ref(null);
 const settings = ref({});
+const settingsLoaded = ref(false);
 
 // Хлебные крошки
 const breadcrumbs = computed(() => [
@@ -47,16 +48,23 @@ const contentBlocks = computed(() => {
 });
 
 const heroImage = computed(() =>
-  resolveAssetUrl(settings.value['pages.directions.hero_image'] || '/assets/icons/directions.webp'),
+  settingsLoaded.value
+    ? resolveAssetUrl(settings.value['pages.directions.hero_image'] || '/assets/icons/directions.webp')
+    : '',
 );
 
 const loadPage = async () => {
+  settingsLoaded.value = false;
+
   try {
     const apiLocale = getApiLocale(locale.value);
     page.value = await getPage('directions', apiLocale);
     settings.value = await getSiteSettings(apiLocale).catch(() => ({}));
   } catch {
     page.value = null;
+    settings.value = {};
+  } finally {
+    settingsLoaded.value = true;
   }
 };
 
@@ -102,7 +110,10 @@ const sendLead = async () => {
     <!-- Hero -->
     <section class="relative">
       <div class="hero-section">
-        <div class="hero-image" :style="{ backgroundImage: `url(${heroImage})` }"></div>
+        <div
+          class="hero-image"
+          :style="heroImage ? { backgroundImage: `url(${heroImage})` } : undefined"
+        ></div>
       </div>
 
       <AppContainer>

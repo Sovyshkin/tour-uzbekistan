@@ -16,6 +16,7 @@ const breadcrumbs = computed(() => [
 ]);
 
 const categories = ref([]);
+const categoriesLoaded = ref(false);
 
 const currentCategory = ref(0);
 const currentPage = ref(1);
@@ -29,6 +30,13 @@ const currentCategoryData = computed(() => categories.value[currentCategory.valu
   pages: [],
 });
 const currentItems = computed(() => currentCategoryData.value.pages[currentPage.value - 1] || []);
+const heroStyle = computed(() => {
+  if (!categoriesLoaded.value) {
+    return undefined;
+  }
+
+  return backgroundImageStyle(currentCategoryData.value.heroImage || '/assets/icons/gorizontalDMC.webp');
+});
 
 const prevCategory = () => {
   if (currentCategory.value > 0) {
@@ -82,6 +90,8 @@ const displayedPages = computed(() => {
 });
 
 const loadCategories = async () => {
+  categoriesLoaded.value = false;
+
   try {
     const data = await getWhyUsCategories(getApiLocale(locale.value));
     categories.value = data.map((category) => ({
@@ -103,6 +113,8 @@ const loadCategories = async () => {
     currentPage.value = 1;
   } catch (error) {
     notifyError(error.message || t('notifications.loadWhyUsFailed'), t('notifications.whyUsUnavailable'));
+  } finally {
+    categoriesLoaded.value = true;
   }
 };
 
@@ -117,7 +129,7 @@ onMounted(loadCategories);
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="backgroundImageStyle(currentCategoryData.heroImage || '/assets/icons/gorizontalDMC.webp')"
+          :style="heroStyle"
         />
       </div>
     </section>

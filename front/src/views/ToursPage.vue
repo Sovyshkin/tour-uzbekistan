@@ -69,8 +69,11 @@ const meta = ref({
 // Пагинация теперь работает с filteredTours
 const totalPages = computed(() => meta.value.totalPages || 1);
 const paginatedTours = computed(() => tours.value);
+const settingsLoaded = ref(false);
 const heroImage = computed(() =>
-  resolveAssetUrl(settings.value['pages.tours.hero_image'] || '/assets/icons/tours.webp'),
+  settingsLoaded.value
+    ? resolveAssetUrl(settings.value['pages.tours.hero_image'] || '/assets/icons/tours.webp')
+    : '',
 );
 
 // Функция поиска (обновляет пагинацию)
@@ -215,10 +218,14 @@ const loadTours = async () => {
 };
 
 const loadSettings = async () => {
+  settingsLoaded.value = false;
+
   try {
     settings.value = await getSiteSettings(getApiLocale(locale.value));
   } catch {
     settings.value = {};
+  } finally {
+    settingsLoaded.value = true;
   }
 };
 
@@ -267,7 +274,11 @@ onUnmounted(() => {
       <div class="hero-section relative h-[200px] sm:h-[400px] lg:h-[458px]">
         <div
           class="hero-image absolute inset-0 bg-cover bg-center"
-          :style="{ backgroundImage: `url(${heroImage})`, backgroundRepeat: 'no-repeat', backgroundSize: 'cover' }"
+          :style="
+            heroImage
+              ? { backgroundImage: `url(${heroImage})`, backgroundRepeat: 'no-repeat', backgroundSize: 'cover' }
+              : undefined
+          "
         ></div>
       </div>
     </section>
