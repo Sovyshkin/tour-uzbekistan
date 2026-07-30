@@ -112,10 +112,10 @@ export class SamoIncomingService {
 
   private getConfig(): SamoIncomingConfig {
     return {
-      enabled: this.configService.get<string>('SAMO_INCOMING_ENABLED') === 'true',
-      endpoint: this.configService.get<string>('SAMO_INCOMING_ENDPOINT'),
-      user: this.configService.get<string>('SAMO_INCOMING_USER'),
-      password: this.configService.get<string>('SAMO_INCOMING_PASSWORD'),
+      enabled: this.isEnabled('SAMO_INCOMING_ENABLED', 'SAMO_ENABLED'),
+      endpoint: this.getFirstConfig('SAMO_INCOMING_ENDPOINT', 'SAMO_BASE_URL'),
+      user: this.getFirstConfig('SAMO_INCOMING_USER', 'SAMO_USERNAME'),
+      password: this.getFirstConfig('SAMO_INCOMING_PASSWORD', 'SAMO_PASSWORD'),
       tourId: this.configService.get<string>('SAMO_INCOMING_TOUR_ID'),
       hotelCode: this.configService.get<string>('SAMO_INCOMING_HOTEL_CODE'),
       hotelName:
@@ -131,6 +131,21 @@ export class SamoIncomingService {
         this.configService.get<string>('SAMO_INCOMING_TIMEOUT_MS') ?? 15000,
       ),
     };
+  }
+
+  private getFirstConfig(...keys: string[]) {
+    for (const key of keys) {
+      const value = this.configService.get<string>(key);
+      if (value) {
+        return value;
+      }
+    }
+
+    return undefined;
+  }
+
+  private isEnabled(...keys: string[]) {
+    return keys.some((key) => this.configService.get<string>(key) === 'true');
   }
 
   private getMissingConfig(config: SamoIncomingConfig) {
