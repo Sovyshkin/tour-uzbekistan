@@ -30,6 +30,8 @@ type ContentRecord = {
   sortOrder?: number;
   isFeatured?: boolean;
   isActive?: boolean;
+  syncToB2B?: boolean;
+  syncToB2C?: boolean;
   countryId?: string;
   durationDays?: number;
   durationNights?: number;
@@ -39,6 +41,9 @@ type ContentRecord = {
   priceFrom?: string | null;
   currency?: string | null;
   tourType?: string;
+  incomingTourId?: string | null;
+  incomingHotelCode?: string | null;
+  incomingHotelName?: string | null;
   image?: string | null;
   images?: Record<string, string | null>;
   imageSettings?: Partial<Record<ImageFieldKey, ImageTransformSettings | null>>;
@@ -172,8 +177,7 @@ const typeFields = computed<Record<ContentType, FieldConfig[]>>(() => ({
     { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
   services: [
-    { key: 'name', label: t('content.fields.serviceListName') },
-    { key: 'title', label: t('content.fields.serviceCardTitle') },
+    { key: 'name', label: t('content.fields.serviceName') },
     { key: 'shortDescription', label: t('content.fields.serviceSubtitle'), type: 'textarea' },
     { key: 'content', label: t('content.fields.content'), type: 'textarea' },
     { key: 'seoTitle', label: t('content.fields.seoTitle') },
@@ -344,6 +348,8 @@ const form = reactive<{
   sortOrder?: number;
   isFeatured?: boolean;
   isActive?: boolean;
+  syncToB2B?: boolean;
+  syncToB2C?: boolean;
   countryId?: string;
   durationDays?: number;
   durationNights?: number;
@@ -353,6 +359,9 @@ const form = reactive<{
   priceFrom?: number;
   currency?: string;
   tourType?: string;
+  incomingTourId?: string;
+  incomingHotelCode?: string;
+  incomingHotelName?: string;
   media: Partial<Record<ImageFieldKey, string>>;
   imageSettings: Partial<Record<ImageFieldKey, ImageTransformSettings>>;
   whyFacts: WhyFactForm[];
@@ -365,6 +374,8 @@ const form = reactive<{
   sortOrder: undefined,
   isFeatured: undefined,
   isActive: undefined,
+  syncToB2B: undefined,
+  syncToB2C: undefined,
   countryId: undefined,
   durationDays: undefined,
   durationNights: undefined,
@@ -374,6 +385,9 @@ const form = reactive<{
   priceFrom: undefined,
   currency: undefined,
   tourType: undefined,
+  incomingTourId: undefined,
+  incomingHotelCode: undefined,
+  incomingHotelName: undefined,
   media: {},
   imageSettings: {},
   whyFacts: [],
@@ -414,6 +428,7 @@ const selectedStatusItems = computed(() => selectedItems.value.filter((item) => 
 const selectedActiveItems = computed(() => selectedItems.value.filter((item) => item.isActive !== undefined));
 const hasSelectedStatusItems = computed(() => selectedStatusItems.value.length > 0);
 const hasSelectedActiveItems = computed(() => selectedActiveItems.value.length > 0);
+const newsItems = computed(() => contentByType.news);
 const apiOrigin = computed(() => {
   const baseURL = http.defaults.baseURL ?? window.location.origin;
   return new URL(baseURL, window.location.origin).origin;
@@ -427,6 +442,8 @@ const resetForm = () => {
   form.sortOrder = undefined;
   form.isFeatured = undefined;
   form.isActive = undefined;
+  form.syncToB2B = undefined;
+  form.syncToB2C = undefined;
   form.countryId = undefined;
   form.durationDays = undefined;
   form.durationNights = undefined;
@@ -436,6 +453,9 @@ const resetForm = () => {
   form.priceFrom = undefined;
   form.currency = undefined;
   form.tourType = undefined;
+  form.incomingTourId = undefined;
+  form.incomingHotelCode = undefined;
+  form.incomingHotelName = undefined;
   form.media = {};
   form.imageSettings = {};
   form.whyFacts = [];
@@ -863,7 +883,10 @@ const resolveMediaUrl = (url?: string | null) => {
   return `${apiOrigin.value}${optimizedUrl.startsWith('/') ? optimizedUrl : `/${optimizedUrl}`}`;
 };
 
-const canCropImageField = (fieldKey: ImageFieldKey) => fieldKey !== 'routeMapImage';
+const canCropImageField = (fieldKey: ImageFieldKey) =>
+  fieldKey !== 'routeMapImage' &&
+  fieldKey !== 'heroImage' &&
+  !(form.type === 'homeBanners' && fieldKey === 'imageUrl');
 
 const loadType = async (type: ContentType) => {
   const response = await http.get<ContentRecord[]>('/admin/content', {
@@ -921,6 +944,8 @@ const openEditor = async (record: ContentRecord) => {
   form.sortOrder = record.sortOrder;
   form.isFeatured = record.isFeatured;
   form.isActive = record.isActive;
+  form.syncToB2B = record.syncToB2B;
+  form.syncToB2C = record.syncToB2C;
   form.countryId = record.countryId;
   form.durationDays = record.durationDays;
   form.durationNights = record.durationNights;
@@ -930,6 +955,9 @@ const openEditor = async (record: ContentRecord) => {
   form.priceFrom = record.priceFrom ? Number(record.priceFrom) : undefined;
   form.currency = record.currency ?? undefined;
   form.tourType = record.tourType;
+  form.incomingTourId = record.incomingTourId ?? '';
+  form.incomingHotelCode = record.incomingHotelCode ?? '';
+  form.incomingHotelName = record.incomingHotelName ?? '';
 
   if (imageFieldsByType.value[record.type]?.length) {
     await loadMediaOptions();
@@ -951,7 +979,11 @@ const openEditor = async (record: ContentRecord) => {
   for (const locale of locales.value) {
     form.translations[locale.code] = {};
     for (const field of typeFields.value[record.type]) {
-      const value = record.translations[locale.code]?.[field.key];
+      const translation = record.translations[locale.code] ?? {};
+      const value =
+        record.type === 'services' && field.key === 'name'
+          ? translation.name ?? translation.title
+          : translation[field.key];
       form.translations[locale.code][field.key] =
         record.type === 'pages' && field.key === 'content'
           ? normalizePageContentBlocks(value)
@@ -979,6 +1011,8 @@ const openCreate = async () => {
   form.sortOrder = ['countries', 'tours', 'services'].includes(createType) ? 0 : undefined;
   form.isFeatured = ['countries', 'tours', 'services'].includes(createType) ? false : undefined;
   form.isActive = createType === 'siteSettings' ? true : undefined;
+  form.syncToB2B = createType === 'news' ? true : undefined;
+  form.syncToB2C = createType === 'news' ? true : undefined;
 
   if (imageFieldsByType.value[createType]?.length) {
     await loadMediaOptions();
@@ -1005,6 +1039,9 @@ const openCreate = async () => {
       form.priceFrom = undefined;
       form.currency = 'USD';
       form.tourType = 'PRIVATE';
+      form.incomingTourId = '';
+      form.incomingHotelCode = '';
+      form.incomingHotelName = '';
     } catch (error: any) {
       ElMessage.error(getApiErrorMessage(error, t('content.countriesLoadFailed')));
       return;
@@ -1031,9 +1068,17 @@ const saveContent = async () => {
       sortOrder: form.sortOrder,
       isFeatured: form.isFeatured,
       isActive: form.isActive,
+      syncToB2B: form.syncToB2B,
+      syncToB2C: form.syncToB2C,
       translations: locales.value.map((locale) => ({
         locale: locale.code,
-        fields: form.translations[locale.code],
+        fields:
+          form.type === 'services'
+            ? {
+                ...form.translations[locale.code],
+                title: form.translations[locale.code].name,
+              }
+            : form.translations[locale.code],
       })),
     };
 
@@ -1047,11 +1092,16 @@ const saveContent = async () => {
       payload.priceFrom = form.priceFrom;
       payload.currency = form.currency;
       payload.type = form.tourType;
+      payload.incomingTourId = form.incomingTourId;
+      payload.incomingHotelCode = form.incomingHotelCode;
+      payload.incomingHotelName = form.incomingHotelName;
     }
 
     for (const field of imageFieldsByType.value[form.type] ?? []) {
       payload[field.key] = form.media[field.key] ?? '';
-      payload[imageSettingsPayloadKey(field.key)] = normalizeImageSettings(form.imageSettings[field.key]);
+      if (canCropImageField(field.key)) {
+        payload[imageSettingsPayloadKey(field.key)] = normalizeImageSettings(form.imageSettings[field.key]);
+      }
     }
 
     if (form.type === 'whyCategories') {
@@ -1321,6 +1371,14 @@ const bulkSetActive = (isActive: boolean) => {
   );
 };
 
+const syncNewsB2BAndB2C = () => {
+  return patchSelected(
+    newsItems.value,
+    { syncToB2B: true, syncToB2C: true },
+    t('content.newsSyncUpdated'),
+  );
+};
+
 const bulkArchiveSelected = async () => {
   if (!selectedItems.value.length) {
     return;
@@ -1380,6 +1438,14 @@ watch(
         <el-button :loading="loading" @click="loadContent">{{ t('common.refresh') }}</el-button>
         <el-button v-if="activeType === 'media'" type="primary" plain @click="triggerUpload()">
           {{ t('common.upload') }}
+        </el-button>
+        <el-button
+          v-if="normalizedActiveType === 'news'"
+          plain
+          :loading="bulkProcessing"
+          @click="syncNewsB2BAndB2C"
+        >
+          {{ t('content.syncNewsB2BB2C') }}
         </el-button>
         <el-button v-if="isCreatableType" type="primary" @click="openCreate">
           {{ t('common.create') }}
@@ -1531,6 +1597,14 @@ watch(
                 </el-tag>
               </template>
             </el-table-column>
+            <el-table-column v-if="type === 'news'" :label="t('content.newsSync')" width="150">
+              <template #default="{ row }">
+                <div class="sync-tags">
+                  <el-tag :type="row.syncToB2B ? 'success' : 'info'">B2B</el-tag>
+                  <el-tag :type="row.syncToB2C ? 'success' : 'info'">B2C</el-tag>
+                </div>
+              </template>
+            </el-table-column>
             <el-table-column :label="t('common.order')" width="120">
               <template #default="{ row }">
                 <span v-if="row.sortOrder !== undefined">{{ row.sortOrder }}</span>
@@ -1606,6 +1680,16 @@ watch(
             <el-switch v-model="form.isActive" />
           </el-form-item>
 
+          <template v-if="form.type === 'news'">
+            <el-form-item :label="t('content.syncToB2B')">
+              <el-switch v-model="form.syncToB2B" />
+            </el-form-item>
+
+            <el-form-item :label="t('content.syncToB2C')">
+              <el-switch v-model="form.syncToB2C" />
+            </el-form-item>
+          </template>
+
           <template v-if="isTourForm">
             <el-form-item :label="t('content.country')">
               <el-select
@@ -1660,6 +1744,20 @@ watch(
             <el-form-item :label="t('content.currency')">
               <el-input v-model="form.currency" placeholder="USD" />
             </el-form-item>
+
+            <el-divider class="form-grid__divider">{{ t('content.incomingSettings') }}</el-divider>
+
+            <el-form-item :label="t('content.incomingTourId')">
+              <el-input v-model="form.incomingTourId" placeholder="SAMO tour id" />
+            </el-form-item>
+
+            <el-form-item :label="t('content.incomingHotelCode')">
+              <el-input v-model="form.incomingHotelCode" placeholder="Hotel code" />
+            </el-form-item>
+
+            <el-form-item :label="t('content.incomingHotelName')">
+              <el-input v-model="form.incomingHotelName" placeholder="Hotel name" />
+            </el-form-item>
           </template>
         </div>
 
@@ -1675,7 +1773,7 @@ watch(
                   v-if="form.media[field.key]"
                   :src="resolveMediaUrl(form.media[field.key])"
                   :alt="field.label"
-                  :style="imageTransformStyle(form.imageSettings[field.key])"
+                  :style="canCropImageField(field.key) ? imageTransformStyle(form.imageSettings[field.key]) : undefined"
                   loading="lazy"
                   decoding="async"
                   fetchpriority="low"
@@ -2038,6 +2136,12 @@ watch(
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
+}
+
+.sync-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .media-upload-input {

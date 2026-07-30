@@ -357,7 +357,7 @@ onMounted(() => {
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="backgroundImageStyle(data.heroImage, data.heroImageSettings)"
+          :style="backgroundImageStyle(data.heroImage)"
         />
       </div>
     </section>

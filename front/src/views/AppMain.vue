@@ -249,7 +249,7 @@ onMounted(loadHome);
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="heroBanner?.imageUrl ? backgroundImageStyle(cmsAsset(heroBanner.imageUrl), heroBanner.imageSettings) : undefined"
+          :style="heroBanner?.imageUrl ? backgroundImageStyle(cmsAsset(heroBanner.imageUrl)) : undefined"
         ></div>
         <AppContainer>
           <div class="hero-content">

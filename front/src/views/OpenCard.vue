@@ -5,7 +5,16 @@ import CustomSelect from '@/components/CustomSelect.vue';
 import Carousel from '@/components/Carousel.vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { createBooking, getApiLocale, getAuth, getCountries, getTour, resolveAssetUrl, submitLead } from '@/api';
+import {
+  createBooking,
+  getApiLocale,
+  getAuth,
+  getCountries,
+  getTour,
+  isApprovedPartnerAuth,
+  resolveAssetUrl,
+  submitLead,
+} from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateBookingFormFields, validateContactFormFields } from '@/utils/formValidation';
 const { t, locale } = useI18n();
@@ -79,7 +88,12 @@ const closeMobileFilter = () => {
 };
 
 const authState = ref(getAuth());
-const isB2BUser = computed(() => authState.value?.user?.role === 'PARTNER');
+const isPartnerAccount = computed(() => authState.value?.user?.role === 'PARTNER');
+const isB2BUser = computed(
+  () =>
+    isApprovedPartnerAuth(authState.value) ||
+    (isPartnerAccount.value && Boolean(tour.value.priceFrom)),
+);
 const syncAuthState = async () => {
   const previousRole = authState.value?.user?.role;
   authState.value = getAuth();
@@ -605,7 +619,7 @@ onUnmounted(() => {
 
       <AppContainer>
         <h1
-          class="text-[22px] sm:text-[28px] lg:text-[36px] font-medium mb-1 leading-tight mb-4 sm:mb-6 lg:hidden"
+          class="text-[22px] sm:text-[28px] lg:text-[32px] font-medium mb-1 leading-tight mb-4 sm:mb-6 lg:hidden"
         >
           {{ tour.title }} {{ tour.subtitle }}
         </h1>
@@ -614,7 +628,7 @@ onUnmounted(() => {
           <div class="tour-main-column">
             <!-- Заголовок -->
             <h1
-              class="text-[22px] sm:text-[28px] lg:text-[34px] xl:text-[40px] font-medium leading-tight mb-4 sm:mb-6 hidden lg:block"
+              class="text-[22px] sm:text-[28px] lg:text-[32px] xl:text-[32px] font-medium leading-tight mb-4 sm:mb-6 hidden lg:block"
             >
               {{ tour.title }} {{ tour.subtitle }}
             </h1>
@@ -1590,7 +1604,7 @@ onUnmounted(() => {
 
 @media (min-width: 1024px) {
   .tour-detail-layout {
-    grid-template-columns: minmax(0, 0.58fr) minmax(360px, 0.42fr);
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
     gap: 34px;
   }
 
@@ -1615,16 +1629,12 @@ onUnmounted(() => {
   }
 
   .tour-feature-list {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 
   .tour-feature-row {
-    min-height: 86px;
-    padding: 18px 20px;
-  }
-
-  .tour-feature-row:nth-child(odd) {
-    border-right: 1px solid #edf0f5;
+    min-height: auto;
+    padding: 16px 20px;
   }
 
   .tour-feature-text {
@@ -1638,7 +1648,7 @@ onUnmounted(() => {
 
 @media (min-width: 1280px) {
   .tour-detail-layout {
-    grid-template-columns: minmax(0, 0.56fr) minmax(420px, 0.44fr);
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
     gap: 40px;
   }
 

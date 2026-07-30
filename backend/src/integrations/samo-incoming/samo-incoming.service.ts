@@ -25,6 +25,9 @@ export type SamoClaimPayload = {
   travelDate?: Date | null;
   groupSize?: number | null;
   hotelName?: string | null;
+  incomingTourId?: string | null;
+  incomingHotelCode?: string | null;
+  incomingHotelName?: string | null;
   specialRequests?: string | null;
   person: SamoClaimPerson;
   tour: SamoClaimTour;
@@ -65,7 +68,7 @@ export class SamoIncomingService {
   constructor(private readonly configService: ConfigService) {}
 
   async sendBooking(payload: SamoClaimPayload): Promise<SamoIncomingResult> {
-    const config = this.getConfig();
+    const config = this.getConfig(payload);
 
     if (!config.enabled) {
       return {
@@ -110,15 +113,20 @@ export class SamoIncomingService {
     }
   }
 
-  private getConfig(): SamoIncomingConfig {
+  private getConfig(payload?: SamoClaimPayload): SamoIncomingConfig {
     return {
       enabled: this.isEnabled('SAMO_INCOMING_ENABLED', 'SAMO_ENABLED'),
       endpoint: this.getFirstConfig('SAMO_INCOMING_ENDPOINT', 'SAMO_BASE_URL'),
       user: this.getFirstConfig('SAMO_INCOMING_USER', 'SAMO_USERNAME'),
       password: this.getFirstConfig('SAMO_INCOMING_PASSWORD', 'SAMO_PASSWORD'),
-      tourId: this.configService.get<string>('SAMO_INCOMING_TOUR_ID'),
-      hotelCode: this.configService.get<string>('SAMO_INCOMING_HOTEL_CODE'),
+      tourId:
+        payload?.incomingTourId ??
+        this.configService.get<string>('SAMO_INCOMING_TOUR_ID'),
+      hotelCode:
+        payload?.incomingHotelCode ??
+        this.configService.get<string>('SAMO_INCOMING_HOTEL_CODE'),
       hotelName:
+        payload?.incomingHotelName ??
         this.configService.get<string>('SAMO_INCOMING_HOTEL_NAME') ??
         'Replicated hotel',
       roomCode: this.configService.get<string>('SAMO_INCOMING_ROOM_CODE') ?? '1',

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ContentStatus, Locale } from '@prisma/client';
+import { ContentStatus, Locale, UserRole, UserStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -7,7 +7,11 @@ import { PrismaService } from '../prisma/prisma.service';
 export class HomeService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getHome(locale: Locale = Locale.ru) {
+  async getHome(
+    locale: Locale = Locale.ru,
+    viewer?: { sub: string; role: string } | null,
+  ) {
+    const canViewPrices = await this.canViewPartnerPrices(viewer);
     const [banners, countries, recommendedTours, services, whyWe, latestNews, siteSettings] =
       await Promise.all([
         this.prisma.homeBanner.findMany({
@@ -91,7 +95,7 @@ export class HomeService {
           take: 4,
         }),
         this.prisma.news.findMany({
-          where: { status: ContentStatus.PUBLISHED },
+          where: { status: ContentStatus.PUBLISHED, syncToB2C: true },
           orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
           include: {
             translations: {
@@ -151,8 +155,8 @@ export class HomeService {
         durationNights: tour.durationNights,
         countrySlug: tour.country.slug,
         country: tour.country.translations[0]?.name ?? null,
-        priceFrom: tour.priceFrom?.toString() ?? null,
-        currency: tour.currency ?? null,
+        priceFrom: canViewPrices ? tour.priceFrom?.toString() ?? null : null,
+        currency: canViewPrices ? tour.currency ?? null : null,
         sortOrder: tour.sortOrder,
       })),
       services: services.map((service) => ({
@@ -190,5 +194,25 @@ export class HomeService {
         publishedAt: news.publishedAt?.toISOString() ?? null,
       })),
     };
+  }
+
+  private async canViewPartnerPrices(viewer?: { sub: string; role: string } | null) {
+    if (!viewer?.sub || viewer.role !== UserRole.PARTNER) {
+      return false;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: viewer.sub },
+      select: {
+        status: true,
+        partner: {
+          select: {
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    return user?.status === UserStatus.ACTIVE && user.partner?.isActive === true;
   }
 }

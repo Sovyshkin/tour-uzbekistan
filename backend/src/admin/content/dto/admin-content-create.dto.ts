@@ -50,6 +50,47 @@ class AdminImageSettingsDto {
   frameSize?: number;
 }
 
+class AdminWhyFactTranslationCreateDto {
+  @ApiPropertyOptional({ enum: Locale })
+  @IsEnum(Locale)
+  locale!: Locale;
+
+  @ApiPropertyOptional()
+  @IsObject()
+  fields!: Record<string, unknown>;
+}
+
+class AdminWhyFactCreateDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  sortOrder?: number;
+
+  @ApiPropertyOptional({ enum: ContentStatus })
+  @IsOptional()
+  @IsEnum(ContentStatus)
+  status?: ContentStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdminImageSettingsDto)
+  imageSettings?: AdminImageSettingsDto;
+
+  @ApiPropertyOptional({ type: [AdminWhyFactTranslationCreateDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdminWhyFactTranslationCreateDto)
+  translations?: AdminWhyFactTranslationCreateDto[];
+}
+
 export class AdminContentCreateDto {
   @ApiPropertyOptional()
   @IsString()
@@ -113,6 +154,21 @@ export class AdminContentCreateDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  incomingTourId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  incomingHotelCode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  incomingHotelName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   sortOrder?: number;
@@ -126,6 +182,16 @@ export class AdminContentCreateDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  syncToB2B?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  syncToB2C?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -181,6 +247,13 @@ export class AdminContentCreateDto {
   @ValidateNested()
   @Type(() => AdminImageSettingsDto)
   previewImageSettings?: AdminImageSettingsDto;
+
+  @ApiPropertyOptional({ type: [AdminWhyFactCreateDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdminWhyFactCreateDto)
+  whyFacts?: AdminWhyFactCreateDto[];
 
   @ApiPropertyOptional({ type: [AdminContentTranslationCreateDto] })
   @IsArray()

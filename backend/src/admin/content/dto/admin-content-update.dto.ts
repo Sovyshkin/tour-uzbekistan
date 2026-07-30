@@ -168,6 +168,21 @@ export class AdminContentUpdateDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  incomingTourId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  incomingHotelCode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  incomingHotelName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsBoolean()
   isFeatured?: boolean;
 
@@ -175,6 +190,16 @@ export class AdminContentUpdateDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  syncToB2B?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  syncToB2C?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -16,10 +16,10 @@ export class NewsService {
 
     const [total, news] = await Promise.all([
       this.prisma.news.count({
-        where: { status: ContentStatus.PUBLISHED },
+        where: { status: ContentStatus.PUBLISHED, syncToB2C: true },
       }),
       this.prisma.news.findMany({
-        where: { status: ContentStatus.PUBLISHED },
+        where: { status: ContentStatus.PUBLISHED, syncToB2C: true },
         orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
         skip,
         take: pageSize,
@@ -56,6 +56,7 @@ export class NewsService {
       where: {
         slug,
         status: ContentStatus.PUBLISHED,
+        syncToB2C: true,
       },
       include: {
         translations: {

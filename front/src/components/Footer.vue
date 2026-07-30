@@ -332,7 +332,7 @@
         <!-- КОЛОНКА 1: Туристам -->
         <div class="flex flex-col gap-3 sm:gap-4">
           <h4 class="text-[14px] font-bold uppercase tracking-wider text-black mb-1">
-            {{ $t('footer.tourists') }}
+            {{ footerText('footer.tourists') }}
           </h4>
           <ul class="flex flex-col gap-3 sm:gap-4">
             <li v-for="link in touristLinks" :key="link.label">
@@ -346,7 +346,7 @@
         <!-- КОЛОНКА 2: Поддержка -->
         <div class="flex flex-col gap-3 sm:gap-4">
           <h4 class="text-[14px] font-bold uppercase tracking-wider text-black mb-1">
-            {{ $t('footer.support') }}
+            {{ footerText('footer.support') }}
           </h4>
           <ul class="flex flex-col gap-3 sm:gap-4">
             <li v-for="link in supportLinks" :key="link.label">
@@ -370,7 +370,7 @@
         <!-- КОЛОНКА 3: Контакты -->
         <div class="flex flex-col gap-3 sm:gap-4">
           <h4 class="text-[14px] font-bold uppercase tracking-wider text-black mb-1">
-             {{ $t('footer.contacts') }}
+             {{ footerText('footer.contacts') }}
           </h4>
 
           <div class="flex flex-col gap-2">
@@ -382,7 +382,7 @@
               </a>
             </div>
             <div class="text-[14px] text-[#777] pl-[34px] -mt-1">
-              {{ $t('footer.work_hours') }}
+              {{ footerText('footer.work_hours') }}
             </div>
 
             <!-- Email -->
@@ -407,7 +407,7 @@
       <!-- Копирайт -->
       <div class="pt-6 lg:pt-6 mt-4 lg:mt-0">
         <p class="text-[12px] sm:text-[14px] lg:text-[16px] text-[#666] lg:text-[#666]">
-          {{ $t('footer.copyright', { year: currentYear }) }}
+          {{ footerText('footer.copyright', { year: currentYear }) }}
         </p>
       </div>
     </div>
@@ -427,6 +427,19 @@ const footerSettings = ref({});
 const cmsValue = (key, fallback) => {
   const value = t(key);
   return value === key ? fallback : value;
+};
+
+const interpolateText = (text, params = {}) =>
+  Object.entries(params).reduce(
+    (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
+    text,
+  );
+
+const footerText = (key, params = {}) => {
+  const value = footerSettings.value?.[key];
+  const text = typeof value === 'string' && value.trim() ? value : t(key, params);
+
+  return interpolateText(text === key ? '' : text, params);
 };
 
 const loadFooterData = async () => {
@@ -472,22 +485,22 @@ const partnerAgreementUrl = computed(() => {
 });
 
 const touristLinks = computed(() => [
-  { label: t('footer.popular'), to: '/directions' },
-  { label: t('footer.special'), to: '/tours' },
-  { label: t('footer.services'), to: '/services' },
-  { label: t('footer.about_company'), to: '/about' },
+  { label: footerText('footer.popular'), to: '/directions' },
+  { label: footerText('footer.special'), to: '/tours' },
+  { label: footerText('footer.services'), to: '/services' },
+  { label: footerText('footer.about_company'), to: '/about' },
 ]);
 
 const supportLinks = computed(() => [
-  { label: t('footer.faq'), to: '/faq' },
+  { label: footerText('footer.faq'), to: '/faq' },
   {
-    label: t('footer.privacy_policy'),
+    label: footerText('footer.privacy_policy'),
     to: '/privacy-policy',
     href: privacyPolicyUrl.value,
     download: true,
   },
   {
-    label: t('footer.user_agreement'),
+    label: footerText('footer.user_agreement'),
     to: '/terms',
     href: partnerAgreementUrl.value,
     download: true,

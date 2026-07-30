@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ContentStatus, Locale, Prisma, UserRole } from '@prisma/client';
+import { ContentStatus, Locale, Prisma, UserRole, UserStatus } from '@prisma/client';
 import { Request } from 'express';
 
 import { AdminAuditService } from '../admin/audit/admin-audit.service';
@@ -44,7 +44,7 @@ export class BookingsService {
     role: string,
     request?: Request,
   ) {
-    const partnerUser = await this.getPartnerUser(userId, role);
+    const partnerUser = await this.getPartnerUser(userId, role, true);
     const locale = dto.locale ?? partnerUser.preferredLocale ?? Locale.ru;
 
     const tour = await this.prisma.tour.findFirst({
@@ -141,7 +141,7 @@ export class BookingsService {
     });
 
     const samoResult = await this.samoIncomingService.sendBooking(
-      this.buildSamoClaimPayload(booking, snapshot, dto, tour.durationDays),
+      this.buildSamoClaimPayload(booking, snapshot, dto, tour),
     );
 
     const bookingWithIntegration = await this.prisma.booking.update({
@@ -183,7 +183,7 @@ export class BookingsService {
   }
 
   async getMyBookings(userId: string, role: string) {
-    const partnerUser = await this.getPartnerUser(userId, role);
+    const partnerUser = await this.getPartnerUser(userId, role, false);
 
     const bookings = await this.prisma.booking.findMany({
       where: {
@@ -203,7 +203,11 @@ export class BookingsService {
     );
   }
 
-  private async getPartnerUser(userId: string, role: string) {
+  private async getPartnerUser(
+    userId: string,
+    role: string,
+    requireApproved: boolean,
+  ) {
     if (role !== UserRole.PARTNER) {
       throw new ForbiddenException('Only PARTNER can access bookings');
     }
@@ -214,13 +218,26 @@ export class BookingsService {
         id: true,
         email: true,
         role: true,
+        status: true,
         partnerId: true,
         preferredLocale: true,
+        partner: {
+          select: {
+            isActive: true,
+          },
+        },
       },
     });
 
     if (!user || user.role !== UserRole.PARTNER || !user.partnerId) {
       throw new ForbiddenException('Only PARTNER can access bookings');
+    }
+
+    if (
+      requireApproved &&
+      (user.status !== UserStatus.ACTIVE || user.partner?.isActive !== true)
+    ) {
+      throw new ForbiddenException('Partner account is pending admin approval');
     }
 
     return user;
@@ -329,7 +346,12 @@ export class BookingsService {
     }>,
     snapshot: TourSnapshot,
     dto: CreateBookingDto,
-    durationDays: number,
+    tour: {
+      durationDays: number;
+      incomingTourId: string | null;
+      incomingHotelCode: string | null;
+      incomingHotelName: string | null;
+    },
   ): SamoClaimPayload {
     return {
       bookingId: booking.id,
@@ -338,6 +360,9 @@ export class BookingsService {
       travelDate: booking.travelDate,
       groupSize: booking.groupSize,
       hotelName: booking.hotelName,
+      incomingTourId: tour.incomingTourId,
+      incomingHotelCode: tour.incomingHotelCode,
+      incomingHotelName: tour.incomingHotelName,
       specialRequests: booking.translations[0]?.specialRequests ?? dto.specialRequests,
       person: {
         firstName: booking.firstName,
@@ -349,7 +374,7 @@ export class BookingsService {
       },
       tour: {
         title: snapshot.title,
-        durationDays,
+        durationDays: tour.durationDays,
         transport: snapshot.transport,
         hotels: snapshot.hotels,
         includedServices: snapshot.includedServices,

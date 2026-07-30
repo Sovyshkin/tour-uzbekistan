@@ -6,7 +6,7 @@ import AppContainer from '@/components/AppContainer.vue';
 import Button from '@/components/Button.vue';
 import CustomSelect from '@/components/CustomSelect.vue';
 import Card from '@/components/Card.vue';
-import { getApiLocale, getCountries, getSiteSettings, getTours, resolveAssetUrl } from '@/api';
+import { getApiLocale, getCountries, getSiteSettings, getTours, isB2BAuthenticated, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
 const { t, locale } = useI18n();
@@ -37,6 +37,7 @@ const searchText = ref('');
 const maxPrice = ref(null);
 const maxDuration = ref(null);
 const isSearchDurationActive = ref(false);
+const isPriceFilterAvailable = ref(isB2BAuthenticated());
 
 const countries = ref([]);
 const settings = ref({});
@@ -182,11 +183,11 @@ const loadTours = async () => {
       maxDuration: maxDuration.value || (isSearchDurationActive.value ? duration.value : undefined),
       minStars: comfortFilter.value || undefined,
       maxStars: comfortFilter.value || undefined,
-      maxPrice: maxPrice.value || undefined,
+      maxPrice: isPriceFilterAvailable.value ? maxPrice.value || undefined : undefined,
       search: searchText.value || undefined,
     });
 
-    tours.value = (data.items || []).map((tour) => ({
+    const nextTours = (data.items || []).map((tour) => ({
       id: tour.id,
       slug: tour.slug,
       title: tour.title,
@@ -202,6 +203,11 @@ const loadTours = async () => {
       priceFrom: tour.priceFrom || null,
       currency: tour.currency || null,
     }));
+
+    tours.value = nextTours;
+    if (!isPriceFilterAvailable.value && nextTours.some((tour) => tour.priceFrom)) {
+      isPriceFilterAvailable.value = true;
+    }
     meta.value = data.meta;
   } catch (error) {
     notifyError(error.message || t('notifications.loadToursFailed'), t('notifications.toursUnavailable'));
@@ -216,7 +222,15 @@ const loadSettings = async () => {
   }
 };
 
+const syncPriceFilterVisibility = () => {
+  isPriceFilterAvailable.value = isB2BAuthenticated();
+  if (!isPriceFilterAvailable.value) {
+    maxPrice.value = null;
+  }
+};
+
 const reloadToursAfterAuthChange = () => {
+  syncPriceFilterVisibility();
   loadTours();
 };
 
@@ -235,6 +249,7 @@ watch(perPage, () => {
 });
 
 onMounted(async () => {
+  syncPriceFilterVisibility();
   window.addEventListener('tour-auth-changed', reloadToursAfterAuthChange);
   await Promise.all([loadSettings(), loadCountries()]);
   await loadTours();
@@ -396,7 +411,7 @@ onUnmounted(() => {
               class="border border-[#e6e6e7] rounded-[16px] overflow-hidden bg-white"
             >
               <!-- Цена -->
-              <div class="p-4 xl:p-5 border-b border-[#e6e6e7]">
+              <div v-if="isPriceFilterAvailable" class="p-4 xl:p-5 border-b border-[#e6e6e7]">
                 <h4 class="text-[14px] xl:text-[15px] font-medium mb-3 xl:mb-4">
                   {{ t('toursPage.price') }}
                 </h4>
@@ -695,7 +710,7 @@ onUnmounted(() => {
 
           <div class="px-4 sm:px-5 py-4">
             <!-- Цена -->
-            <div class="mb-5 sm:mb-6">
+            <div v-if="isPriceFilterAvailable" class="mb-5 sm:mb-6">
               <h4 class="text-[14px] sm:text-[15px] font-medium mb-3 sm:mb-4">
                 {{ t('toursPage.price') }}
               </h4>

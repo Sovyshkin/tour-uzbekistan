@@ -93,7 +93,7 @@ onMounted(loadNews);
     <!-- Hero -->
     <section class="relative">
       <div class="hero-section">
-        <div class="hero-image" :style="backgroundImageStyle(news.heroImage || news.previewImage, news.previewImageSettings)" />
+        <div class="hero-image" :style="backgroundImageStyle(news.heroImage || news.previewImage)" />
       </div>
 
       <AppContainer>

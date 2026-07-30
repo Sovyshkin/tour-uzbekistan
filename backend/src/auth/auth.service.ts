@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { PartnerType, UserRole } from '@prisma/client';
+import { PartnerType, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -56,7 +56,7 @@ export class AuthService {
         lastName: dto.lastName,
         phone: dto.phone,
         role: UserRole.PARTNER,
-        status: 'ACTIVE',
+        status: UserStatus.PENDING,
         preferredLocale: dto.preferredLocale,
         partner: {
           create: {
@@ -130,6 +130,22 @@ export class AuthService {
   }
 
   private async issueTokens(userId: string, email: string, role: UserRole) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        status: true,
+        partner: {
+          select: {
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    const isApproved =
+      role !== UserRole.PARTNER ||
+      (user?.status === UserStatus.ACTIVE && user.partner?.isActive === true);
+
     const payload: AuthJwtPayload = {
       sub: userId,
       email,
@@ -161,6 +177,8 @@ export class AuthService {
         id: userId,
         email,
         role,
+        status: user?.status ?? UserStatus.PENDING,
+        isApproved,
       },
     };
   }

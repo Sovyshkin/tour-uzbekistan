@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { isB2BAuthenticated, isAuthenticated } from '@/api';
+import { isAuthenticated, isPartnerAuthenticated } from '@/api';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -128,7 +128,7 @@ const router = createRouter({
 });
 
 router.beforeEach((to) => {
-  if (to.meta.requiresPartner && !isB2BAuthenticated()) {
+  if (to.meta.requiresPartner && !isPartnerAuthenticated()) {
     return {
       name: 'home',
       query: {

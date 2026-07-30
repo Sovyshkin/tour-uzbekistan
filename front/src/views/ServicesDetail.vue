@@ -98,7 +98,7 @@ onMounted(loadService);
       <div class="hero-section">
         <div
           class="hero-image"
-          :style="backgroundImageStyle(news.heroImage || news.previewImage, news.previewImageSettings)"
+          :style="backgroundImageStyle(news.heroImage || news.previewImage)"
         />
       </div>
 

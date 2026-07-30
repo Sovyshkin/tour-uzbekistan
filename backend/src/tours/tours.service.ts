@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ContentStatus, Locale, Prisma } from '@prisma/client';
+import { ContentStatus, Locale, Prisma, UserRole, UserStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ToursQueryDto } from './dto/tours-query.dto';
@@ -8,12 +8,16 @@ import { ToursQueryDto } from './dto/tours-query.dto';
 export class ToursService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getTours(query: ToursQueryDto, isAuthorized: boolean) {
+  async getTours(
+    query: ToursQueryDto,
+    viewer?: { sub: string; role: string } | null,
+  ) {
     const locale = query.locale ?? Locale.ru;
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 9;
     const skip = (page - 1) * pageSize;
-    const where = this.buildWhere(query, locale);
+    const canViewPrices = await this.canViewPartnerPrices(viewer);
+    const where = this.buildWhere(query, locale, canViewPrices);
 
     const [total, tours] = await Promise.all([
       this.prisma.tour.count({ where }),
@@ -27,7 +31,7 @@ export class ToursService {
     ]);
 
     return {
-      items: tours.map((tour) => this.mapTourSummary(tour, isAuthorized)),
+      items: tours.map((tour) => this.mapTourSummary(tour, canViewPrices)),
       meta: {
         page,
         pageSize,
@@ -40,8 +44,9 @@ export class ToursService {
   async getTourBySlug(
     slug: string,
     locale: Locale = Locale.ru,
-    isAuthorized = false,
+    viewer?: { sub: string; role: string } | null,
   ) {
+    const canViewPrices = await this.canViewPartnerPrices(viewer);
     const tour = await this.prisma.tour.findFirst({
       where: {
         slug,
@@ -54,10 +59,14 @@ export class ToursService {
       return null;
     }
 
-    return this.mapTourDetail(tour, isAuthorized);
+    return this.mapTourDetail(tour, canViewPrices);
   }
 
-  private buildWhere(query: ToursQueryDto, locale: Locale): Prisma.TourWhereInput {
+  private buildWhere(
+    query: ToursQueryDto,
+    locale: Locale,
+    canFilterByPrice: boolean,
+  ): Prisma.TourWhereInput {
     const where: Prisma.TourWhereInput = {
       status: ContentStatus.PUBLISHED,
     };
@@ -93,7 +102,10 @@ export class ToursService {
       }
     }
 
-    if (query.minPrice !== undefined || query.maxPrice !== undefined) {
+    if (
+      canFilterByPrice &&
+      (query.minPrice !== undefined || query.maxPrice !== undefined)
+    ) {
       where.priceFrom = {};
 
       if (query.minPrice !== undefined) {
@@ -295,5 +307,25 @@ export class ToursService {
     }
 
     return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  private async canViewPartnerPrices(viewer?: { sub: string; role: string } | null) {
+    if (!viewer?.sub || viewer.role !== UserRole.PARTNER) {
+      return false;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: viewer.sub },
+      select: {
+        status: true,
+        partner: {
+          select: {
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    return user?.status === UserStatus.ACTIVE && user.partner?.isActive === true;
   }
 }

@@ -20,6 +20,8 @@ type AdminContentRecord = {
   sortOrder?: number;
   isFeatured?: boolean;
   isActive?: boolean;
+  syncToB2B?: boolean;
+  syncToB2C?: boolean;
   countryId?: string;
   durationDays?: number;
   durationNights?: number;
@@ -29,6 +31,9 @@ type AdminContentRecord = {
   priceFrom?: string | null;
   currency?: string | null;
   tourType?: string;
+  incomingTourId?: string | null;
+  incomingHotelCode?: string | null;
+  incomingHotelName?: string | null;
   image?: string | null;
   images?: Record<string, string | null>;
   imageSettings?: Record<string, ImageTransformSettings | null>;
@@ -1320,6 +1325,82 @@ const DEFAULT_SITE_SETTINGS: DefaultSiteSettingSeed[] = [
     textValue: { ru: '+998(77) 290-08-80', en: '+998(77) 290-08-80', uz: '+998(77) 290-08-80' },
   },
   {
+    key: 'footer.tourists',
+    group: 'footer',
+    label: 'Footer: заголовок Туристам',
+    textValue: { ru: 'Туристам', en: 'For Tourists', uz: 'Sayyohlar uchun' },
+  },
+  {
+    key: 'footer.popular',
+    group: 'footer',
+    label: 'Footer: Популярные направления',
+    textValue: { ru: 'Популярные направления', en: 'Popular destinations', uz: 'Mashhur yo‘nalishlar' },
+  },
+  {
+    key: 'footer.special',
+    group: 'footer',
+    label: 'Footer: Специальные предложения',
+    textValue: { ru: 'Специальные предложения', en: 'Special offers', uz: 'Maxsus takliflar' },
+  },
+  {
+    key: 'footer.services',
+    group: 'footer',
+    label: 'Footer: Услуги',
+    textValue: { ru: 'Услуги', en: 'Services', uz: 'Xizmatlar' },
+  },
+  {
+    key: 'footer.about_company',
+    group: 'footer',
+    label: 'Footer: О компании',
+    textValue: { ru: 'О компании', en: 'About company', uz: 'Kompaniya haqida' },
+  },
+  {
+    key: 'footer.support',
+    group: 'footer',
+    label: 'Footer: заголовок Поддержка',
+    textValue: { ru: 'Поддержка', en: 'Support', uz: 'Qo‘llab-quvvatlash' },
+  },
+  {
+    key: 'footer.faq',
+    group: 'footer',
+    label: 'Footer: Вопросы и ответы',
+    textValue: { ru: 'Вопросы и ответы', en: 'Questions & Answers', uz: 'Savol-javoblar' },
+  },
+  {
+    key: 'footer.privacy_policy',
+    group: 'footer',
+    label: 'Footer: Политика конфиденциальности',
+    textValue: { ru: 'Политика Конфиденциальности', en: 'Privacy Policy', uz: 'Maxfiylik siyosati' },
+  },
+  {
+    key: 'footer.user_agreement',
+    group: 'footer',
+    label: 'Footer: Пользовательское соглашение',
+    textValue: { ru: 'Пользовательское соглашение', en: 'User Agreement', uz: 'Foydalanish shartnomasi' },
+  },
+  {
+    key: 'footer.contacts',
+    group: 'footer',
+    label: 'Footer: заголовок Контакты',
+    textValue: { ru: 'Контакты', en: 'Contacts', uz: 'Bog‘lanish' },
+  },
+  {
+    key: 'footer.work_hours',
+    group: 'footer',
+    label: 'Footer: часы работы',
+    textValue: { ru: 'Пн - Пт, 09:00 – 18:00', en: 'Mon - Fri, 09:00 – 18:00', uz: 'Dush - Jum, 09:00 – 18:00' },
+  },
+  {
+    key: 'footer.copyright',
+    group: 'footer',
+    label: 'Footer: копирайт',
+    textValue: {
+      ru: '© {year} Centrum Holidays DMC. Все права защищены.',
+      en: '© {year} Centrum Holidays DMC. All rights reserved.',
+      uz: '© {year} Centrum Holidays DMC. Barcha huquqlar himoyalangan.',
+    },
+  },
+  {
     key: 'home.cards.about.description',
     group: 'home',
     label: 'Главная: описание О нас',
@@ -1507,6 +1588,8 @@ export class AdminContentService {
         return this.createTour(dto);
       case AdminContentType.SERVICES:
         return this.createService(dto);
+      case AdminContentType.WHY_CATEGORIES:
+        return this.createWhyCategory(dto);
       case AdminContentType.NEWS:
         return this.createNews(dto);
       default:
@@ -1658,6 +1741,9 @@ export class AdminContentService {
         comfortLevel: dto.comfortLevel,
         priceFrom: dto.priceFrom,
         currency: dto.currency ?? 'USD',
+        incomingTourId: this.readNullableString(dto.incomingTourId),
+        incomingHotelCode: this.readNullableString(dto.incomingHotelCode),
+        incomingHotelName: this.readNullableString(dto.incomingHotelName),
         status: dto.status ?? ContentStatus.DRAFT,
         isFeatured: dto.isFeatured ?? false,
         heroImage: previewImage,
@@ -1730,6 +1816,37 @@ export class AdminContentService {
     return items.find((item) => item.id === record.id);
   }
 
+  private async createWhyCategory(dto: AdminContentCreateDto) {
+    const record = await this.prisma.whyCategory.create({
+      data: {
+        slug: dto.slug,
+        status: dto.status ?? ContentStatus.DRAFT,
+        sortOrder: dto.sortOrder ?? 0,
+        heroImage: dto.heroImage ?? null,
+        heroImageSettings: normalizeImageSettings(dto.heroImageSettings),
+        translations: {
+          create: LOCALES.map((locale) => {
+            const fields = this.getCreateFields(dto, locale);
+
+            return {
+              locale,
+              title: this.readString(fields.title, `Новая категория ${locale}`),
+              subtitle: this.readNullableString(fields.subtitle),
+              description: this.readNullableString(fields.description),
+              seoTitle: this.readNullableString(fields.seoTitle),
+              seoDescription: this.readNullableString(fields.seoDescription),
+            };
+          }),
+        },
+      },
+    });
+
+    await this.updateWhyFacts(record.id, dto);
+
+    const items = await this.list(AdminContentType.WHY_CATEGORIES);
+    return items.find((item) => item.id === record.id);
+  }
+
   private async createNews(dto: AdminContentCreateDto) {
     const previewImage = dto.previewImage ?? dto.heroImage ?? null;
 
@@ -1740,6 +1857,8 @@ export class AdminContentService {
         heroImage: previewImage,
         previewImage,
         previewImageSettings: normalizeImageSettings(dto.previewImageSettings ?? dto.heroImageSettings),
+        syncToB2B: dto.syncToB2B ?? true,
+        syncToB2C: dto.syncToB2C ?? true,
         publishedAt: dto.status === ContentStatus.PUBLISHED ? new Date() : null,
         translations: {
           create: LOCALES.map((locale) => {
@@ -1972,6 +2091,9 @@ export class AdminContentService {
       priceFrom: record.priceFrom?.toString() ?? null,
       currency: record.currency,
       tourType: record.type,
+      incomingTourId: record.incomingTourId,
+      incomingHotelCode: record.incomingHotelCode,
+      incomingHotelName: record.incomingHotelName,
       image: record.mainImage ?? record.heroImage,
       images: {
         mainImage: record.mainImage ?? record.heroImage,
@@ -2052,6 +2174,8 @@ export class AdminContentService {
       slug: record.slug,
       title: this.getTitle(record.translations, 'title'),
       status: record.status,
+      syncToB2B: record.syncToB2B,
+      syncToB2C: record.syncToB2C,
       image: record.previewImage,
       images: { previewImage: record.previewImage ?? record.heroImage },
       imageSettings: { previewImage: readImageSettings(record.previewImageSettings) },
@@ -2155,6 +2279,15 @@ export class AdminContentService {
         ...(dto.comfortLevel !== undefined ? { comfortLevel: dto.comfortLevel } : {}),
         ...(dto.priceFrom !== undefined ? { priceFrom: dto.priceFrom } : {}),
         ...(dto.currency !== undefined ? { currency: dto.currency } : {}),
+        ...(dto.incomingTourId !== undefined
+          ? { incomingTourId: this.readNullableString(dto.incomingTourId) }
+          : {}),
+        ...(dto.incomingHotelCode !== undefined
+          ? { incomingHotelCode: this.readNullableString(dto.incomingHotelCode) }
+          : {}),
+        ...(dto.incomingHotelName !== undefined
+          ? { incomingHotelName: this.readNullableString(dto.incomingHotelName) }
+          : {}),
         ...(dto.routeMapImage !== undefined ? { routeMapImage: dto.routeMapImage } : {}),
         ...(dto.routeMapImageSettings !== undefined
           ? { routeMapImageSettings: normalizeImageSettings(dto.routeMapImageSettings) }
@@ -2198,7 +2331,13 @@ export class AdminContentService {
       ...dto,
       translations: dto.translations.map((translation) => {
         const fields = { ...translation.fields };
+        const serviceName = fields.name ?? fields.title;
         const cardDescription = fields.shortDescription ?? fields.subtitle;
+
+        if (serviceName !== undefined) {
+          fields.name = serviceName;
+          fields.title = serviceName;
+        }
 
         if (cardDescription !== undefined) {
           fields.shortDescription = cardDescription;
@@ -2307,6 +2446,8 @@ export class AdminContentService {
       data: {
         ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
+        ...(dto.syncToB2B !== undefined ? { syncToB2B: dto.syncToB2B } : {}),
+        ...(dto.syncToB2C !== undefined ? { syncToB2C: dto.syncToB2C } : {}),
         ...(dto.previewImageSettings !== undefined
           ? { previewImageSettings: normalizeImageSettings(dto.previewImageSettings) }
           : {}),
@@ -2500,13 +2641,19 @@ export class AdminContentService {
   }
 
   private prepareServiceTranslationData(data: Record<string, unknown>) {
-    if (data.content === undefined) {
-      return data;
-    }
+    const serviceName = data.name ?? data.title;
+    const normalizedData =
+      serviceName !== undefined
+        ? {
+            ...data,
+            name: serviceName,
+            title: serviceName,
+          }
+        : data;
 
     return {
-      ...data,
-      content: this.readServiceContent(data.content),
+      ...normalizedData,
+      ...(data.content !== undefined ? { content: this.readServiceContent(data.content) } : {}),
     };
   }
 

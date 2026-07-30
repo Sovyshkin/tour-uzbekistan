@@ -132,9 +132,25 @@ export function isAuthenticated() {
   return Boolean(getStoredAuth()?.accessToken);
 }
 
+export function isPartnerAuthenticated(auth = getStoredAuth()) {
+  const user = auth?.user;
+
+  return Boolean(auth?.accessToken && user?.role === 'PARTNER');
+}
+
+export function isApprovedPartnerAuth(auth = getStoredAuth()) {
+  const user = auth?.user;
+
+  return Boolean(
+    auth?.accessToken &&
+      user?.role === 'PARTNER' &&
+      user?.status === 'ACTIVE' &&
+      user?.isApproved !== false,
+  );
+}
+
 export function isB2BAuthenticated() {
-  const auth = getStoredAuth();
-  return Boolean(auth?.accessToken && auth?.user?.role === 'PARTNER');
+  return isApprovedPartnerAuth();
 }
 
 export function setAuth(auth) {

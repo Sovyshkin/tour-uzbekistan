@@ -1,25 +1,36 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import AppContainer from '@/components/AppContainer.vue';
-import { getMyBookings } from '@/api';
+import { getAuth, getMyBookings, isApprovedPartnerAuth } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
 const { t, locale } = useI18n();
+const router = useRouter();
 const { error: notifyError } = useNotifications();
 
+const auth = ref(getAuth());
 const bookings = ref([]);
 const loading = ref(false);
 const expandedId = ref(null);
 
 const statusOrder = ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'];
-
 const statusClass = {
   PENDING: 'status-pending',
   CONFIRMED: 'status-confirmed',
   COMPLETED: 'status-completed',
   CANCELLED: 'status-cancelled',
 };
+
+const user = computed(() => auth.value?.user || {});
+const isApproved = computed(() => isApprovedPartnerAuth(auth.value));
+const accountStatus = computed(() =>
+  isApproved.value ? t('agentCabinet.accountActive') : t('agentCabinet.accountPending'),
+);
+const accountStatusText = computed(() =>
+  isApproved.value ? t('agentCabinet.accountActiveText') : t('agentCabinet.accountPendingText'),
+);
 
 const statusLabel = (status) => t(`agentCabinet.statuses.${status}`) || status;
 
@@ -40,6 +51,8 @@ const summary = computed(() => {
 
   return counts;
 });
+
+const latestBooking = computed(() => bookings.value[0] || null);
 
 const formatDate = (value) => {
   if (!value) {
@@ -64,16 +77,51 @@ const formatPrice = (booking) => {
 const customerName = (booking) =>
   [booking.firstName, booking.lastName].filter(Boolean).join(' ') || booking.email;
 
+const integrationLabel = (booking) => {
+  const integration = booking.integration;
+
+  if (!integration) {
+    return t('agentCabinet.integrationNoData');
+  }
+
+  if (integration.sent) {
+    return integration.claimNumber
+      ? `${t('agentCabinet.integrationSent')} #${integration.claimNumber}`
+      : t('agentCabinet.integrationSent');
+  }
+
+  return integration.enabled
+    ? t('agentCabinet.integrationNotSent')
+    : t('agentCabinet.integrationSkipped');
+};
+
+const integrationClass = (booking) => {
+  if (booking.integration?.sent) {
+    return 'incoming-sent';
+  }
+
+  return booking.integration?.enabled ? 'incoming-warning' : 'incoming-muted';
+};
+
 const toggleDetails = (id) => {
   expandedId.value = expandedId.value === id ? null : id;
 };
 
+const goToTours = () => {
+  router.push('/tours');
+};
+
 const loadBookings = async () => {
   loading.value = true;
+  auth.value = getAuth();
+
   try {
     bookings.value = await getMyBookings();
   } catch (error) {
-    notifyError(error.message || t('agentCabinet.loadFailed'), t('agentCabinet.title'));
+    if (isApproved.value) {
+      notifyError(error.message || t('agentCabinet.loadFailed'), t('agentCabinet.title'));
+    }
+
     bookings.value = [];
   } finally {
     loading.value = false;
@@ -86,14 +134,32 @@ onMounted(loadBookings);
 <template>
   <section class="agent-cabinet">
     <AppContainer>
-      <div class="cabinet-header">
-        <div>
+      <div class="cabinet-hero">
+        <div class="hero-copy">
           <p class="cabinet-kicker">B2B</p>
           <h1>{{ t('agentCabinet.title') }}</h1>
           <p>{{ t('agentCabinet.subtitle') }}</p>
         </div>
-        <button type="button" class="refresh-btn" :disabled="loading" @click="loadBookings">
-          {{ t('agentCabinet.refresh') }}
+
+        <div class="account-card" :class="{ approved: isApproved }">
+          <span>{{ t('agentCabinet.account') }}</span>
+          <strong>{{ accountStatus }}</strong>
+          <p>{{ accountStatusText }}</p>
+        </div>
+      </div>
+
+      <div class="quick-grid">
+        <button type="button" class="quick-card quick-card-primary" @click="goToTours">
+          <span>{{ t('agentCabinet.quickTours') }}</span>
+          <strong>{{ t('agentCabinet.quickToursText') }}</strong>
+        </button>
+        <a class="quick-card" href="tel:+998772900880">
+          <span>{{ t('agentCabinet.manager') }}</span>
+          <strong>+998(77) 290-08-80</strong>
+        </a>
+        <button type="button" class="quick-card" :disabled="loading" @click="loadBookings">
+          <span>{{ t('agentCabinet.refresh') }}</span>
+          <strong>{{ t('agentCabinet.refreshText') }}</strong>
         </button>
       </div>
 
@@ -113,9 +179,26 @@ onMounted(loadBookings);
         </article>
       </div>
 
+      <div v-if="latestBooking" class="latest-panel">
+        <div>
+          <span>{{ t('agentCabinet.latestRequest') }}</span>
+          <strong>{{ latestBooking.bookingNumber }}</strong>
+          <p>{{ latestBooking.snapshot?.title || t('agentCabinet.noData') }}</p>
+        </div>
+        <b class="status-pill" :class="statusClass[latestBooking.status]">
+          {{ statusLabel(latestBooking.status) }}
+        </b>
+      </div>
+
       <div class="history-section">
         <div class="history-title-row">
-          <h2>{{ t('agentCabinet.bookingHistory') }}</h2>
+          <div>
+            <h2>{{ t('agentCabinet.bookingHistory') }}</h2>
+            <p>{{ t('agentCabinet.bookingHistoryText') }}</p>
+          </div>
+          <button type="button" class="refresh-btn" :disabled="loading" @click="loadBookings">
+            {{ t('agentCabinet.refresh') }}
+          </button>
         </div>
 
         <div v-if="loading" class="state-panel">
@@ -124,7 +207,7 @@ onMounted(loadBookings);
 
         <div v-else-if="!bookings.length" class="state-panel empty">
           <h3>{{ t('agentCabinet.emptyTitle') }}</h3>
-          <p>{{ t('agentCabinet.emptyText') }}</p>
+          <p>{{ isApproved ? t('agentCabinet.emptyText') : t('agentCabinet.pendingEmptyText') }}</p>
         </div>
 
         <div v-else class="booking-list">
@@ -148,6 +231,12 @@ onMounted(loadBookings);
               <div class="booking-cell">
                 <span>{{ t('agentCabinet.tour') }}</span>
                 <strong>{{ booking.snapshot?.title || t('agentCabinet.noData') }}</strong>
+              </div>
+              <div class="booking-cell">
+                <span>Incoming</span>
+                <strong class="incoming-pill" :class="integrationClass(booking)">
+                  {{ integrationLabel(booking) }}
+                </strong>
               </div>
               <div class="booking-cell">
                 <span>{{ t('agentCabinet.createdAt') }}</span>
@@ -184,6 +273,14 @@ onMounted(loadBookings);
                   <span>{{ t('agentCabinet.sourcePage') }}</span>
                   <strong>{{ booking.sourcePage || t('agentCabinet.noData') }}</strong>
                 </div>
+              </div>
+
+              <div class="detail-block incoming-block">
+                <h3>Incoming / SAMO</h3>
+                <p>{{ integrationLabel(booking) }}</p>
+                <small v-if="booking.integration?.message || booking.integration?.skippedReason">
+                  {{ booking.integration.message || booking.integration.skippedReason }}
+                </small>
               </div>
 
               <div v-if="booking.specialRequests" class="detail-block">
@@ -226,75 +323,154 @@ onMounted(loadBookings);
 .agent-cabinet {
   background: #f5f7fb;
   min-height: 70vh;
-  padding: 22px 0 70px;
+  padding: 28px 0 76px;
   font-family: 'Aeonik Pro', sans-serif;
 }
 
-.cabinet-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  align-items: flex-end;
-  margin-bottom: 22px;
+.cabinet-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+
+.hero-copy,
+.account-card,
+.quick-card,
+.summary-card,
+.latest-panel,
+.history-section {
+  border: 1px solid #e1e6ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.hero-copy {
+  padding: clamp(24px, 4vw, 42px);
+  background:
+    linear-gradient(135deg, rgba(40, 90, 255, 0.1), transparent 42%),
+    #fff;
 }
 
 .cabinet-kicker {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   color: #285aff;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
 }
 
-.cabinet-header h1 {
+.hero-copy h1 {
+  max-width: 760px;
   margin: 0;
   color: #070914;
-  font-size: clamp(34px, 5vw, 62px);
-  line-height: 0.95;
+  font-size: clamp(36px, 5vw, 64px);
+  line-height: 0.96;
   font-weight: 700;
 }
 
-.cabinet-header p:last-child {
-  margin: 12px 0 0;
+.hero-copy p:last-child {
+  max-width: 650px;
+  margin: 16px 0 0;
   color: #616979;
   font-size: 17px;
+  line-height: 1.45;
 }
 
-.refresh-btn {
-  border: 1px solid #cdd5e4;
-  background: #fff;
-  border-radius: 8px;
-  padding: 12px 18px;
-  color: #101522;
-  font-size: 15px;
+.account-card {
+  padding: 28px;
+  border-color: #ffe0f5;
+  background: linear-gradient(160deg, #fff 0%, #fff5fc 100%);
+}
+
+.account-card.approved {
+  border-color: #ccf2db;
+  background: linear-gradient(160deg, #fff 0%, #f0fff6 100%);
+}
+
+.account-card span,
+.quick-card span,
+.latest-panel span,
+.summary-card span,
+.booking-number span,
+.booking-cell span,
+.detail-grid span {
+  display: block;
+  color: #687184;
+  font-size: 13px;
+}
+
+.account-card strong {
+  display: block;
+  margin-top: 14px;
+  color: #090b14;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.account-card p {
+  margin: 14px 0 0;
+  color: #586173;
+  line-height: 1.5;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.quick-card {
+  display: block;
+  min-height: 106px;
+  padding: 20px;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition: 0.2s ease;
 }
 
-.refresh-btn:hover {
+.quick-card:hover {
+  transform: translateY(-2px);
   border-color: #285aff;
-  color: #285aff;
+}
+
+.quick-card:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.quick-card strong {
+  display: block;
+  margin-top: 12px;
+  color: #101522;
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.quick-card-primary {
+  border-color: #285aff;
+  background: #285aff;
+}
+
+.quick-card-primary span,
+.quick-card-primary strong {
+  color: #fff;
 }
 
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .summary-card {
   min-height: 118px;
-  border: 1px solid #e1e6ef;
-  border-radius: 8px;
-  background: #fff;
   padding: 18px;
-}
-
-.summary-card span {
-  display: block;
-  color: #687184;
-  font-size: 14px;
 }
 
 .summary-card strong {
@@ -315,10 +491,28 @@ onMounted(loadBookings);
   color: #fff;
 }
 
+.latest-panel {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 20px 24px;
+}
+
+.latest-panel strong {
+  display: block;
+  margin-top: 8px;
+  color: #101522;
+  font-size: 24px;
+}
+
+.latest-panel p {
+  margin: 6px 0 0;
+  color: #626b7e;
+}
+
 .history-section {
-  border: 1px solid #e1e6ef;
-  border-radius: 8px;
-  background: #fff;
   overflow: hidden;
 }
 
@@ -326,6 +520,7 @@ onMounted(loadBookings);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   padding: 22px 24px;
   border-bottom: 1px solid #e6ebf3;
 }
@@ -334,6 +529,27 @@ onMounted(loadBookings);
   margin: 0;
   color: #0d1220;
   font-size: 24px;
+}
+
+.history-title-row p {
+  margin: 6px 0 0;
+  color: #687184;
+}
+
+.refresh-btn {
+  border: 1px solid #cdd5e4;
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px 18px;
+  color: #101522;
+  font-size: 15px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.refresh-btn:hover {
+  border-color: #285aff;
+  color: #285aff;
 }
 
 .state-panel {
@@ -352,6 +568,7 @@ onMounted(loadBookings);
 }
 
 .state-panel.empty p {
+  max-width: 520px;
   margin: 0;
   color: #687184;
 }
@@ -377,8 +594,8 @@ onMounted(loadBookings);
 .booking-main {
   width: 100%;
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr 1.25fr 1.5fr 1fr 20px;
-  gap: 18px;
+  grid-template-columns: 1.05fr 0.9fr 1.2fr 1.4fr 1.15fr 1fr 20px;
+  gap: 16px;
   align-items: center;
   border: 0;
   background: #fff;
@@ -389,15 +606,6 @@ onMounted(loadBookings);
 
 .booking-main:hover {
   background: #f8faff;
-}
-
-.booking-number span,
-.booking-cell span,
-.detail-grid span {
-  display: block;
-  margin-bottom: 5px;
-  color: #858d9d;
-  font-size: 12px;
 }
 
 .booking-number strong,
@@ -414,9 +622,11 @@ onMounted(loadBookings);
   font-size: 12px;
 }
 
-.status-pill {
+.status-pill,
+.incoming-pill {
   display: inline-flex;
   align-items: center;
+  width: fit-content;
   min-height: 28px;
   border-radius: 999px;
   padding: 4px 10px;
@@ -449,6 +659,21 @@ onMounted(loadBookings);
   background: #fff0f0;
   color: #c82727;
   border-color: #ffd0d0;
+}
+
+.incoming-sent {
+  background: #ecfdf3;
+  color: #087443;
+}
+
+.incoming-warning {
+  background: #fff7e8;
+  color: #9c6500;
+}
+
+.incoming-muted {
+  background: #eef1f6;
+  color: #6e7788;
 }
 
 .expand-icon {
@@ -494,6 +719,16 @@ onMounted(loadBookings);
   margin: 0;
   color: #485064;
   line-height: 1.55;
+}
+
+.detail-block small {
+  display: block;
+  margin-top: 8px;
+  color: #6e7788;
+}
+
+.incoming-block {
+  border-color: #dce6ff;
 }
 
 .service-tags {
@@ -544,6 +779,11 @@ onMounted(loadBookings);
 }
 
 @media (max-width: 1180px) {
+  .cabinet-hero,
+  .quick-grid {
+    grid-template-columns: 1fr;
+  }
+
   .summary-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -559,15 +799,10 @@ onMounted(loadBookings);
 
 @media (max-width: 720px) {
   .agent-cabinet {
-    padding-top: 0;
+    padding-top: 16px;
   }
 
-  .cabinet-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .cabinet-header h1 {
+  .hero-copy h1 {
     font-size: 38px;
   }
 
@@ -578,6 +813,12 @@ onMounted(loadBookings);
 
   .summary-card {
     min-height: auto;
+  }
+
+  .latest-panel,
+  .history-title-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .booking-main {

@@ -2,7 +2,15 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { clearAuth, getApiLocale, getAuth, getCountries, isAuthenticated as hasAuth, login } from '@/api';
+import {
+  clearAuth,
+  getApiLocale,
+  getAuth,
+  getCountries,
+  isAuthenticated as hasAuth,
+  isPartnerAuthenticated,
+  login,
+} from '@/api';
 import { validateLoginFormFields } from '@/utils/formValidation';
 
 const { t, locale } = useI18n();
@@ -190,7 +198,7 @@ const changeLanguage = (langCode) => {
 };
 
 const isAuthenticated = computed(() => Boolean(authState.value?.accessToken));
-const isPartner = computed(() => authState.value?.user?.role === 'PARTNER');
+const isPartner = computed(() => isPartnerAuthenticated(authState.value));
 
 watch(
   () => route.query.auth,

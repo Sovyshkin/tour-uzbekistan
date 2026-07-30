@@ -215,6 +215,9 @@ model Tour {
   comfortLevel      Int?
   priceFrom         Decimal?          @db.Decimal(10, 2)
   currency          String?           @default("USD")
+  incomingTourId    String?
+  incomingHotelCode String?
+  incomingHotelName String?
   isFeatured        Boolean           @default(false)
   sortOrder         Int               @default(0)
   showPriceToB2C    Boolean           @default(false)
