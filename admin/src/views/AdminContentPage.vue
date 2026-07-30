@@ -64,6 +64,20 @@ type ImageTransformSettings = {
   scale: number;
 };
 
+type ImageCropTarget = {
+  fieldKey?: ImageFieldKey;
+  factIndex?: number;
+};
+
+type ImageCropDragState = ImageCropTarget & {
+  startX: number;
+  startY: number;
+  startPositionX: number;
+  startPositionY: number;
+  width: number;
+  height: number;
+};
+
 type PageContentBlock = {
   title: string;
   text: string;
@@ -159,6 +173,7 @@ const typeFields = computed<Record<ContentType, FieldConfig[]>>(() => ({
     { key: 'name', label: t('content.fields.serviceListName') },
     { key: 'title', label: t('content.fields.serviceCardTitle') },
     { key: 'shortDescription', label: t('content.fields.serviceSubtitle'), type: 'textarea' },
+    { key: 'content', label: t('content.fields.content'), type: 'textarea' },
     { key: 'seoTitle', label: t('content.fields.seoTitle') },
     { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
@@ -486,6 +501,85 @@ const imageTransformStyle = (settings?: ImageTransformSettings | null): CSSPrope
   };
 };
 
+const cropDragState = ref<ImageCropDragState | null>(null);
+
+const cropFrameStyle = (settings?: ImageTransformSettings | null): CSSProperties => {
+  const normalized = normalizeImageSettings(settings);
+
+  return {
+    left: `${normalized.positionX}%`,
+    top: `${normalized.positionY}%`,
+  };
+};
+
+const getCropTargetSettings = (target: ImageCropTarget) => {
+  if (typeof target.factIndex === 'number') {
+    return form.whyFacts[target.factIndex]?.imageSettings || null;
+  }
+
+  if (target.fieldKey) {
+    return ensureImageSettings(target.fieldKey);
+  }
+
+  return null;
+};
+
+const clampCropPercent = (value: number) => Math.min(100, Math.max(0, Math.round(value)));
+
+const setCropTargetPosition = (target: ImageCropTarget, positionX: number, positionY: number) => {
+  const settings = getCropTargetSettings(target);
+
+  if (!settings) {
+    return;
+  }
+
+  settings.positionX = clampCropPercent(positionX);
+  settings.positionY = clampCropPercent(positionY);
+};
+
+const beginImageCropDrag = (event: PointerEvent, target: ImageCropTarget) => {
+  const settings = getCropTargetSettings(target);
+  const currentTarget = event.currentTarget as HTMLElement | null;
+
+  if (!settings || !currentTarget) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const rect = currentTarget.getBoundingClientRect();
+  cropDragState.value = {
+    ...target,
+    startX: event.clientX,
+    startY: event.clientY,
+    startPositionX: settings.positionX,
+    startPositionY: settings.positionY,
+    width: Math.max(rect.width, 1),
+    height: Math.max(rect.height, 1),
+  };
+
+  window.addEventListener('pointermove', handleImageCropDrag);
+  window.addEventListener('pointerup', stopImageCropDrag, { once: true });
+};
+
+const handleImageCropDrag = (event: PointerEvent) => {
+  const state = cropDragState.value;
+
+  if (!state) {
+    return;
+  }
+
+  const deltaX = ((event.clientX - state.startX) / state.width) * 100;
+  const deltaY = ((event.clientY - state.startY) / state.height) * 100;
+
+  setCropTargetPosition(state, state.startPositionX + deltaX, state.startPositionY + deltaY);
+};
+
+const stopImageCropDrag = () => {
+  cropDragState.value = null;
+  window.removeEventListener('pointermove', handleImageCropDrag);
+};
+
 const imageSettingsPayloadKey = (fieldKey: ImageFieldKey) =>
   fieldKey === 'imageUrl' ? 'imageSettings' : `${fieldKey}Settings`;
 
@@ -495,6 +589,17 @@ const normalizeValue = (value: unknown) => {
   }
 
   return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+};
+
+const normalizeServiceContentValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item : ''))
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  return normalizeValue(value);
 };
 
 const normalizePageContentBlocks = (value: unknown): PageContentBlock[] => {
@@ -773,6 +878,8 @@ const openEditor = async (record: ContentRecord) => {
       form.translations[locale.code][field.key] =
         record.type === 'pages' && field.key === 'content'
           ? normalizePageContentBlocks(value)
+          : record.type === 'services' && field.key === 'content'
+            ? normalizeServiceContentValue(value)
           : normalizeValue(value);
     }
   }
@@ -1521,18 +1628,38 @@ watch(
                     {{ t('common.reset') }}
                   </el-button>
                 </div>
-                <div class="image-transform-grid">
-                  <label>
-                    <span>{{ t('content.positionX') }}</span>
-                    <el-slider v-model="ensureImageSettings(field.key).positionX" :min="0" :max="100" />
-                  </label>
+                <div class="image-crop-layout">
+                  <div
+                    class="image-crop-stage"
+                    @pointerdown="beginImageCropDrag($event, { fieldKey: field.key })"
+                  >
+                    <img
+                      :src="resolveMediaUrl(form.media[field.key])"
+                      :alt="field.label"
+                      :style="imageTransformStyle(form.imageSettings[field.key])"
+                      draggable="false"
+                    />
+                    <div class="image-crop-frame" :style="cropFrameStyle(form.imageSettings[field.key])" />
+                  </div>
+                  <div class="image-crop-panel">
+                    <div class="image-crop-meta">
+                      <span>{{ t('content.positionX') }}: {{ normalizeImageSettings(form.imageSettings[field.key]).positionX }}%</span>
+                      <span>{{ t('content.positionY') }}: {{ normalizeImageSettings(form.imageSettings[field.key]).positionY }}%</span>
+                    </div>
+                    <label>
+                      <span>{{ t('content.imageScale') }}</span>
+                      <el-slider v-model="ensureImageSettings(field.key).scale" :min="100" :max="300" />
+                    </label>
+                  </div>
+                </div>
+                <div class="image-transform-grid fallback-controls">
                   <label>
                     <span>{{ t('content.positionY') }}</span>
                     <el-slider v-model="ensureImageSettings(field.key).positionY" :min="0" :max="100" />
                   </label>
                   <label>
-                    <span>{{ t('content.imageScale') }}</span>
-                    <el-slider v-model="ensureImageSettings(field.key).scale" :min="100" :max="300" />
+                    <span>{{ t('content.positionX') }}</span>
+                    <el-slider v-model="ensureImageSettings(field.key).positionX" :min="0" :max="100" />
                   </label>
                 </div>
               </div>
@@ -1594,18 +1721,38 @@ watch(
                       {{ t('common.reset') }}
                     </el-button>
                   </div>
-                  <div class="image-transform-grid">
-                    <label>
-                      <span>{{ t('content.positionX') }}</span>
-                      <el-slider v-model="fact.imageSettings.positionX" :min="0" :max="100" />
-                    </label>
+                  <div class="image-crop-layout">
+                    <div
+                      class="image-crop-stage compact"
+                      @pointerdown="beginImageCropDrag($event, { factIndex })"
+                    >
+                      <img
+                        :src="resolveMediaUrl(fact.imageUrl)"
+                        :alt="fact.translations.ru.title || t('content.fact', { number: factIndex + 1 })"
+                        :style="imageTransformStyle(fact.imageSettings)"
+                        draggable="false"
+                      />
+                      <div class="image-crop-frame" :style="cropFrameStyle(fact.imageSettings)" />
+                    </div>
+                    <div class="image-crop-panel">
+                      <div class="image-crop-meta">
+                        <span>{{ t('content.positionX') }}: {{ normalizeImageSettings(fact.imageSettings).positionX }}%</span>
+                        <span>{{ t('content.positionY') }}: {{ normalizeImageSettings(fact.imageSettings).positionY }}%</span>
+                      </div>
+                      <label>
+                        <span>{{ t('content.imageScale') }}</span>
+                        <el-slider v-model="fact.imageSettings.scale" :min="100" :max="300" />
+                      </label>
+                    </div>
+                  </div>
+                  <div class="image-transform-grid fallback-controls">
                     <label>
                       <span>{{ t('content.positionY') }}</span>
                       <el-slider v-model="fact.imageSettings.positionY" :min="0" :max="100" />
                     </label>
                     <label>
-                      <span>{{ t('content.imageScale') }}</span>
-                      <el-slider v-model="fact.imageSettings.scale" :min="100" :max="300" />
+                      <span>{{ t('content.positionX') }}</span>
+                      <el-slider v-model="fact.imageSettings.positionX" :min="0" :max="100" />
                     </label>
                   </div>
                 </div>
@@ -2026,6 +2173,140 @@ watch(
   line-height: 1.3;
 }
 
+.fallback-controls {
+  display: none;
+}
+
+.image-crop-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 420px) minmax(220px, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.image-crop-stage {
+  position: relative;
+  min-height: 220px;
+  overflow: hidden;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background:
+    linear-gradient(45deg, #f8fafc 25%, transparent 25%),
+    linear-gradient(-45deg, #f8fafc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f8fafc 75%),
+    linear-gradient(-45deg, transparent 75%, #f8fafc 75%);
+  background-color: #ffffff;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.image-crop-stage.compact {
+  min-height: 190px;
+}
+
+.image-crop-stage:active {
+  cursor: grabbing;
+}
+
+.image-crop-stage img {
+  pointer-events: none;
+  user-select: none;
+}
+
+.image-crop-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.38) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.38) 1px, transparent 1px);
+  background-size: 33.333% 33.333%;
+  box-shadow: inset 0 0 0 999px rgba(15, 23, 42, 0.04);
+}
+
+.image-crop-frame {
+  position: absolute;
+  z-index: 2;
+  width: min(58%, 220px);
+  aspect-ratio: 1.55;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  border: 2px solid #409eff;
+  border-radius: 12px;
+  background-image:
+    linear-gradient(rgba(64, 158, 255, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(64, 158, 255, 0.35) 1px, transparent 1px);
+  background-size: 33.333% 33.333%;
+  box-shadow:
+    0 0 0 999px rgba(15, 23, 42, 0.22),
+    0 14px 30px rgba(15, 23, 42, 0.18);
+}
+
+.image-crop-frame::before,
+.image-crop-frame::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: #ffffff;
+  border-style: solid;
+}
+
+.image-crop-frame::before {
+  top: 8px;
+  left: 8px;
+  border-width: 2px 0 0 2px;
+}
+
+.image-crop-frame::after {
+  right: 8px;
+  bottom: 8px;
+  border-width: 0 2px 2px 0;
+}
+
+.image-crop-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.image-crop-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.image-crop-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.image-crop-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .why-facts-editor {
   display: flex;
   flex-direction: column;
@@ -2437,6 +2718,15 @@ watch(
 
   .image-transform-grid {
     grid-template-columns: 1fr;
+  }
+
+  .image-crop-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .image-crop-stage,
+  .image-crop-stage.compact {
+    min-height: 210px;
   }
 
   .why-facts-editor {

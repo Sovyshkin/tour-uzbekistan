@@ -16,9 +16,9 @@ defineProps({
       $router.push({path: `/services/${DMC.slug || DMC.id}`})
     "
   >
-    <div class="img overflow-hidden">
+    <div class="img h-[200px] sm:h-[250px] lg:h-[300px] overflow-hidden">
       <img
-        class="w-full h-[200px] sm:h-[250px] lg:h-[300px] object-cover"
+        class="w-full h-full object-cover"
         :src="DMC.url"
         :alt="DMC.title"
         :style="imageObjectStyle(DMC.imageSettings)"

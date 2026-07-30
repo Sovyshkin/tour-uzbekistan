@@ -148,6 +148,7 @@ const TRANSLATION_FIELDS: Record<AdminContentType, string[]> = {
     'title',
     'subtitle',
     'shortDescription',
+    'content',
     'seoTitle',
     'seoDescription',
   ],
@@ -1713,6 +1714,7 @@ export class AdminContentService {
               title: this.readString(fields.title, name),
               subtitle: shortDescription,
               shortDescription,
+              content: this.readServiceContent(fields.content),
               seoTitle: this.readNullableString(fields.seoTitle),
               seoDescription: this.readNullableString(fields.seoDescription),
             };
@@ -2405,7 +2407,9 @@ export class AdminContentService {
         case AdminContentType.SERVICES:
           await this.prisma.serviceTranslation.updateMany({
             where: { serviceId: id, locale: translation.locale },
-            data: data as Prisma.ServiceTranslationUpdateManyMutationInput,
+            data: this.prepareServiceTranslationData(
+              data,
+            ) as Prisma.ServiceTranslationUpdateManyMutationInput,
           });
           break;
         case AdminContentType.WHY_CATEGORIES:
@@ -2492,6 +2496,17 @@ export class AdminContentService {
     }
   }
 
+  private prepareServiceTranslationData(data: Record<string, unknown>) {
+    if (data.content === undefined) {
+      return data;
+    }
+
+    return {
+      ...data,
+      content: this.readServiceContent(data.content),
+    };
+  }
+
   private getCreateFields(dto: AdminContentCreateDto, locale: Locale) {
     return dto.translations.find((translation) => translation.locale === locale)?.fields ?? {};
   }
@@ -2520,6 +2535,42 @@ export class AdminContentService {
     } catch {
       return [{ text: rawValue }] as Prisma.InputJsonValue;
     }
+  }
+
+  private readServiceContent(value: unknown) {
+    if (Array.isArray(value)) {
+      const paragraphs = value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
+      return paragraphs.length ? (paragraphs as Prisma.InputJsonValue) : Prisma.JsonNull;
+    }
+
+    if (typeof value !== 'string') {
+      return value === undefined ? Prisma.JsonNull : (value as Prisma.InputJsonValue);
+    }
+
+    const rawValue = value.trim();
+
+    if (!rawValue) {
+      return Prisma.JsonNull;
+    }
+
+    try {
+      const parsed = JSON.parse(rawValue);
+      if (Array.isArray(parsed)) {
+        const paragraphs = parsed
+          .map((item) => (typeof item === 'string' ? item.trim() : ''))
+          .filter(Boolean);
+        return paragraphs.length ? (paragraphs as Prisma.InputJsonValue) : Prisma.JsonNull;
+      }
+    } catch {
+      // Plain text is split into paragraphs below.
+    }
+
+    const paragraphs = rawValue
+      .split(/\r?\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    return paragraphs.length ? (paragraphs as Prisma.InputJsonValue) : Prisma.JsonNull;
   }
 
   private async ensureExists(countPromise: Promise<number>) {
