@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch, type CSSProperties } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { Rank } from '@element-plus/icons-vue';
 
 import RichTextEditor from '@/components/RichTextEditor.vue';
 import http from '@/lib/http';
@@ -1719,7 +1720,11 @@ watch(
                       decoding="async"
                       fetchpriority="low"
                     />
-                    <div class="image-crop-frame" :style="cropFrameStyle(form.imageSettings[field.key])" />
+                    <div class="image-crop-frame" :style="cropFrameStyle(form.imageSettings[field.key])">
+                      <span class="image-crop-move-icon">
+                        <el-icon><Rank /></el-icon>
+                      </span>
+                    </div>
                   </div>
                   <div class="image-crop-panel">
                     <div class="image-crop-meta">
@@ -1821,7 +1826,11 @@ watch(
                         decoding="async"
                         fetchpriority="low"
                       />
-                      <div class="image-crop-frame" :style="cropFrameStyle(fact.imageSettings)" />
+                      <div class="image-crop-frame" :style="cropFrameStyle(fact.imageSettings)">
+                        <span class="image-crop-move-icon">
+                          <el-icon><Rank /></el-icon>
+                        </span>
+                      </div>
                     </div>
                     <div class="image-crop-panel">
                       <div class="image-crop-meta">
@@ -2330,37 +2339,26 @@ watch(
   max-height: 100%;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  border: 2px solid #409eff;
-  border-radius: 12px;
-  background-image:
-    linear-gradient(rgba(64, 158, 255, 0.35) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(64, 158, 255, 0.35) 1px, transparent 1px);
-  background-size: 33.333% 33.333%;
-  box-shadow:
-    0 0 0 999px rgba(15, 23, 42, 0.22),
-    0 14px 30px rgba(15, 23, 42, 0.18);
+  display: grid;
+  place-items: center;
 }
 
-.image-crop-frame::before,
-.image-crop-frame::after {
-  content: '';
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border-color: #ffffff;
-  border-style: solid;
+.image-crop-move-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  color: #ffffff;
+  background: rgba(15, 23, 42, 0.42);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.26);
+  backdrop-filter: blur(8px);
 }
 
-.image-crop-frame::before {
-  top: 8px;
-  left: 8px;
-  border-width: 2px 0 0 2px;
-}
-
-.image-crop-frame::after {
-  right: 8px;
-  bottom: 8px;
-  border-width: 0 2px 2px 0;
+.image-crop-move-icon .el-icon {
+  font-size: 24px;
 }
 
 .image-crop-panel {
