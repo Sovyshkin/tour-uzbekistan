@@ -238,6 +238,12 @@ export class LeadsService {
       bookingNumber: `LD-${lead.createdAt.getTime()}`,
       createdAt: lead.createdAt,
       groupSize: 1,
+      source: {
+        audience: lead.audience,
+        pagePath: lead.sourcePagePath ?? dto.sourcePage ?? null,
+        pageTitle: lead.sourcePageTitle ?? dto.sourcePageTitle ?? null,
+      },
+      linkedEntity: this.buildLeadLinkedEntity(lead),
       specialRequests: lead.translations[0]?.message ?? dto.message,
       person: {
         firstName: firstName || lead.name,
@@ -251,6 +257,46 @@ export class LeadsService {
         includedServices: this.readStringArray(lead.tour?.translations[0]?.included),
       },
     };
+  }
+
+  private buildLeadLinkedEntity(
+    lead: Prisma.LeadGetPayload<{
+      include: {
+        country: { include: { translations: { where: { locale: Locale }; take: 1 } } };
+        tour: { include: { translations: { where: { locale: Locale }; take: 1 } } };
+        service: { include: { translations: { where: { locale: Locale }; take: 1 } } };
+        translations: { where: { locale: Locale }; take: 1 };
+      };
+    }>,
+  ) {
+    if (lead.tour) {
+      return {
+        type: 'tour',
+        id: lead.tour.id,
+        slug: lead.tour.slug,
+        title: lead.tour.translations[0]?.title ?? null,
+      };
+    }
+
+    if (lead.service) {
+      return {
+        type: 'service',
+        id: lead.service.id,
+        slug: lead.service.slug,
+        title: lead.service.translations[0]?.name ?? null,
+      };
+    }
+
+    if (lead.country) {
+      return {
+        type: 'country',
+        id: lead.country.id,
+        slug: lead.country.slug,
+        title: lead.country.translations[0]?.name ?? null,
+      };
+    }
+
+    return undefined;
   }
 
   private async safeSendSamoLead(

@@ -347,6 +347,7 @@ export class BookingsService {
     snapshot: TourSnapshot,
     dto: CreateBookingDto,
     tour: {
+      slug: string;
       durationDays: number;
       incomingTourId: string | null;
       incomingHotelCode: string | null;
@@ -363,6 +364,17 @@ export class BookingsService {
       incomingTourId: tour.incomingTourId,
       incomingHotelCode: tour.incomingHotelCode,
       incomingHotelName: tour.incomingHotelName,
+      source: {
+        audience: booking.audience,
+        pagePath: booking.sourcePagePath ?? dto.sourcePage ?? null,
+        pageTitle: snapshot.title,
+      },
+      linkedEntity: {
+        type: 'tour',
+        id: snapshot.tourId,
+        slug: tour.slug,
+        title: snapshot.title,
+      },
       specialRequests: booking.translations[0]?.specialRequests ?? dto.specialRequests,
       person: {
         firstName: booking.firstName,

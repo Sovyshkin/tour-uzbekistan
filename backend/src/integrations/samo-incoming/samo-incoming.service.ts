@@ -18,6 +18,29 @@ type SamoClaimTour = {
   includedServices: string[];
 };
 
+type SamoClaimSource = {
+  audience?: string | null;
+  pagePath?: string | null;
+  pageTitle?: string | null;
+};
+
+type SamoClaimLinkedEntity = {
+  type?: string | null;
+  id?: string | null;
+  slug?: string | null;
+  title?: string | null;
+};
+
+type SamoIncomingSourceMetadata = {
+  audience: string | null;
+  pagePath: string | null;
+  pageTitle: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  entitySlug: string | null;
+  entityTitle: string | null;
+};
+
 export type SamoClaimPayload = {
   bookingId: string;
   bookingNumber: string;
@@ -31,6 +54,8 @@ export type SamoClaimPayload = {
   specialRequests?: string | null;
   person: SamoClaimPerson;
   tour: SamoClaimTour;
+  source?: SamoClaimSource;
+  linkedEntity?: SamoClaimLinkedEntity;
 };
 
 export type SamoIncomingResult = {
@@ -44,6 +69,7 @@ export type SamoIncomingResult = {
   message?: string;
   rawResponse?: string;
   requestXml?: string;
+  source?: SamoIncomingSourceMetadata;
 };
 
 type SamoIncomingConfig = {
@@ -69,12 +95,14 @@ export class SamoIncomingService {
 
   async sendBooking(payload: SamoClaimPayload): Promise<SamoIncomingResult> {
     const config = this.getConfig(payload);
+    const source = this.buildSourceMetadata(payload);
 
     if (!config.enabled) {
       return {
         enabled: false,
         sent: false,
         skippedReason: 'SAMO Incoming integration is disabled',
+        source,
       };
     }
 
@@ -84,6 +112,7 @@ export class SamoIncomingService {
         enabled: true,
         sent: false,
         skippedReason: `SAMO Incoming config is incomplete: ${missing.join(', ')}`,
+        source,
       };
     }
 
@@ -98,6 +127,7 @@ export class SamoIncomingService {
         claimNumber,
         requestXml,
         rawResponse: response,
+        source,
         ...this.parseResponse(response),
       };
     } catch (error) {
@@ -109,6 +139,7 @@ export class SamoIncomingService {
         claimNumber,
         requestXml,
         message,
+        source,
       };
     }
   }
@@ -273,6 +304,7 @@ ${links}
   private buildNote(payload: SamoClaimPayload) {
     const lines = [
       `Local booking: ${payload.bookingNumber}`,
+      ...this.buildSourceNoteLines(payload),
       `Tour: ${payload.tour.title}`,
       payload.tour.transport ? `Transport: ${payload.tour.transport}` : undefined,
       payload.tour.hotels ? `Hotels: ${payload.tour.hotels}` : undefined,
@@ -284,6 +316,54 @@ ${links}
     ].filter(Boolean);
 
     return lines.join(' | ').slice(0, 255);
+  }
+
+  private buildSourceNoteLines(payload: SamoClaimPayload) {
+    const lines: string[] = [];
+
+    if (payload.source?.audience) {
+      lines.push(`Audience: ${payload.source.audience}`);
+    }
+
+    if (payload.source?.pageTitle || payload.source?.pagePath) {
+      lines.push(
+        `Source page: ${[payload.source.pageTitle, payload.source.pagePath]
+          .filter(Boolean)
+          .join(' - ')}`,
+      );
+    }
+
+    if (
+      payload.linkedEntity?.type ||
+      payload.linkedEntity?.title ||
+      payload.linkedEntity?.slug ||
+      payload.linkedEntity?.id
+    ) {
+      lines.push(
+        `Source item: ${[
+          payload.linkedEntity.type,
+          payload.linkedEntity.title,
+          payload.linkedEntity.slug,
+          payload.linkedEntity.id,
+        ]
+          .filter(Boolean)
+          .join(' - ')}`,
+      );
+    }
+
+    return lines;
+  }
+
+  private buildSourceMetadata(payload: SamoClaimPayload) {
+    return {
+      audience: payload.source?.audience ?? null,
+      pagePath: payload.source?.pagePath ?? null,
+      pageTitle: payload.source?.pageTitle ?? null,
+      entityType: payload.linkedEntity?.type ?? null,
+      entityId: payload.linkedEntity?.id ?? null,
+      entitySlug: payload.linkedEntity?.slug ?? null,
+      entityTitle: payload.linkedEntity?.title ?? null,
+    };
   }
 
   private parseResponse(response: string) {

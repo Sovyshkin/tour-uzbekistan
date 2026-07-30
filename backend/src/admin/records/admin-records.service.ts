@@ -60,7 +60,13 @@ export class AdminRecordsService {
         return this.list(AdminRecordType.USERS);
       case AdminRecordType.PARTNERS:
         await this.ensureExists(this.prisma.partner.count({ where: { id } }));
-        await this.prisma.partner.update({ where: { id }, data: { isActive: false } });
+        await this.prisma.$transaction([
+          this.prisma.partner.update({ where: { id }, data: { isActive: false } }),
+          this.prisma.user.updateMany({
+            where: { partnerId: id, role: UserRole.PARTNER },
+            data: { status: UserStatus.SUSPENDED },
+          }),
+        ]);
         return this.list(AdminRecordType.PARTNERS);
       case AdminRecordType.LEADS:
         await this.ensureExists(this.prisma.lead.count({ where: { id } }));
@@ -165,15 +171,15 @@ export class AdminRecordsService {
   }
 
   private async createPartner(dto: AdminRecordCreateDto) {
-    if (!dto.slug || !dto.name) {
-      throw new BadRequestException('Slug and name are required');
+    if (!dto.name) {
+      throw new BadRequestException('Name is required');
     }
 
     const name = dto.name.trim();
 
     await this.prisma.partner.create({
       data: {
-        slug: dto.slug.trim(),
+        slug: dto.slug?.trim() || this.createPartnerSlug(name),
         type: dto.type ?? 'AGENCY',
         email: dto.email?.trim() || null,
         phone: dto.phone?.trim() || null,
@@ -201,6 +207,16 @@ export class AdminRecordsService {
     });
 
     return this.list(AdminRecordType.PARTNERS);
+  }
+
+  private createPartnerSlug(name: string) {
+    const baseSlug = name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    return `${baseSlug || 'partner'}-${Date.now()}`;
   }
 
   private async listUsers() {
@@ -233,24 +249,90 @@ export class AdminRecordsService {
       orderBy: [{ createdAt: 'desc' }],
       include: {
         translations: { where: { locale: Locale.ru }, take: 1 },
-        users: { select: { id: true } },
+        users: {
+          orderBy: [{ createdAt: 'desc' }],
+          include: {
+            translations: { where: { locale: Locale.ru }, take: 1 },
+          },
+        },
+        bookings: {
+          orderBy: [{ createdAt: 'desc' }],
+          take: 20,
+          include: {
+            translations: { where: { locale: Locale.ru }, take: 1 },
+            tour: {
+              include: {
+                translations: { where: { locale: Locale.ru }, take: 1 },
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            bookings: true,
+            users: true,
+          },
+        },
       },
     });
 
-    return partners.map((partner) => ({
-      id: partner.id,
-      title: partner.translations[0]?.name ?? partner.slug,
-      slug: partner.slug,
-      email: partner.email,
-      phone: partner.phone,
-      type: partner.type,
-      city: partner.city,
-      tin: partner.tin,
-      language: partner.preferredLocale,
-      isActive: partner.isActive,
-      usersCount: partner.users.length,
-      createdAt: partner.createdAt,
-    }));
+    return partners.map((partner) => {
+      const partnerUsers = partner.users.filter((user) => user.role === UserRole.PARTNER);
+      const approvalUsers = partnerUsers.length ? partnerUsers : partner.users;
+      const hasActivePartnerUser = approvalUsers.some((user) => user.status === UserStatus.ACTIVE);
+      const hasSuspendedPartnerUser = approvalUsers.some((user) => user.status === UserStatus.SUSPENDED);
+      const approvalStatus =
+        !partner.isActive || hasSuspendedPartnerUser
+          ? 'SUSPENDED'
+          : hasActivePartnerUser
+            ? 'APPROVED'
+            : 'PENDING';
+
+      return {
+        id: partner.id,
+        title: partner.translations[0]?.name ?? partner.slug,
+        slug: partner.slug,
+        email: partner.email,
+        phone: partner.phone,
+        type: partner.type,
+        city: partner.city,
+        tin: partner.tin,
+        language: partner.preferredLocale,
+        isActive: partner.isActive,
+        approvalStatus,
+        isApproved: approvalStatus === 'APPROVED',
+        usersCount: partner._count.users,
+        bookingsCount: partner._count.bookings,
+        pendingUsersCount: partner.users.filter((user) => user.status === UserStatus.PENDING).length,
+        users: partner.users.map((user) => ({
+          id: user.id,
+          title: user.translations[0]?.displayName ?? (`${user.firstName} ${user.lastName}`.trim() || user.email),
+          email: user.email,
+          phone: user.phone,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          status: user.status,
+          language: user.preferredLocale,
+          createdAt: user.createdAt,
+        })),
+        bookings: partner.bookings.map((booking) => ({
+          id: booking.id,
+          title: booking.bookingNumber,
+          bookingNumber: booking.bookingNumber,
+          customer: `${booking.firstName} ${booking.lastName}`.trim(),
+          email: booking.email,
+          phone: booking.phone,
+          status: booking.status,
+          totalPrice: booking.totalPrice?.toString() ?? null,
+          currency: booking.currency,
+          tour: booking.tour?.translations[0]?.title ?? null,
+          specialRequests: booking.translations[0]?.specialRequests ?? null,
+          createdAt: booking.createdAt,
+        })),
+        createdAt: partner.createdAt,
+      };
+    });
   }
 
   private async listLeads() {
@@ -377,42 +459,52 @@ export class AdminRecordsService {
     await this.ensureExists(this.prisma.partner.count({ where: { id } }));
     const name = dto.name?.trim();
 
-    await this.prisma.partner.update({
-      where: { id },
-      data: {
-        ...(dto.slug !== undefined ? { slug: dto.slug.trim() } : {}),
-        ...(dto.email !== undefined ? { email: dto.email.trim() || null } : {}),
-        ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
-        ...(dto.city !== undefined ? { city: dto.city.trim() || null } : {}),
-        ...(dto.tin !== undefined ? { tin: dto.tin.trim() || null } : {}),
-        ...(dto.language !== undefined ? { preferredLocale: dto.language } : {}),
-        ...(dto.type !== undefined ? { type: dto.type } : {}),
-        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
-        ...(name
-          ? {
-              translations: {
-                upsert: [
-                  {
-                    where: { partnerId_locale: { partnerId: id, locale: Locale.ru } },
-                    update: { name },
-                    create: { locale: Locale.ru, name },
-                  },
-                  {
-                    where: { partnerId_locale: { partnerId: id, locale: Locale.en } },
-                    update: { name },
-                    create: { locale: Locale.en, name },
-                  },
-                  {
-                    where: { partnerId_locale: { partnerId: id, locale: Locale.uz } },
-                    update: { name },
-                    create: { locale: Locale.uz, name },
-                  },
-                ],
-              },
-            }
-          : {}),
-      },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.partner.update({
+        where: { id },
+        data: {
+          ...(dto.slug !== undefined ? { slug: dto.slug.trim() } : {}),
+          ...(dto.email !== undefined ? { email: dto.email.trim() || null } : {}),
+          ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
+          ...(dto.city !== undefined ? { city: dto.city.trim() || null } : {}),
+          ...(dto.tin !== undefined ? { tin: dto.tin.trim() || null } : {}),
+          ...(dto.language !== undefined ? { preferredLocale: dto.language } : {}),
+          ...(dto.type !== undefined ? { type: dto.type } : {}),
+          ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+          ...(name
+            ? {
+                translations: {
+                  upsert: [
+                    {
+                      where: { partnerId_locale: { partnerId: id, locale: Locale.ru } },
+                      update: { name },
+                      create: { locale: Locale.ru, name },
+                    },
+                    {
+                      where: { partnerId_locale: { partnerId: id, locale: Locale.en } },
+                      update: { name },
+                      create: { locale: Locale.en, name },
+                    },
+                    {
+                      where: { partnerId_locale: { partnerId: id, locale: Locale.uz } },
+                      update: { name },
+                      create: { locale: Locale.uz, name },
+                    },
+                  ],
+                },
+              }
+            : {}),
+        },
+      });
+
+      if (dto.userStatus !== undefined) {
+        await tx.user.updateMany({
+          where: { partnerId: id, role: UserRole.PARTNER },
+          data: { status: dto.userStatus },
+        });
+      }
     });
+
     return this.list(AdminRecordType.PARTNERS);
   }
 

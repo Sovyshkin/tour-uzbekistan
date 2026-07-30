@@ -34,6 +34,8 @@ const recordsTableRef = ref();
 const selectedRecords = ref<AnyRecord[]>([]);
 const createForm = ref<Record<string, any>>({});
 const createError = ref('');
+const partnerCabinetOpen = ref(false);
+const partnerCabinetTarget = ref<AnyRecord | null>(null);
 
 const roleLabels = computed<Record<string, string>>(() => ({
   ADMIN: t('enums.role.ADMIN'),
@@ -54,6 +56,12 @@ const partnerTypeLabels = computed<Record<string, string>>(() => ({
   TRANSPORT: t('enums.partnerType.TRANSPORT'),
   HOTEL: t('enums.partnerType.HOTEL'),
   OTHER: t('enums.partnerType.OTHER'),
+}));
+
+const partnerApprovalLabels = computed<Record<string, string>>(() => ({
+  APPROVED: t('records.approvalApproved'),
+  PENDING: t('records.approvalPending'),
+  SUSPENDED: t('records.approvalSuspended'),
 }));
 
 const leadStatusLabels = computed<Record<string, string>>(() => ({
@@ -109,6 +117,30 @@ const formatDateTime = (value: unknown) => {
     timeStyle: 'short',
   }).format(date);
 };
+
+const partnerApprovalTagType = (row: AnyRecord) =>
+  row.approvalStatus === 'APPROVED' ? 'success' : row.approvalStatus === 'SUSPENDED' ? 'danger' : 'warning';
+
+const partnerApprovalText = (row: AnyRecord) =>
+  labelFrom(partnerApprovalLabels.value, row.approvalStatus ?? 'PENDING');
+
+const partnerApprovalHint = (row: AnyRecord) =>
+  row?.approvalStatus === 'APPROVED'
+    ? t('records.approvalHintApproved')
+    : t('records.approvalHintPending');
+
+const partnerPriceAccess = (row: AnyRecord) => (row?.isApproved ? t('common.yes') : t('common.no'));
+
+const formatMoney = (value: unknown, currency?: unknown) => {
+  const amount = displayValue(value);
+  return amount === '—' ? '—' : [amount, currency].filter(Boolean).join(' ');
+};
+
+const partnerTypeText = (value: unknown) => labelFrom(partnerTypeLabels.value, value);
+const roleText = (value: unknown) => labelFrom(roleLabels.value, value);
+const userStatusText = (value: unknown) => labelFrom(userStatusLabels.value, value);
+const bookingStatusText = (value: unknown) => labelFrom(bookingStatusLabels.value, value);
+const languageText = (value: unknown) => labelFrom(languageLabels.value, value);
 
 const readSnapshot = (row: AnyRecord) => {
   const snapshot = row.snapshot;
@@ -211,10 +243,12 @@ const columns = computed(() => {
       { prop: 'title', label: t('common.title'), minWidth: 220 },
       { prop: 'email', label: t('common.email'), minWidth: 220 },
       { prop: 'phone', label: t('common.phone'), minWidth: 160 },
+      { prop: 'approvalStatus', label: t('records.partnerApproval'), width: 150 },
       { prop: 'type', label: t('common.type'), width: 170, format: (value: unknown) => labelFrom(partnerTypeLabels.value, value) },
       { prop: 'city', label: t('common.city'), width: 140 },
       { prop: 'tin', label: t('common.tin'), width: 150 },
       { prop: 'usersCount', label: t('records.usersCount'), width: 130 },
+      { prop: 'bookingsCount', label: t('records.bookingsCount'), width: 150 },
     ];
   }
 
@@ -282,6 +316,37 @@ const handleSelectionChange = (rows: AnyRecord[]) => {
   selectedRecords.value = rows;
 };
 
+const refreshPartnerCabinetTarget = () => {
+  if (!partnerCabinetTarget.value) {
+    return;
+  }
+
+  const fresh = records.value.find((record) => record.id === partnerCabinetTarget.value?.id);
+  if (fresh) {
+    partnerCabinetTarget.value = fresh;
+  }
+};
+
+const openPartnerCabinet = (row: AnyRecord) => {
+  partnerCabinetTarget.value = row;
+  partnerCabinetOpen.value = true;
+};
+
+const handleRowClick = (row: AnyRecord, _column?: unknown, event?: MouseEvent) => {
+  if (recordType.value !== 'partners') {
+    return;
+  }
+
+  const target = event?.target as HTMLElement | null;
+  if (target?.closest('.el-checkbox, .record-row-actions, button, .el-select')) {
+    return;
+  }
+
+  openPartnerCabinet(row);
+};
+
+const recordRowClassName = () => (recordType.value === 'partners' ? 'partner-clickable-row' : '');
+
 const openCreate = async () => {
   createError.value = '';
   editingTarget.value = null;
@@ -308,7 +373,6 @@ const openCreate = async () => {
           status: 'ACTIVE',
         }
       : {
-          slug: '',
           name: '',
           email: '',
           phone: '',
@@ -346,7 +410,6 @@ const openEdit = async (row: AnyRecord) => {
           status: row.status ?? 'ACTIVE',
         }
       : {
-          slug: row.slug ?? '',
           name: row.title ?? '',
           email: row.email ?? '',
           phone: row.phone ?? '',
@@ -375,6 +438,19 @@ const buildFormPayload = () => {
       : createForm.value;
   }
 
+  if (recordType.value === 'partners') {
+    return {
+      name: createForm.value.name,
+      email: createForm.value.email,
+      phone: createForm.value.phone,
+      city: createForm.value.city,
+      tin: createForm.value.tin,
+      language: createForm.value.language,
+      type: createForm.value.type,
+      isActive: createForm.value.isActive,
+    };
+  }
+
   return createForm.value;
 };
 
@@ -400,6 +476,8 @@ const saveRecord = async () => {
     records.value = response.data;
     if (recordType.value === 'partners') {
       partnerOptions.value = [];
+      refreshPartnerCabinetTarget();
+      dashboardStore.load();
     }
     createOpen.value = false;
     editingTarget.value = null;
@@ -422,7 +500,7 @@ const updateStatus = async (row: AnyRecord, value: string | boolean) => {
     recordType.value === 'users'
       ? { userStatus: value }
       : recordType.value === 'partners'
-        ? { isActive: value }
+        ? { isActive: Boolean(value), userStatus: value ? 'ACTIVE' : 'SUSPENDED' }
         : recordType.value === 'leads'
           ? { leadStatus: value }
           : { bookingStatus: value };
@@ -430,10 +508,29 @@ const updateStatus = async (row: AnyRecord, value: string | boolean) => {
   try {
     const response = await http.patch<AnyRecord[]>(`/admin/records/${recordType.value}/${row.id}`, payload);
     records.value = response.data;
-    if (recordType.value === 'leads' || recordType.value === 'bookings') {
+    refreshPartnerCabinetTarget();
+    if (recordType.value === 'partners' || recordType.value === 'leads' || recordType.value === 'bookings') {
       dashboardStore.load();
     }
     ElMessage.success(t('common.saved'));
+  } catch (error: any) {
+    ElMessage.error(getApiErrorMessage(error, t('records.saveFailed')));
+  } finally {
+    savingId.value = '';
+  }
+};
+
+const setPartnerApproval = async (row: AnyRecord, approved: boolean) => {
+  savingId.value = row.id;
+  try {
+    const response = await http.patch<AnyRecord[]>(`/admin/records/partners/${row.id}`, {
+      isActive: approved,
+      userStatus: approved ? 'ACTIVE' : 'SUSPENDED',
+    });
+    records.value = response.data;
+    refreshPartnerCabinetTarget();
+    dashboardStore.load();
+    ElMessage.success(approved ? t('records.partnerApproved') : t('records.partnerSuspended'));
   } catch (error: any) {
     ElMessage.error(getApiErrorMessage(error, t('records.saveFailed')));
   } finally {
@@ -454,8 +551,9 @@ const bulkUpdate = async (payload: Record<string, unknown>, successMessage: stri
       ),
     );
     await loadRecords();
+    refreshPartnerCabinetTarget();
     resetSelection();
-    if (recordType.value === 'leads' || recordType.value === 'bookings') {
+    if (recordType.value === 'partners' || recordType.value === 'leads' || recordType.value === 'bookings') {
       dashboardStore.load();
     }
     ElMessage.success(successMessage);
@@ -501,7 +599,8 @@ const archiveRecord = async (row: AnyRecord) => {
   try {
     const response = await http.delete<AnyRecord[]>(`/admin/records/${recordType.value}/${row.id}`);
     records.value = response.data;
-    if (recordType.value === 'leads' || recordType.value === 'bookings') {
+    refreshPartnerCabinetTarget();
+    if (recordType.value === 'partners' || recordType.value === 'leads' || recordType.value === 'bookings') {
       dashboardStore.load();
     }
     ElMessage.success(t('records.updated'));
@@ -605,8 +704,9 @@ const bulkArchiveRecords = async () => {
       selectedRecords.value.map((row) => http.delete<AnyRecord[]>(`/admin/records/${recordType.value}/${row.id}`)),
     );
     await loadRecords();
+    refreshPartnerCabinetTarget();
     resetSelection();
-    if (recordType.value === 'leads' || recordType.value === 'bookings') {
+    if (recordType.value === 'partners' || recordType.value === 'leads' || recordType.value === 'bookings') {
       dashboardStore.load();
     }
     ElMessage.success(t('records.updatedPlural'));
@@ -621,6 +721,8 @@ watch(
   () => route.fullPath,
   () => {
     resetSelection();
+    partnerCabinetOpen.value = false;
+    partnerCabinetTarget.value = null;
     loadRecords();
   },
   { immediate: true },
@@ -650,11 +752,19 @@ watch(
           </template>
 
           <template v-else-if="recordType === 'partners'">
-            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ isActive: true }, t('records.partnersActivated'))">
-              {{ t('common.activate') }}
+            <el-button
+              plain
+              :loading="bulkProcessing"
+              @click="bulkUpdate({ isActive: true, userStatus: 'ACTIVE' }, t('records.partnersActivated'))"
+            >
+              {{ t('records.approvePartner') }}
             </el-button>
-            <el-button plain :loading="bulkProcessing" @click="bulkUpdate({ isActive: false }, t('records.partnersDisabled'))">
-              {{ t('common.deactivate') }}
+            <el-button
+              plain
+              :loading="bulkProcessing"
+              @click="bulkUpdate({ isActive: false, userStatus: 'SUSPENDED' }, t('records.partnersDisabled'))"
+            >
+              {{ t('records.suspendPartner') }}
             </el-button>
           </template>
 
@@ -691,7 +801,9 @@ watch(
         :data="records"
         row-key="id"
         :empty-text="t('common.noData')"
+        :row-class-name="recordRowClassName"
         @selection-change="handleSelectionChange"
+        @row-click="handleRowClick"
       >
         <el-table-column type="selection" width="48" />
         <el-table-column v-if="recordType === 'leads' || recordType === 'bookings'" type="expand" width="48">
@@ -833,6 +945,9 @@ watch(
             <el-tag v-if="column.prop === 'incoming'" :type="incomingState(row).type">
               {{ incomingState(row).label }}
             </el-tag>
+            <el-tag v-else-if="column.prop === 'approvalStatus'" :type="partnerApprovalTagType(row)">
+              {{ partnerApprovalText(row) }}
+            </el-tag>
             <template v-else>
               {{ column.format ? column.format(row[column.prop], row) : displayValue(row[column.prop]) }}
             </template>
@@ -846,7 +961,7 @@ watch(
                 type="primary"
                 plain
                 size="small"
-                @click="openEdit(row)"
+                @click.stop="openEdit(row)"
               >
                 {{ t('common.edit') }}
               </el-button>
@@ -855,23 +970,44 @@ watch(
                 :model-value="row.status"
                 :loading="savingId === row.id"
                 size="small"
+                @click.stop
                 @change="(value: string) => updateStatus(row, value)"
               >
                 <el-option :label="userStatusLabels.ACTIVE" value="ACTIVE" />
                 <el-option :label="userStatusLabels.PENDING" value="PENDING" />
                 <el-option :label="userStatusLabels.SUSPENDED" value="SUSPENDED" />
               </el-select>
-              <el-switch
-                v-else-if="recordType === 'partners'"
-                :model-value="row.isActive"
-                :loading="savingId === row.id"
-                @change="(value: boolean) => updateStatus(row, value)"
-              />
+              <template v-else-if="recordType === 'partners'">
+                <el-button
+                  v-if="row.approvalStatus !== 'APPROVED'"
+                  type="success"
+                  plain
+                  size="small"
+                  :loading="savingId === row.id"
+                  @click.stop="setPartnerApproval(row, true)"
+                >
+                  {{ t('records.approvePartner') }}
+                </el-button>
+                <el-button
+                  v-else
+                  type="warning"
+                  plain
+                  size="small"
+                  :loading="savingId === row.id"
+                  @click.stop="setPartnerApproval(row, false)"
+                >
+                  {{ t('records.suspendPartner') }}
+                </el-button>
+                <el-button plain size="small" @click.stop="openPartnerCabinet(row)">
+                  {{ t('records.openPartnerCabinet') }}
+                </el-button>
+              </template>
               <el-select
                 v-else-if="recordType === 'leads'"
                 :model-value="row.status"
                 :loading="savingId === row.id"
                 size="small"
+                @click.stop
                 @change="(value: string) => updateStatus(row, value)"
               >
                 <el-option :label="leadStatusLabels.NEW" value="NEW" />
@@ -886,6 +1022,7 @@ watch(
                 :model-value="row.status"
                 :loading="savingId === row.id"
                 size="small"
+                @click.stop
                 @change="(value: string) => updateStatus(row, value)"
               >
                 <el-option :label="bookingStatusLabels.PENDING" value="PENDING" />
@@ -898,7 +1035,7 @@ watch(
                 plain
                 size="small"
                 :loading="archivingId === row.id"
-                @click="archiveRecord(row)"
+                @click.stop="archiveRecord(row)"
               >
                 {{ archiveLabel }}
               </el-button>
@@ -907,7 +1044,7 @@ watch(
                   type="primary"
                   plain
                   size="small"
-                  @click="openPasswordDialog(row)"
+                  @click.stop="openPasswordDialog(row)"
                 >
                   {{ t('records.changePassword') }}
                 </el-button>
@@ -916,7 +1053,7 @@ watch(
                   type="danger"
                   size="small"
                   :loading="archivingId === row.id"
-                  @click="deleteUser(row)"
+                  @click.stop="deleteUser(row)"
                 >
                   {{ t('common.delete') }}
                 </el-button>
@@ -926,6 +1063,158 @@ watch(
         </el-table-column>
       </el-table>
     </el-card>
+
+    <el-drawer
+      v-model="partnerCabinetOpen"
+      :title="t('records.partnerCabinet')"
+      size="min(780px, 100vw)"
+      class="partner-cabinet-drawer"
+    >
+      <template v-if="partnerCabinetTarget">
+        <div class="partner-cabinet">
+          <section class="partner-cabinet-hero">
+            <div>
+              <span class="cabinet-eyebrow">{{ t('common.partner') }}</span>
+              <h3>{{ partnerCabinetTarget.title }}</h3>
+              <p>{{ partnerApprovalHint(partnerCabinetTarget) }}</p>
+            </div>
+            <el-tag :type="partnerApprovalTagType(partnerCabinetTarget)">
+              {{ partnerApprovalText(partnerCabinetTarget) }}
+            </el-tag>
+          </section>
+
+          <div class="partner-cabinet-actions">
+            <el-button
+              v-if="partnerCabinetTarget.approvalStatus !== 'APPROVED'"
+              type="success"
+              :loading="savingId === partnerCabinetTarget.id"
+              @click="setPartnerApproval(partnerCabinetTarget, true)"
+            >
+              {{ t('records.approvePartner') }}
+            </el-button>
+            <el-button
+              v-else
+              type="warning"
+              plain
+              :loading="savingId === partnerCabinetTarget.id"
+              @click="setPartnerApproval(partnerCabinetTarget, false)"
+            >
+              {{ t('records.suspendPartner') }}
+            </el-button>
+            <el-button plain @click="openEdit(partnerCabinetTarget)">
+              {{ t('common.edit') }}
+            </el-button>
+          </div>
+
+          <section class="cabinet-stats">
+            <div class="cabinet-stat">
+              <span>{{ t('records.usersCount') }}</span>
+              <b>{{ partnerCabinetTarget.usersCount ?? 0 }}</b>
+            </div>
+            <div class="cabinet-stat">
+              <span>{{ t('records.bookingsCount') }}</span>
+              <b>{{ partnerCabinetTarget.bookingsCount ?? 0 }}</b>
+            </div>
+            <div class="cabinet-stat">
+              <span>{{ t('records.priceAccess') }}</span>
+              <b>{{ partnerPriceAccess(partnerCabinetTarget) }}</b>
+            </div>
+          </section>
+
+          <section class="detail-card cabinet-card">
+            <h3>{{ t('records.partnerProfile') }}</h3>
+            <dl>
+              <div>
+                <dt>{{ t('common.email') }}</dt>
+                <dd>{{ displayValue(partnerCabinetTarget.email) }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('common.phone') }}</dt>
+                <dd>{{ displayValue(partnerCabinetTarget.phone) }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('common.type') }}</dt>
+                <dd>{{ partnerTypeText(partnerCabinetTarget.type) }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('common.city') }}</dt>
+                <dd>{{ displayValue(partnerCabinetTarget.city) }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('common.tin') }}</dt>
+                <dd>{{ displayValue(partnerCabinetTarget.tin) }}</dd>
+              </div>
+              <div>
+                <dt>{{ t('common.language') }}</dt>
+                <dd>{{ languageText(partnerCabinetTarget.language) }}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="detail-card cabinet-card">
+            <h3>{{ t('records.partnerUsers') }}</h3>
+            <el-table
+              v-if="partnerCabinetTarget.users?.length"
+              :data="partnerCabinetTarget.users"
+              size="small"
+              row-key="id"
+            >
+              <el-table-column :label="t('common.name')" min-width="160">
+                <template #default="{ row }">
+                  {{ displayValue(row.title) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="email" :label="t('common.email')" min-width="190" />
+              <el-table-column :label="t('common.role')" width="130">
+                <template #default="{ row }">
+                  {{ roleText(row.role) }}
+                </template>
+              </el-table-column>
+              <el-table-column :label="t('common.status')" width="130">
+                <template #default="{ row }">
+                  <el-tag :type="row.status === 'ACTIVE' ? 'success' : row.status === 'SUSPENDED' ? 'danger' : 'warning'">
+                    {{ userStatusText(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-else :description="t('records.noUsers')" />
+          </section>
+
+          <section class="detail-card cabinet-card">
+            <h3>{{ t('records.bookingHistory') }}</h3>
+            <el-table
+              v-if="partnerCabinetTarget.bookings?.length"
+              :data="partnerCabinetTarget.bookings"
+              size="small"
+              row-key="id"
+            >
+              <el-table-column prop="title" :label="t('dashboard.bookingNumber')" min-width="150" />
+              <el-table-column prop="tour" :label="t('common.tour')" min-width="180" />
+              <el-table-column prop="customer" :label="t('dashboard.customer')" min-width="150" />
+              <el-table-column :label="t('common.status')" width="140">
+                <template #default="{ row }">
+                  <el-tag :type="row.status === 'CONFIRMED' ? 'success' : row.status === 'CANCELLED' ? 'danger' : 'warning'">
+                    {{ bookingStatusText(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column :label="t('common.price')" width="130">
+                <template #default="{ row }">
+                  {{ formatMoney(row.totalPrice, row.currency) }}
+                </template>
+              </el-table-column>
+              <el-table-column :label="t('common.createdAt')" min-width="150">
+                <template #default="{ row }">
+                  {{ formatDateTime(row.createdAt) }}
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-else :description="t('records.noBookings')" />
+          </section>
+        </div>
+      </template>
+    </el-drawer>
 
     <el-dialog
       v-model="createOpen"
@@ -1013,9 +1302,6 @@ watch(
         <template v-else>
           <el-form-item :label="t('common.title')">
             <el-input v-model="createForm.name" />
-          </el-form-item>
-          <el-form-item label="Slug">
-            <el-input v-model="createForm.slug" />
           </el-form-item>
           <div class="dialog-grid">
             <el-form-item label="Email">
@@ -1167,6 +1453,14 @@ watch(
   overflow-x: auto;
 }
 
+.records-table-card :deep(.partner-clickable-row) {
+  cursor: pointer;
+}
+
+.records-table-card :deep(.partner-clickable-row:hover > td) {
+  background: #f8fafc !important;
+}
+
 .dialog-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1290,6 +1584,80 @@ watch(
   color: #606266;
 }
 
+.partner-cabinet {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.partner-cabinet-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f8fbff, #ffffff);
+}
+
+.partner-cabinet-hero h3 {
+  margin: 6px 0 8px;
+  font-size: 28px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.partner-cabinet-hero p {
+  margin: 0;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.cabinet-eyebrow {
+  color: #2f6bff;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.partner-cabinet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.partner-cabinet-actions .el-button {
+  margin-left: 0;
+}
+
+.cabinet-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.cabinet-stat {
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.cabinet-stat span {
+  display: block;
+  margin-bottom: 8px;
+  color: #6b7280;
+}
+
+.cabinet-stat b {
+  color: #111827;
+  font-size: 24px;
+}
+
+.cabinet-card {
+  display: block;
+}
+
 @media (max-width: 720px) {
   .records-toolbar {
     align-items: flex-start;
@@ -1336,6 +1704,14 @@ watch(
   .record-details,
   .detail-card dl {
     grid-template-columns: 1fr;
+  }
+
+  .cabinet-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .partner-cabinet-hero {
+    flex-direction: column;
   }
 }
 </style>
