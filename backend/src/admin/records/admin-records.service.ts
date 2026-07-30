@@ -133,11 +133,13 @@ export class AdminRecordsService {
 
     await this.prisma.user.create({
       data: {
-        email: dto.email,
+        email: dto.email.trim(),
         passwordHash,
         firstName,
         lastName,
-        phone: dto.phone,
+        phone: dto.phone?.trim() || null,
+        preferredLocale: dto.language ?? Locale.ru,
+        partnerId: dto.partnerId || null,
         role: dto.role ?? 'MANAGER',
         status: dto.status ?? 'ACTIVE',
         translations: {
@@ -167,27 +169,31 @@ export class AdminRecordsService {
       throw new BadRequestException('Slug and name are required');
     }
 
+    const name = dto.name.trim();
+
     await this.prisma.partner.create({
       data: {
-        slug: dto.slug,
+        slug: dto.slug.trim(),
         type: dto.type ?? 'AGENCY',
-        email: dto.email,
-        phone: dto.phone,
-        city: dto.city,
+        email: dto.email?.trim() || null,
+        phone: dto.phone?.trim() || null,
+        city: dto.city?.trim() || null,
+        tin: dto.tin?.trim() || null,
+        preferredLocale: dto.language ?? Locale.ru,
         isActive: dto.isActive ?? true,
         translations: {
           create: [
             {
               locale: Locale.ru,
-              name: dto.name,
+              name,
             },
             {
               locale: Locale.en,
-              name: dto.name,
+              name,
             },
             {
               locale: Locale.uz,
-              name: dto.name,
+              name,
             },
           ],
         },
@@ -211,8 +217,12 @@ export class AdminRecordsService {
       title: user.translations[0]?.displayName ?? `${user.firstName} ${user.lastName}`,
       email: user.email,
       phone: user.phone,
+      firstName: user.firstName,
+      lastName: user.lastName,
       role: user.role,
       status: user.status,
+      language: user.preferredLocale,
+      partnerId: user.partnerId,
       partner: user.partner?.slug ?? null,
       createdAt: user.createdAt,
     }));
@@ -235,6 +245,8 @@ export class AdminRecordsService {
       phone: partner.phone,
       type: partner.type,
       city: partner.city,
+      tin: partner.tin,
+      language: partner.preferredLocale,
       isActive: partner.isActive,
       usersCount: partner.users.length,
       createdAt: partner.createdAt,
@@ -317,11 +329,45 @@ export class AdminRecordsService {
 
   private async updateUser(id: string, dto: AdminRecordUpdateDto) {
     await this.ensureExists(this.prisma.user.count({ where: { id } }));
+
+    const firstName = dto.firstName?.trim();
+    const lastName = dto.lastName?.trim();
+    const displayName = [firstName, lastName].filter(Boolean).join(' ');
+
     await this.prisma.user.update({
       where: { id },
       data: {
+        ...(dto.email !== undefined ? { email: dto.email.trim() } : {}),
+        ...(firstName !== undefined ? { firstName } : {}),
+        ...(lastName !== undefined ? { lastName } : {}),
+        ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
+        ...(dto.language !== undefined ? { preferredLocale: dto.language } : {}),
+        ...(dto.partnerId !== undefined ? { partnerId: dto.partnerId || null } : {}),
         ...(dto.role !== undefined ? { role: dto.role } : {}),
         ...(dto.userStatus !== undefined ? { status: dto.userStatus } : {}),
+        ...(displayName
+          ? {
+              translations: {
+                upsert: [
+                  {
+                    where: { userId_locale: { userId: id, locale: Locale.ru } },
+                    update: { displayName },
+                    create: { locale: Locale.ru, displayName },
+                  },
+                  {
+                    where: { userId_locale: { userId: id, locale: Locale.en } },
+                    update: { displayName },
+                    create: { locale: Locale.en, displayName },
+                  },
+                  {
+                    where: { userId_locale: { userId: id, locale: Locale.uz } },
+                    update: { displayName },
+                    create: { locale: Locale.uz, displayName },
+                  },
+                ],
+              },
+            }
+          : {}),
       },
     });
     return this.list(AdminRecordType.USERS);
@@ -329,10 +375,42 @@ export class AdminRecordsService {
 
   private async updatePartner(id: string, dto: AdminRecordUpdateDto) {
     await this.ensureExists(this.prisma.partner.count({ where: { id } }));
+    const name = dto.name?.trim();
+
     await this.prisma.partner.update({
       where: { id },
       data: {
+        ...(dto.slug !== undefined ? { slug: dto.slug.trim() } : {}),
+        ...(dto.email !== undefined ? { email: dto.email.trim() || null } : {}),
+        ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
+        ...(dto.city !== undefined ? { city: dto.city.trim() || null } : {}),
+        ...(dto.tin !== undefined ? { tin: dto.tin.trim() || null } : {}),
+        ...(dto.language !== undefined ? { preferredLocale: dto.language } : {}),
+        ...(dto.type !== undefined ? { type: dto.type } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(name
+          ? {
+              translations: {
+                upsert: [
+                  {
+                    where: { partnerId_locale: { partnerId: id, locale: Locale.ru } },
+                    update: { name },
+                    create: { locale: Locale.ru, name },
+                  },
+                  {
+                    where: { partnerId_locale: { partnerId: id, locale: Locale.en } },
+                    update: { name },
+                    create: { locale: Locale.en, name },
+                  },
+                  {
+                    where: { partnerId_locale: { partnerId: id, locale: Locale.uz } },
+                    update: { name },
+                    create: { locale: Locale.uz, name },
+                  },
+                ],
+              },
+            }
+          : {}),
       },
     });
     return this.list(AdminRecordType.PARTNERS);

@@ -22,12 +22,14 @@ const archivingId = ref('');
 const bulkProcessing = ref(false);
 const creating = ref(false);
 const createOpen = ref(false);
+const editingTarget = ref<AnyRecord | null>(null);
 const passwordDialogOpen = ref(false);
 const passwordSaving = ref(false);
 const passwordTarget = ref<AnyRecord | null>(null);
 const passwordForm = ref({ password: '' });
 const passwordError = ref('');
 const records = ref<AnyRecord[]>([]);
+const partnerOptions = ref<AnyRecord[]>([]);
 const recordsTableRef = ref();
 const selectedRecords = ref<AnyRecord[]>([]);
 const createForm = ref<Record<string, any>>({});
@@ -68,6 +70,12 @@ const bookingStatusLabels = computed<Record<string, string>>(() => ({
   CONFIRMED: t('enums.bookingStatus.CONFIRMED'),
   CANCELLED: t('enums.bookingStatus.CANCELLED'),
   COMPLETED: t('enums.bookingStatus.COMPLETED'),
+}));
+
+const languageLabels = computed<Record<string, string>>(() => ({
+  ru: t('content.locales.ru'),
+  en: t('content.locales.en'),
+  uz: t('content.locales.uz'),
 }));
 
 const labelFrom = (labels: Record<string, string>, value: unknown) => {
@@ -183,14 +191,17 @@ const incomingRows = (row: AnyRecord) => {
 };
 
 const recordType = computed<RecordType>(() => String(route.meta.recordType ?? 'users') as RecordType);
+const isEditing = computed(() => Boolean(editingTarget.value));
 
 const columns = computed(() => {
   if (recordType.value === 'users') {
     return [
       { prop: 'title', label: t('common.name'), minWidth: 180 },
       { prop: 'email', label: t('common.email'), minWidth: 220 },
+      { prop: 'phone', label: t('common.phone'), minWidth: 150 },
       { prop: 'role', label: t('common.role'), width: 150, format: (value: unknown) => labelFrom(roleLabels.value, value) },
       { prop: 'status', label: t('common.status'), width: 150, format: (value: unknown) => labelFrom(userStatusLabels.value, value) },
+      { prop: 'language', label: t('common.language'), width: 120, format: (value: unknown) => labelFrom(languageLabels.value, value) },
       { prop: 'partner', label: t('common.partner'), minWidth: 180 },
     ];
   }
@@ -202,6 +213,8 @@ const columns = computed(() => {
       { prop: 'phone', label: t('common.phone'), minWidth: 160 },
       { prop: 'type', label: t('common.type'), width: 170, format: (value: unknown) => labelFrom(partnerTypeLabels.value, value) },
       { prop: 'city', label: t('common.city'), width: 140 },
+      { prop: 'tin', label: t('common.tin'), width: 150 },
+      { prop: 'usersCount', label: t('records.usersCount'), width: 130 },
     ];
   }
 
@@ -245,6 +258,17 @@ const loadRecords = async () => {
   }
 };
 
+const loadPartnerOptions = async () => {
+  if (partnerOptions.value.length) {
+    return;
+  }
+
+  const response = await http.get<AnyRecord[]>('/admin/records', {
+    params: { type: 'partners' },
+  });
+  partnerOptions.value = response.data;
+};
+
 const canCreate = computed(() => ['users', 'partners'].includes(recordType.value));
 const canManageUserSecurity = computed(() => recordType.value === 'users' && authStore.user?.role === 'ADMIN');
 const selectedCount = computed(() => selectedRecords.value.length);
@@ -258,8 +282,18 @@ const handleSelectionChange = (rows: AnyRecord[]) => {
   selectedRecords.value = rows;
 };
 
-const openCreate = () => {
+const openCreate = async () => {
   createError.value = '';
+  editingTarget.value = null;
+
+  if (recordType.value === 'users') {
+    try {
+      await loadPartnerOptions();
+    } catch {
+      partnerOptions.value = [];
+    }
+  }
+
   createForm.value =
     recordType.value === 'users'
       ? {
@@ -268,6 +302,8 @@ const openCreate = () => {
           firstName: '',
           lastName: '',
           phone: '',
+          language: 'ru',
+          partnerId: '',
           role: 'MANAGER',
           status: 'ACTIVE',
         }
@@ -277,29 +313,99 @@ const openCreate = () => {
           email: '',
           phone: '',
           city: '',
+          tin: '',
+          language: 'ru',
           type: 'AGENCY',
           isActive: true,
         };
   createOpen.value = true;
 };
 
-const createRecord = async () => {
+const openEdit = async (row: AnyRecord) => {
+  createError.value = '';
+  editingTarget.value = row;
+
+  if (recordType.value === 'users') {
+    try {
+      await loadPartnerOptions();
+    } catch {
+      partnerOptions.value = [];
+    }
+  }
+
+  createForm.value =
+    recordType.value === 'users'
+      ? {
+          email: row.email ?? '',
+          firstName: row.firstName ?? '',
+          lastName: row.lastName ?? '',
+          phone: row.phone ?? '',
+          language: row.language ?? 'ru',
+          partnerId: row.partnerId ?? '',
+          role: row.role ?? 'MANAGER',
+          status: row.status ?? 'ACTIVE',
+        }
+      : {
+          slug: row.slug ?? '',
+          name: row.title ?? '',
+          email: row.email ?? '',
+          phone: row.phone ?? '',
+          city: row.city ?? '',
+          tin: row.tin ?? '',
+          language: row.language ?? 'ru',
+          type: row.type ?? 'AGENCY',
+          isActive: row.isActive ?? true,
+        };
+  createOpen.value = true;
+};
+
+const buildFormPayload = () => {
+  if (recordType.value === 'users') {
+    return isEditing.value
+      ? {
+          email: createForm.value.email,
+          firstName: createForm.value.firstName,
+          lastName: createForm.value.lastName,
+          phone: createForm.value.phone,
+          language: createForm.value.language,
+          partnerId: createForm.value.partnerId || '',
+          role: createForm.value.role,
+          userStatus: createForm.value.status,
+        }
+      : createForm.value;
+  }
+
+  return createForm.value;
+};
+
+const saveRecord = async () => {
   createError.value = '';
 
-  if (recordType.value === 'users' && String(createForm.value.password ?? '').length < 8) {
+  if (!isEditing.value && recordType.value === 'users' && String(createForm.value.password ?? '').length < 8) {
     createError.value = t('records.passwordTooShort');
     ElMessage.warning(createError.value);
     return;
   }
 
+  const wasEditing = isEditing.value;
+  const targetId = editingTarget.value?.id;
   creating.value = true;
   try {
-    const response = await http.post<AnyRecord[]>(`/admin/records/${recordType.value}`, createForm.value);
+    const response = wasEditing && targetId
+      ? await http.patch<AnyRecord[]>(
+          `/admin/records/${recordType.value}/${targetId}`,
+          buildFormPayload(),
+        )
+      : await http.post<AnyRecord[]>(`/admin/records/${recordType.value}`, buildFormPayload());
     records.value = response.data;
+    if (recordType.value === 'partners') {
+      partnerOptions.value = [];
+    }
     createOpen.value = false;
-    ElMessage.success(t('records.created'));
+    editingTarget.value = null;
+    ElMessage.success(wasEditing ? t('common.saved') : t('records.created'));
   } catch (error: any) {
-    createError.value = getApiErrorMessage(error, t('records.createFailed'));
+    createError.value = getApiErrorMessage(error, wasEditing ? t('records.saveFailed') : t('records.createFailed'));
     ElMessage.error({
       message: createError.value,
       duration: 6000,
@@ -735,6 +841,15 @@ watch(
         <el-table-column :label="t('common.management')" width="300">
           <template #default="{ row }">
             <div class="record-row-actions">
+              <el-button
+                v-if="recordType === 'users' || recordType === 'partners'"
+                type="primary"
+                plain
+                size="small"
+                @click="openEdit(row)"
+              >
+                {{ t('common.edit') }}
+              </el-button>
               <el-select
                 v-if="recordType === 'users'"
                 :model-value="row.status"
@@ -815,7 +930,10 @@ watch(
     <el-dialog
       v-model="createOpen"
       width="min(560px, calc(100vw - 24px))"
-      :title="recordType === 'users' ? t('records.createUser') : t('records.createPartner')"
+      :title="recordType === 'users'
+        ? (isEditing ? t('records.editUser') : t('records.createUser'))
+        : (isEditing ? t('records.editPartner') : t('records.createPartner'))"
+      @closed="editingTarget = null"
     >
       <el-form label-position="top">
         <el-alert
@@ -831,7 +949,7 @@ watch(
           <el-form-item label="Email">
             <el-input v-model="createForm.email" />
           </el-form-item>
-          <el-form-item :label="t('login.password')">
+          <el-form-item v-if="!isEditing" :label="t('login.password')">
             <el-input v-model="createForm.password" type="password" show-password />
           </el-form-item>
           <div class="dialog-grid">
@@ -845,6 +963,34 @@ watch(
           <el-form-item :label="t('common.phone')">
             <el-input v-model="createForm.phone" />
           </el-form-item>
+          <div class="dialog-grid">
+            <el-form-item :label="t('common.language')">
+              <el-select v-model="createForm.language">
+                <el-option
+                  v-for="(label, code) in languageLabels"
+                  :key="code"
+                  :label="label"
+                  :value="code"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="t('common.partner')">
+              <el-select
+                v-model="createForm.partnerId"
+                clearable
+                filterable
+                :placeholder="t('records.noPartner')"
+              >
+                <el-option :label="t('records.noPartner')" value="" />
+                <el-option
+                  v-for="partner in partnerOptions"
+                  :key="partner.id"
+                  :label="partner.title"
+                  :value="partner.id"
+                />
+              </el-select>
+            </el-form-item>
+          </div>
           <div class="dialog-grid">
             <el-form-item :label="t('common.role')">
               <el-select v-model="createForm.role">
@@ -883,6 +1029,21 @@ watch(
             <el-form-item :label="t('common.city')">
               <el-input v-model="createForm.city" />
             </el-form-item>
+            <el-form-item :label="t('common.tin')">
+              <el-input v-model="createForm.tin" />
+            </el-form-item>
+          </div>
+          <div class="dialog-grid">
+            <el-form-item :label="t('common.language')">
+              <el-select v-model="createForm.language">
+                <el-option
+                  v-for="(label, code) in languageLabels"
+                  :key="code"
+                  :label="label"
+                  :value="code"
+                />
+              </el-select>
+            </el-form-item>
             <el-form-item :label="t('common.type')">
               <el-select v-model="createForm.type">
                 <el-option :label="partnerTypeLabels.AGENCY" value="AGENCY" />
@@ -901,7 +1062,9 @@ watch(
 
       <template #footer>
         <el-button @click="createOpen = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="creating" @click="createRecord">{{ t('common.create') }}</el-button>
+        <el-button type="primary" :loading="creating" @click="saveRecord">
+          {{ isEditing ? t('common.save') : t('common.create') }}
+        </el-button>
       </template>
     </el-dialog>
 

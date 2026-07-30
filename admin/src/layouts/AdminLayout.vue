@@ -68,6 +68,10 @@ const getMenuBadge = (routeName: string) => {
     return dashboardStore.data?.stats.pendingBookings ?? 0;
   }
 
+  if (routeName === 'partners') {
+    return dashboardStore.data?.stats.pendingPartners ?? 0;
+  }
+
   return 0;
 };
 

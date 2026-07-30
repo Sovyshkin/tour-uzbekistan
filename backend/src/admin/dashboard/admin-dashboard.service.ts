@@ -17,6 +17,7 @@ export class AdminDashboardService {
       bookings,
       newLeads,
       pendingBookings,
+      pendingPartners,
       recentLeads,
       recentBookings,
     ] =
@@ -30,6 +31,7 @@ export class AdminDashboardService {
         this.prisma.booking.count(),
         this.prisma.lead.count({ where: { status: 'NEW' } }),
         this.prisma.booking.count({ where: { status: 'PENDING' } }),
+        this.prisma.user.count({ where: { role: 'PARTNER', status: 'PENDING' } }),
         this.prisma.lead.findMany({
           orderBy: { createdAt: 'desc' },
           take: 5,
@@ -79,6 +81,7 @@ export class AdminDashboardService {
         bookings,
         newLeads,
         pendingBookings,
+        pendingPartners,
       },
       recentLeads: recentLeads.map((lead) => ({
         ...lead,

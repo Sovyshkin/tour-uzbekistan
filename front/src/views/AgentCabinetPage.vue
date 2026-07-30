@@ -321,18 +321,18 @@ onMounted(loadBookings);
 
 <style scoped>
 .agent-cabinet {
-  background: #f5f7fb;
+  background: #fff;
   min-height: 70vh;
-  padding: 28px 0 76px;
+  padding: 64px 0 92px;
   font-family: 'Aeonik Pro', sans-serif;
 }
 
 .cabinet-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 28px;
   align-items: stretch;
-  margin-bottom: 18px;
+  margin-bottom: 28px;
 }
 
 .hero-copy,
@@ -341,52 +341,56 @@ onMounted(loadBookings);
 .summary-card,
 .latest-panel,
 .history-section {
-  border: 1px solid #e1e6ef;
-  border-radius: 8px;
+  border: 1px solid #d9d9df;
+  border-radius: 18px;
   background: #fff;
 }
 
 .hero-copy {
-  padding: clamp(24px, 4vw, 42px);
-  background:
-    linear-gradient(135deg, rgba(40, 90, 255, 0.1), transparent 42%),
-    #fff;
+  display: flex;
+  min-height: 260px;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(28px, 4vw, 56px);
 }
 
 .cabinet-kicker {
-  margin: 0 0 10px;
+  margin: 0 0 18px;
   color: #285aff;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .hero-copy h1 {
-  max-width: 760px;
+  max-width: 680px;
   margin: 0;
-  color: #070914;
-  font-size: clamp(36px, 5vw, 64px);
-  line-height: 0.96;
-  font-weight: 700;
+  color: #050505;
+  font-size: clamp(36px, 5vw, 58px);
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .hero-copy p:last-child {
-  max-width: 650px;
-  margin: 16px 0 0;
-  color: #616979;
-  font-size: 17px;
-  line-height: 1.45;
+  max-width: 620px;
+  margin: 22px 0 0;
+  color: #67676d;
+  font-size: 20px;
+  line-height: 1.4;
 }
 
 .account-card {
-  padding: 28px;
-  border-color: #ffe0f5;
-  background: linear-gradient(160deg, #fff 0%, #fff5fc 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 34px;
 }
 
 .account-card.approved {
-  border-color: #ccf2db;
-  background: linear-gradient(160deg, #fff 0%, #f0fff6 100%);
+  border-color: #d9d9df;
+  background: #fff;
 }
 
 .account-card span,
@@ -397,45 +401,47 @@ onMounted(loadBookings);
 .booking-cell span,
 .detail-grid span {
   display: block;
-  color: #687184;
-  font-size: 13px;
+  color: #7a7a80;
+  font-size: 14px;
 }
 
 .account-card strong {
   display: block;
-  margin-top: 14px;
-  color: #090b14;
-  font-size: 28px;
+  margin-top: 18px;
+  color: #050505;
+  font-size: 32px;
   line-height: 1.1;
+  font-weight: 500;
 }
 
 .account-card p {
-  margin: 14px 0 0;
-  color: #586173;
-  line-height: 1.5;
+  margin: 18px 0 0;
+  color: #5f5f66;
+  font-size: 17px;
+  line-height: 1.45;
 }
 
 .quick-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 18px;
+  margin-bottom: 26px;
 }
 
 .quick-card {
   display: block;
-  min-height: 106px;
-  padding: 20px;
+  min-height: 118px;
+  padding: 24px 26px;
   color: inherit;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
-  transition: 0.2s ease;
+  transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
 .quick-card:hover {
-  transform: translateY(-2px);
-  border-color: #285aff;
+  transform: translateY(-1px);
+  border-color: #050505;
 }
 
 .quick-card:disabled {
@@ -445,15 +451,16 @@ onMounted(loadBookings);
 
 .quick-card strong {
   display: block;
-  margin-top: 12px;
-  color: #101522;
-  font-size: 19px;
-  line-height: 1.25;
+  margin-top: 14px;
+  color: #050505;
+  font-size: 24px;
+  line-height: 1.15;
+  font-weight: 500;
 }
 
 .quick-card-primary {
-  border-color: #285aff;
-  background: #285aff;
+  border-color: #ff00e7;
+  background: #ff00e7;
 }
 
 .quick-card-primary span,
@@ -464,26 +471,29 @@ onMounted(loadBookings);
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 18px;
+  margin-bottom: 26px;
 }
 
 .summary-card {
-  min-height: 118px;
-  padding: 18px;
+  min-height: 108px;
+  padding: 20px 22px;
+  position: relative;
+  overflow: hidden;
 }
 
 .summary-card strong {
   display: block;
-  margin-top: 18px;
-  color: #090b14;
-  font-size: 38px;
+  margin-top: 20px;
+  color: #050505;
+  font-size: 42px;
   line-height: 1;
+  font-weight: 500;
 }
 
 .summary-total {
-  background: #090b14;
-  border-color: #090b14;
+  background: #050505;
+  border-color: #050505;
 }
 
 .summary-total span,
@@ -496,20 +506,21 @@ onMounted(loadBookings);
   justify-content: space-between;
   gap: 16px;
   align-items: center;
-  margin-bottom: 18px;
-  padding: 20px 24px;
+  margin-bottom: 26px;
+  padding: 24px 28px;
 }
 
 .latest-panel strong {
   display: block;
   margin-top: 8px;
-  color: #101522;
+  color: #050505;
   font-size: 24px;
+  font-weight: 500;
 }
 
 .latest-panel p {
   margin: 6px 0 0;
-  color: #626b7e;
+  color: #666;
 }
 
 .history-section {
@@ -521,35 +532,38 @@ onMounted(loadBookings);
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 22px 24px;
-  border-bottom: 1px solid #e6ebf3;
+  padding: 28px 32px;
+  border-bottom: 1px solid #e2e2e7;
 }
 
 .history-title-row h2 {
   margin: 0;
-  color: #0d1220;
-  font-size: 24px;
+  color: #050505;
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1.1;
 }
 
 .history-title-row p {
-  margin: 6px 0 0;
-  color: #687184;
+  margin: 10px 0 0;
+  color: #666;
+  font-size: 17px;
 }
 
 .refresh-btn {
-  border: 1px solid #cdd5e4;
+  border: 1px solid #050505;
   background: #fff;
-  border-radius: 8px;
-  padding: 12px 18px;
-  color: #101522;
+  border-radius: 10px;
+  padding: 13px 24px;
+  color: #050505;
   font-size: 15px;
   cursor: pointer;
   transition: 0.2s ease;
 }
 
 .refresh-btn:hover {
-  border-color: #285aff;
-  color: #285aff;
+  background: #050505;
+  color: #fff;
 }
 
 .state-panel {
@@ -564,13 +578,15 @@ onMounted(loadBookings);
 
 .state-panel.empty h3 {
   margin: 0 0 8px;
-  font-size: 24px;
+  color: #050505;
+  font-size: 26px;
+  font-weight: 500;
 }
 
 .state-panel.empty p {
   max-width: 520px;
   margin: 0;
-  color: #687184;
+  color: #666;
 }
 
 .loader {
@@ -588,7 +604,7 @@ onMounted(loadBookings);
 }
 
 .booking-card + .booking-card {
-  border-top: 1px solid #e6ebf3;
+  border-top: 1px solid #e2e2e7;
 }
 
 .booking-main {
@@ -599,20 +615,21 @@ onMounted(loadBookings);
   align-items: center;
   border: 0;
   background: #fff;
-  padding: 18px 24px;
+  padding: 22px 32px;
   text-align: left;
   cursor: pointer;
 }
 
 .booking-main:hover {
-  background: #f8faff;
+  background: #fafafa;
 }
 
 .booking-number strong,
 .booking-cell strong,
 .detail-grid strong {
-  color: #111522;
-  font-size: 15px;
+  color: #050505;
+  font-size: 16px;
+  font-weight: 500;
 }
 
 .booking-cell small {
@@ -628,51 +645,46 @@ onMounted(loadBookings);
   align-items: center;
   width: fit-content;
   min-height: 28px;
-  border-radius: 999px;
-  padding: 4px 10px;
+  border-radius: 10px;
+  padding: 5px 11px;
   font-size: 13px;
+  border: 1px solid currentColor;
+  background: #fff;
 }
 
 .status-pending.status-pill,
 .status-pending.summary-card {
-  background: #fff7e8;
   color: #9c6500;
   border-color: #ffe2a8;
 }
 
 .status-confirmed.status-pill,
 .status-confirmed.summary-card {
-  background: #ecfdf3;
   color: #087443;
   border-color: #c7f5d8;
 }
 
 .status-completed.status-pill,
 .status-completed.summary-card {
-  background: #eef4ff;
   color: #285aff;
   border-color: #d6e3ff;
 }
 
 .status-cancelled.status-pill,
 .status-cancelled.summary-card {
-  background: #fff0f0;
   color: #c82727;
   border-color: #ffd0d0;
 }
 
 .incoming-sent {
-  background: #ecfdf3;
   color: #087443;
 }
 
 .incoming-warning {
-  background: #fff7e8;
   color: #9c6500;
 }
 
 .incoming-muted {
-  background: #eef1f6;
   color: #6e7788;
 }
 
@@ -686,8 +698,8 @@ onMounted(loadBookings);
 }
 
 .booking-details {
-  padding: 0 24px 24px;
-  background: #fbfcff;
+  padding: 0 32px 32px;
+  background: #fff;
 }
 
 .detail-grid {
@@ -699,10 +711,10 @@ onMounted(loadBookings);
 
 .detail-grid > div,
 .detail-block {
-  border: 1px solid #e2e8f2;
-  border-radius: 8px;
+  border: 1px solid #e2e2e7;
+  border-radius: 14px;
   background: #fff;
-  padding: 16px;
+  padding: 18px;
 }
 
 .detail-block {
@@ -711,13 +723,14 @@ onMounted(loadBookings);
 
 .detail-block h3 {
   margin: 0 0 12px;
-  color: #111522;
-  font-size: 16px;
+  color: #050505;
+  font-size: 18px;
+  font-weight: 500;
 }
 
 .detail-block p {
   margin: 0;
-  color: #485064;
+  color: #555;
   line-height: 1.55;
 }
 
@@ -728,7 +741,7 @@ onMounted(loadBookings);
 }
 
 .incoming-block {
-  border-color: #dce6ff;
+  border-color: #d9d9df;
 }
 
 .service-tags {
@@ -738,10 +751,10 @@ onMounted(loadBookings);
 }
 
 .service-tags span {
-  border: 1px solid #d8e0ee;
-  border-radius: 999px;
+  border: 1px solid #d9d9df;
+  border-radius: 10px;
   padding: 7px 10px;
-  color: #283044;
+  color: #050505;
   font-size: 13px;
 }
 
@@ -761,7 +774,7 @@ onMounted(loadBookings);
 }
 
 .program-list li > span {
-  color: #285aff;
+  color: #050505;
   font-size: 20px;
   font-weight: 700;
 }
@@ -799,11 +812,26 @@ onMounted(loadBookings);
 
 @media (max-width: 720px) {
   .agent-cabinet {
-    padding-top: 16px;
+    padding: 28px 0 64px;
   }
 
   .hero-copy h1 {
-    font-size: 38px;
+    font-size: 34px;
+  }
+
+  .hero-copy p:last-child,
+  .history-title-row p,
+  .account-card p {
+    font-size: 15px;
+  }
+
+  .account-card strong,
+  .history-title-row h2 {
+    font-size: 26px;
+  }
+
+  .quick-card strong {
+    font-size: 20px;
   }
 
   .summary-grid,
@@ -824,7 +852,7 @@ onMounted(loadBookings);
   .booking-main {
     grid-template-columns: 1fr 20px;
     gap: 12px;
-    padding: 16px;
+    padding: 18px;
   }
 
   .booking-number,
@@ -839,7 +867,7 @@ onMounted(loadBookings);
   }
 
   .booking-details {
-    padding: 0 16px 18px;
+    padding: 0 18px 22px;
   }
 }
 </style>

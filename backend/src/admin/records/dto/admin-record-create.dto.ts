@@ -7,7 +7,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { PartnerType, UserRole, UserStatus } from '@prisma/client';
+import { Locale, PartnerType, UserRole, UserStatus } from '@prisma/client';
 
 export class AdminRecordCreateDto {
   @ApiPropertyOptional()
@@ -41,6 +41,16 @@ export class AdminRecordCreateDto {
   @IsString()
   phone?: string;
 
+  @ApiPropertyOptional({ enum: Locale })
+  @IsOptional()
+  @IsEnum(Locale)
+  language?: Locale;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  partnerId?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -70,4 +80,9 @@ export class AdminRecordCreateDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  tin?: string;
 }

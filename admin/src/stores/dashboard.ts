@@ -14,6 +14,7 @@ type DashboardResponse = {
     bookings: number;
     newLeads: number;
     pendingBookings: number;
+    pendingPartners: number;
   };
   recentLeads: Array<{
     id: string;

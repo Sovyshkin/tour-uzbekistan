@@ -27,6 +27,9 @@ class AdminDashboardStatsDto {
 
   @ApiProperty()
   pendingBookings!: number;
+
+  @ApiProperty()
+  pendingPartners!: number;
 }
 
 class AdminDashboardLeadDto {
