@@ -362,6 +362,7 @@ export class BookingsService {
     return {
       ...safeResult,
       rawResponse: result.rawResponse?.slice(0, 2000),
+      checkedAt: new Date().toISOString(),
     };
   }
 

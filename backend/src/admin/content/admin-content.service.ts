@@ -102,7 +102,7 @@ const normalizeImageSettings = (value: unknown): Prisma.InputJsonValue | undefin
     positionX: Number.isFinite(positionX) ? Math.min(100, Math.max(0, positionX)) : 50,
     positionY: Number.isFinite(positionY) ? Math.min(100, Math.max(0, positionY)) : 50,
     scale: Number.isFinite(scale) ? Math.min(300, Math.max(100, scale)) : 100,
-    frameSize: Number.isFinite(frameSize) ? Math.min(95, Math.max(30, frameSize)) : 72,
+    frameSize: Number.isFinite(frameSize) ? Math.min(100, Math.max(30, frameSize)) : 100,
   };
 };
 

@@ -121,6 +121,67 @@ const snapshotProgram = (row: AnyRecord) => {
   return Array.isArray(program) ? program : [];
 };
 
+const readIncoming = (row: AnyRecord) => {
+  const incoming = row.incoming;
+  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
+    return null;
+  }
+
+  return incoming as Record<string, any>;
+};
+
+const incomingState = (row: AnyRecord) => {
+  const incoming = readIncoming(row);
+
+  if (!incoming) {
+    return {
+      type: 'info' as const,
+      label: t('records.incomingNoData'),
+      description: t('records.incomingNoDataHint'),
+    };
+  }
+
+  if (incoming.sent === true) {
+    return {
+      type: 'success' as const,
+      label: t('records.incomingSent'),
+      description: incoming.message || incoming.comment || t('records.incomingSentHint'),
+    };
+  }
+
+  if (incoming.enabled === false || incoming.skippedReason) {
+    return {
+      type: 'warning' as const,
+      label: t('records.incomingSkipped'),
+      description: incoming.skippedReason || t('records.incomingDisabledHint'),
+    };
+  }
+
+  return {
+    type: 'danger' as const,
+    label: t('records.incomingFailed'),
+    description: incoming.message || incoming.comment || t('records.incomingFailedHint'),
+  };
+};
+
+const incomingRows = (row: AnyRecord) => {
+  const incoming = readIncoming(row);
+  if (!incoming) {
+    return [];
+  }
+
+  return [
+    { label: t('records.incomingEnabled'), value: incoming.enabled === true ? t('common.yes') : t('common.no') },
+    { label: t('records.incomingSentField'), value: incoming.sent === true ? t('common.yes') : t('common.no') },
+    { label: t('records.incomingClaim'), value: incoming.claimNumber },
+    { label: t('records.incomingConfirmStatus'), value: incoming.confirmStatus },
+    { label: t('records.incomingResult'), value: incoming.result },
+    { label: t('records.incomingCheckedAt'), value: incoming.checkedAt ? formatDateTime(incoming.checkedAt) : null },
+    { label: t('records.incomingReason'), value: incoming.skippedReason },
+    { label: t('records.incomingMessage'), value: incoming.message || incoming.comment },
+  ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+};
+
 const recordType = computed<RecordType>(() => String(route.meta.recordType ?? 'users') as RecordType);
 
 const columns = computed(() => {
@@ -151,6 +212,7 @@ const columns = computed(() => {
       { prop: 'phone', label: t('common.phone'), minWidth: 160 },
       { prop: 'audience', label: t('common.audience'), width: 110 },
       { prop: 'status', label: t('common.status'), width: 150, format: (value: unknown) => labelFrom(leadStatusLabels.value, value) },
+      { prop: 'incoming', label: t('records.incoming'), width: 170 },
       { prop: 'sourcePagePath', label: t('records.sourcePage'), minWidth: 220, format: (_value: unknown, row: AnyRecord) => formatSourcePage(row) },
       { prop: 'tour', label: t('common.tour'), minWidth: 180 },
     ];
@@ -162,6 +224,7 @@ const columns = computed(() => {
     { prop: 'email', label: t('common.email'), minWidth: 220 },
     { prop: 'audience', label: t('common.audience'), width: 110 },
     { prop: 'status', label: t('common.status'), width: 150, format: (value: unknown) => labelFrom(bookingStatusLabels.value, value) },
+    { prop: 'incoming', label: t('records.incoming'), width: 170 },
     { prop: 'tour', label: t('common.tour'), minWidth: 180 },
     { prop: 'sourcePagePath', label: t('records.sourcePage'), minWidth: 220 },
     { prop: 'totalPrice', label: t('common.price'), width: 120 },
@@ -550,6 +613,26 @@ watch(
                 </dl>
               </div>
 
+              <div class="detail-card">
+                <h3>{{ t('records.incomingTitle') }}</h3>
+                <div class="incoming-status-row">
+                  <el-tag :type="incomingState(row).type">
+                    {{ incomingState(row).label }}
+                  </el-tag>
+                  <span>{{ incomingState(row).description }}</span>
+                </div>
+                <dl v-if="incomingRows(row).length">
+                  <div v-for="item in incomingRows(row)" :key="item.label">
+                    <dt>{{ item.label }}</dt>
+                    <dd>{{ displayValue(item.value) }}</dd>
+                  </div>
+                </dl>
+                <div v-if="readIncoming(row)?.rawResponse" class="detail-message">
+                  <span>{{ t('records.incomingRawResponse') }}</span>
+                  <p>{{ readIncoming(row)?.rawResponse }}</p>
+                </div>
+              </div>
+
               <div v-if="recordType === 'leads'" class="detail-card">
                 <h3>{{ t('records.b2cRequest') }}</h3>
                 <dl>
@@ -641,7 +724,12 @@ watch(
           :width="column.width"
         >
           <template #default="{ row }">
-            {{ column.format ? column.format(row[column.prop], row) : displayValue(row[column.prop]) }}
+            <el-tag v-if="column.prop === 'incoming'" :type="incomingState(row).type">
+              {{ incomingState(row).label }}
+            </el-tag>
+            <template v-else>
+              {{ column.format ? column.format(row[column.prop], row) : displayValue(row[column.prop]) }}
+            </template>
           </template>
         </el-table-column>
         <el-table-column :label="t('common.management')" width="300">
@@ -1005,6 +1093,20 @@ watch(
   color: #303133;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+
+.incoming-status-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  color: #606266;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.incoming-status-row .el-tag {
+  flex-shrink: 0;
 }
 
 .detail-tags {

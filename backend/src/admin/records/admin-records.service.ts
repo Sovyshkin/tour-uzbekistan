@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, LeadStatus, Locale, UserRole, UserStatus } from '@prisma/client';
+import { BookingStatus, LeadStatus, Locale, Prisma, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../../prisma/prisma.service';
@@ -262,6 +262,7 @@ export class AdminRecordsService {
       type: lead.type,
       sourcePagePath: lead.sourcePagePath,
       sourcePageTitle: lead.sourcePageTitle,
+      incoming: this.readIntegration(lead.metadata),
       message: lead.translations[0]?.message ?? null,
       countryId: lead.countryId,
       tourId: lead.tourId,
@@ -299,6 +300,7 @@ export class AdminRecordsService {
       sourcePagePath: booking.sourcePagePath,
       specialRequests: booking.translations[0]?.specialRequests ?? null,
       snapshot: booking.includedServicesSnapshot,
+      incoming: this.readIntegration(booking.metadata),
       countryId: booking.countryId,
       tourId: booking.tourId,
       partnerId: booking.partnerId,
@@ -366,5 +368,17 @@ export class AdminRecordsService {
     if (actor.role !== UserRole.ADMIN) {
       throw new ForbiddenException('Super admin access only');
     }
+  }
+
+  private readIntegration(value: Prisma.JsonValue | null | undefined) {
+    if (!this.isPlainObject(value) || !this.isPlainObject(value.samoIncoming)) {
+      return null;
+    }
+
+    return value.samoIncoming;
+  }
+
+  private isPlainObject(value: unknown): value is Record<string, Prisma.JsonValue> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
   }
 }

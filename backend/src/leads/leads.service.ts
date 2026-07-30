@@ -3,6 +3,11 @@ import { AudienceType, ContentStatus, LeadType, Locale, Prisma } from '@prisma/c
 import { Request } from 'express';
 
 import { AdminAuditService } from '../admin/audit/admin-audit.service';
+import {
+  SamoClaimPayload,
+  SamoIncomingResult,
+  SamoIncomingService,
+} from '../integrations/samo-incoming/samo-incoming.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLeadDto } from './dto/create-lead.dto';
 
@@ -11,6 +16,7 @@ export class LeadsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly adminAuditService: AdminAuditService,
+    private readonly samoIncomingService: SamoIncomingService,
   ) {}
 
   async createLead(dto: CreateLeadDto, request?: Request) {
@@ -47,21 +53,41 @@ export class LeadsService {
       },
     });
 
+    const samoResult = await this.samoIncomingService.sendBooking(
+      this.buildSamoClaimPayload(lead, dto),
+    );
+
+    const leadWithIntegration = await this.prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        metadata: {
+          ...(this.isPlainObject(lead.metadata) ? lead.metadata : {}),
+          samoIncoming: this.toSafeSamoMetadata(samoResult),
+        } as Prisma.InputJsonValue,
+      },
+      include: {
+        country: { include: { translations: { where: { locale: dto.language }, take: 1 } } },
+        tour: { include: { translations: { where: { locale: dto.language }, take: 1 } } },
+        service: { include: { translations: { where: { locale: dto.language }, take: 1 } } },
+        translations: { where: { locale: dto.language }, take: 1 },
+      },
+    });
+
     await this.adminAuditService.log({
       request,
       action: 'CREATE',
       entityType: 'record:leads',
-      entityId: lead.id,
-      entityTitle: lead.name,
-      metadata: this.buildLeadAuditMetadata(lead, dto),
+      entityId: leadWithIntegration.id,
+      entityTitle: leadWithIntegration.name,
+      metadata: this.buildLeadAuditMetadata(leadWithIntegration, dto, samoResult),
     });
 
     return {
-      id: lead.id,
-      type: lead.type,
-      status: lead.status,
-      language: lead.locale,
-      createdAt: lead.createdAt.toISOString(),
+      id: leadWithIntegration.id,
+      type: leadWithIntegration.type,
+      status: leadWithIntegration.status,
+      language: leadWithIntegration.locale,
+      createdAt: leadWithIntegration.createdAt.toISOString(),
     };
   }
 
@@ -135,6 +161,7 @@ export class LeadsService {
       };
     }>,
     dto: CreateLeadDto,
+    samoResult?: SamoIncomingResult,
   ) {
     return {
       lead: {
@@ -177,6 +204,67 @@ export class LeadsService {
             title: lead.country.translations[0]?.name ?? null,
           }
         : null,
+      samoIncoming: samoResult ? this.toSafeSamoMetadata(samoResult) : undefined,
     };
+  }
+
+  private buildSamoClaimPayload(
+    lead: Prisma.LeadGetPayload<{
+      include: {
+        country: { include: { translations: { where: { locale: Locale }; take: 1 } } };
+        tour: { include: { translations: { where: { locale: Locale }; take: 1 } } };
+        service: { include: { translations: { where: { locale: Locale }; take: 1 } } };
+        translations: { where: { locale: Locale }; take: 1 };
+      };
+    }>,
+    dto: CreateLeadDto,
+  ): SamoClaimPayload {
+    const [firstName, ...lastNameParts] = lead.name.trim().split(/\s+/);
+    const tourTitle =
+      lead.tour?.translations[0]?.title ??
+      lead.service?.translations[0]?.name ??
+      lead.country?.translations[0]?.name ??
+      lead.sourcePageTitle ??
+      'B2C website lead';
+
+    return {
+      bookingId: lead.id,
+      bookingNumber: `LD-${lead.createdAt.getTime()}`,
+      createdAt: lead.createdAt,
+      groupSize: 1,
+      specialRequests: lead.translations[0]?.message ?? dto.message,
+      person: {
+        firstName: firstName || lead.name,
+        lastName: lastNameParts.join(' ') || 'Tourist',
+      },
+      tour: {
+        title: tourTitle,
+        durationDays: lead.tour?.durationDays ?? 1,
+        transport: lead.tour?.translations[0]?.transportInfo ?? null,
+        hotels: lead.tour?.translations[0]?.hotelsInfo ?? null,
+        includedServices: this.readStringArray(lead.tour?.translations[0]?.included),
+      },
+    };
+  }
+
+  private readStringArray(value: Prisma.JsonValue | null | undefined) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  private toSafeSamoMetadata(result: SamoIncomingResult) {
+    const { requestXml: _requestXml, ...safeResult } = result;
+    return {
+      ...safeResult,
+      rawResponse: result.rawResponse?.slice(0, 2000),
+      checkedAt: new Date().toISOString(),
+    };
+  }
+
+  private isPlainObject(value: unknown): value is Record<string, Prisma.JsonValue> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
   }
 }

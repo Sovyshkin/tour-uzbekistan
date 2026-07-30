@@ -248,27 +248,34 @@ export function normalizeImageSettings(settings) {
   }
 
   if (!source || typeof source !== 'object') {
-    return { positionX: 50, positionY: 50, scale: 100 };
+    return { positionX: 50, positionY: 50, scale: 100, frameSize: 100, hasFrameSize: false };
   }
+
+  const hasFrameSize = Object.prototype.hasOwnProperty.call(source, 'frameSize');
 
   return {
     positionX: normalizeRange(source.positionX, 50, 0, 100),
     positionY: normalizeRange(source.positionY, 50, 0, 100),
     scale: normalizeRange(source.scale, 100, 100, 300),
+    frameSize: normalizeRange(source.frameSize, 100, 30, 100),
+    hasFrameSize,
   };
 }
 
 export function imageObjectStyle(settings) {
   const normalized = normalizeImageSettings(settings);
+  const frameZoom = 100 / normalized.frameSize;
+  const useContain = normalized.hasFrameSize && normalized.frameSize >= 100;
+  const effectiveScale = useContain ? normalized.scale / 100 : (normalized.scale / 100) * frameZoom;
 
   return {
     width: '100%',
     height: '100%',
     maxWidth: 'none',
     display: 'block',
-    objectFit: 'cover',
+    objectFit: useContain ? 'contain' : 'cover',
     objectPosition: `${normalized.positionX}% ${normalized.positionY}%`,
-    transform: `scale(${normalized.scale / 100})`,
+    transform: `scale(${effectiveScale})`,
     transformOrigin: `${normalized.positionX}% ${normalized.positionY}%`,
     willChange: 'transform, object-position',
   };
@@ -280,11 +287,18 @@ export function backgroundImageStyle(imageUrl, settings) {
   }
 
   const normalized = normalizeImageSettings(settings);
+  const frameZoom = 100 / normalized.frameSize;
+  const useContain = normalized.hasFrameSize && normalized.frameSize >= 100;
+  const effectiveScale = Math.round(useContain ? normalized.scale : normalized.scale * frameZoom);
 
   return {
     backgroundImage: `url(${imageUrl})`,
     backgroundPosition: `${normalized.positionX}% ${normalized.positionY}%`,
-    backgroundSize: normalized.scale === 100 ? 'cover' : `${normalized.scale}% auto`,
+    backgroundSize: useContain && effectiveScale === 100
+      ? 'contain'
+      : effectiveScale === 100
+        ? 'cover'
+        : `${effectiveScale}% auto`,
   };
 }
 

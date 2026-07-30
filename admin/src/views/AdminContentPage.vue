@@ -446,7 +446,7 @@ const defaultImageSettings = (): ImageTransformSettings => ({
   positionX: 50,
   positionY: 50,
   scale: 100,
-  frameSize: 72,
+  frameSize: 100,
 });
 
 const normalizeImageSettings = (value: unknown): ImageTransformSettings => {
@@ -478,7 +478,7 @@ const normalizeImageSettings = (value: unknown): ImageTransformSettings => {
     positionX: normalizeRange(source.positionX, 50, 0, 100),
     positionY: normalizeRange(source.positionY, 50, 0, 100),
     scale: normalizeRange(source.scale, 100, 100, 300),
-    frameSize: normalizeRange(source.frameSize, 72, 30, 95),
+    frameSize: normalizeRange(source.frameSize, 100, 30, 100),
   };
 };
 
@@ -492,13 +492,17 @@ const ensureImageSettings = (fieldKey: ImageFieldKey) => {
 
 const imageTransformStyle = (settings?: ImageTransformSettings | null): CSSProperties => {
   const normalized = normalizeImageSettings(settings);
+  const frameZoom = 100 / normalized.frameSize;
+  const useContain = normalized.frameSize >= 100;
+  const effectiveScale = useContain ? normalized.scale / 100 : (normalized.scale / 100) * frameZoom;
+
   return {
     width: '100%',
     height: '100%',
     display: 'block',
-    objectFit: 'cover',
+    objectFit: useContain ? 'contain' : 'cover',
     objectPosition: `${normalized.positionX}% ${normalized.positionY}%`,
-    transform: `scale(${normalized.scale / 100})`,
+    transform: `scale(${effectiveScale})`,
     transformOrigin: `${normalized.positionX}% ${normalized.positionY}%`,
     willChange: 'transform, object-position',
   };
@@ -1729,7 +1733,7 @@ watch(
                     </label>
                     <label>
                       <span>{{ t('content.frameSize') }}</span>
-                      <el-slider v-model="ensureImageSettings(field.key).frameSize" :min="30" :max="95" />
+                      <el-slider v-model="ensureImageSettings(field.key).frameSize" :min="30" :max="100" />
                     </label>
                   </div>
                 </div>
@@ -1831,7 +1835,7 @@ watch(
                       </label>
                       <label>
                         <span>{{ t('content.frameSize') }}</span>
-                        <el-slider v-model="fact.imageSettings.frameSize" :min="30" :max="95" />
+                        <el-slider v-model="fact.imageSettings.frameSize" :min="30" :max="100" />
                       </label>
                     </div>
                   </div>
@@ -2320,8 +2324,10 @@ watch(
 .image-crop-frame {
   position: absolute;
   z-index: 2;
-  width: min(var(--crop-frame-size, 72%), calc(100% - 32px));
-  aspect-ratio: 1.55;
+  width: var(--crop-frame-size, 100%);
+  height: var(--crop-frame-size, 100%);
+  max-width: 100%;
+  max-height: 100%;
   transform: translate(-50%, -50%);
   pointer-events: none;
   border: 2px solid #409eff;
