@@ -36,6 +36,14 @@ export class LeadsService {
         countryId: dto.countryId,
         tourId: dto.tourId,
         serviceId: dto.serviceId,
+        metadata: {
+          samoIncoming: {
+            enabled: null,
+            sent: false,
+            skippedReason: 'SAMO Incoming sync has not started yet',
+            checkedAt: new Date().toISOString(),
+          },
+        },
         translations: {
           create: [
             {
@@ -53,9 +61,7 @@ export class LeadsService {
       },
     });
 
-    const samoResult = await this.samoIncomingService.sendBooking(
-      this.buildSamoClaimPayload(lead, dto),
-    );
+    const samoResult = await this.safeSendSamoLead(lead, dto);
 
     const leadWithIntegration = await this.prisma.lead.update({
       where: { id: lead.id },
@@ -245,6 +251,30 @@ export class LeadsService {
         includedServices: this.readStringArray(lead.tour?.translations[0]?.included),
       },
     };
+  }
+
+  private async safeSendSamoLead(
+    lead: Prisma.LeadGetPayload<{
+      include: {
+        country: { include: { translations: { where: { locale: Locale }; take: 1 } } };
+        tour: { include: { translations: { where: { locale: Locale }; take: 1 } } };
+        service: { include: { translations: { where: { locale: Locale }; take: 1 } } };
+        translations: { where: { locale: Locale }; take: 1 };
+      };
+    }>,
+    dto: CreateLeadDto,
+  ): Promise<SamoIncomingResult> {
+    try {
+      return await this.samoIncomingService.sendBooking(
+        this.buildSamoClaimPayload(lead, dto),
+      );
+    } catch (error) {
+      return {
+        enabled: true,
+        sent: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   private readStringArray(value: Prisma.JsonValue | null | undefined) {

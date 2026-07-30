@@ -262,7 +262,9 @@ export class AdminRecordsService {
       type: lead.type,
       sourcePagePath: lead.sourcePagePath,
       sourcePageTitle: lead.sourcePageTitle,
-      incoming: this.readIntegration(lead.metadata),
+      incoming:
+        this.readIntegration(lead.metadata) ??
+        this.buildMissingIntegration('Lead metadata does not contain SAMO Incoming result'),
       message: lead.translations[0]?.message ?? null,
       countryId: lead.countryId,
       tourId: lead.tourId,
@@ -300,7 +302,9 @@ export class AdminRecordsService {
       sourcePagePath: booking.sourcePagePath,
       specialRequests: booking.translations[0]?.specialRequests ?? null,
       snapshot: booking.includedServicesSnapshot,
-      incoming: this.readIntegration(booking.metadata),
+      incoming:
+        this.readIntegration(booking.metadata) ??
+        this.buildMissingIntegration('Booking metadata does not contain SAMO Incoming result'),
       countryId: booking.countryId,
       tourId: booking.tourId,
       partnerId: booking.partnerId,
@@ -380,5 +384,13 @@ export class AdminRecordsService {
 
   private isPlainObject(value: unknown): value is Record<string, Prisma.JsonValue> {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  private buildMissingIntegration(skippedReason: string) {
+    return {
+      enabled: null,
+      sent: false,
+      skippedReason,
+    };
   }
 }
