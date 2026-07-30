@@ -801,7 +801,6 @@ const optimizedPublicAssets = new Map([
   ['/assets/icons/countryPage2.jpg', '/assets/icons/countryPage2.webp'],
   ['/assets/icons/directions.jpg', '/assets/icons/directions.webp'],
   ['/assets/icons/dmc-detail.png', '/assets/icons/dmc-detail.webp'],
-  ['/assets/icons/dmc.png', '/assets/icons/dmc.webp'],
   ['/assets/icons/dmc1.png', '/assets/icons/dmc1.webp'],
   ['/assets/icons/dmc2.jpg', '/assets/icons/dmc2.webp'],
   ['/assets/icons/dmc3.jpg', '/assets/icons/dmc3.webp'],
@@ -849,6 +848,10 @@ const resolveMediaUrl = (url?: string | null) => {
   const optimizedUrl = getOptimizedMediaPath(url);
 
   if (/^https?:\/\//i.test(optimizedUrl) || optimizedUrl.startsWith('data:')) {
+    return optimizedUrl;
+  }
+
+  if (optimizedUrl.startsWith('/assets/')) {
     return optimizedUrl;
   }
 
