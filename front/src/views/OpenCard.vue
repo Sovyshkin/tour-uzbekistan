@@ -619,7 +619,7 @@ onUnmounted(() => {
 
       <AppContainer>
         <h1
-          class="text-[22px] sm:text-[28px] lg:text-[32px] font-medium mb-1 leading-tight mb-4 sm:mb-6 lg:hidden"
+          class="tour-page-title font-medium mb-1 leading-tight mb-4 sm:mb-6 lg:hidden"
         >
           {{ tour.title }} {{ tour.subtitle }}
         </h1>
@@ -628,7 +628,7 @@ onUnmounted(() => {
           <div class="tour-main-column">
             <!-- Заголовок -->
             <h1
-              class="text-[22px] sm:text-[28px] lg:text-[32px] xl:text-[32px] font-medium leading-tight mb-4 sm:mb-6 hidden lg:block"
+              class="tour-page-title font-medium leading-tight mb-4 sm:mb-6 hidden lg:block"
             >
               {{ tour.title }} {{ tour.subtitle }}
             </h1>
@@ -1415,6 +1415,35 @@ onUnmounted(() => {
 
 .tour-main-column {
   min-width: 0;
+}
+
+.tour-page-title {
+  font-size: 24px;
+  line-height: 1.08;
+}
+
+@media (min-width: 640px) {
+  .tour-page-title {
+    font-size: 28px;
+  }
+}
+
+@media (min-width: 768px) {
+  .tour-page-title {
+    font-size: 31px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .tour-page-title {
+    font-size: 32px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .tour-page-title {
+    font-size: 35px;
+  }
 }
 
 .tour-aside {
