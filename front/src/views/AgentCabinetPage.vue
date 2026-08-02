@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import AppContainer from '@/components/AppContainer.vue';
-import { getAuth, getMyBookings, isApprovedPartnerAuth } from '@/api';
+import { getAuth, getMyBookings, isApprovedPartnerAuth, refreshTokens } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
 const { t, locale } = useI18n();
@@ -25,6 +25,9 @@ const statusClass = {
 
 const user = computed(() => auth.value?.user || {});
 const isApproved = computed(() => isApprovedPartnerAuth(auth.value));
+const defaultManagerPhone = '+998(77) 290-08-80';
+const managerPhone = computed(() => user.value.managerPhone || defaultManagerPhone);
+const managerPhoneHref = computed(() => `tel:${managerPhone.value.replace(/[^\d+]/g, '')}`);
 const accountStatus = computed(() =>
   isApproved.value ? t('agentCabinet.accountActive') : t('agentCabinet.accountPending'),
 );
@@ -111,11 +114,29 @@ const goToTours = () => {
   router.push('/tours');
 };
 
+const syncAuthState = async () => {
+  const storedAuth = getAuth();
+
+  if (!storedAuth?.refreshToken) {
+    auth.value = storedAuth;
+    return;
+  }
+
+  const refreshedAuth = await refreshTokens(storedAuth.refreshToken).catch(() => null);
+  auth.value = refreshedAuth || getAuth();
+};
+
 const loadBookings = async () => {
   loading.value = true;
-  auth.value = getAuth();
 
   try {
+    await syncAuthState();
+
+    if (!isApproved.value) {
+      bookings.value = [];
+      return;
+    }
+
     bookings.value = await getMyBookings();
   } catch (error) {
     if (isApproved.value) {
@@ -153,9 +174,9 @@ onMounted(loadBookings);
           <span>{{ t('agentCabinet.quickTours') }}</span>
           <strong>{{ t('agentCabinet.quickToursText') }}</strong>
         </button>
-        <a class="quick-card" href="tel:+998772900880">
+        <a class="quick-card" :href="managerPhoneHref">
           <span>{{ t('agentCabinet.manager') }}</span>
-          <strong>+998(77) 290-08-80</strong>
+          <strong>{{ managerPhone }}</strong>
         </a>
         <button type="button" class="quick-card" :disabled="loading" @click="loadBookings">
           <span>{{ t('agentCabinet.refresh') }}</span>

@@ -1677,12 +1677,14 @@ onUnmounted(() => {
 
 @media (min-width: 1280px) {
   .tour-detail-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+    grid-template-columns: minmax(0, 900px) minmax(320px, 360px);
     gap: 40px;
+    justify-content: center;
   }
 
   .tour-main-image {
     aspect-ratio: 16 / 10;
+    max-width: 900px;
   }
 
   .tour-summary-description {

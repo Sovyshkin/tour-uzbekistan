@@ -41,7 +41,7 @@ defineProps({
         <img
           :src="item.image"
           :alt="item.title"
-          class="w-full h-[200px] sm:h-[240px] lg:h-[250px] object-cover rounded-[12px] lg:rounded-[16px]"
+          class="dmc-horizontal-card__image"
           :style="imageObjectStyle(item.imageSettings)"
           loading="lazy"
           decoding="async"
@@ -79,7 +79,15 @@ defineProps({
 
 .dmc-horizontal-card__image-wrap {
   width: 100%;
+  height: 200px;
   overflow: hidden;
+  border-radius: 12px;
+}
+
+.dmc-horizontal-card__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   border-radius: 12px;
 }
 
@@ -105,6 +113,12 @@ defineProps({
   line-height: 1.5;
 }
 
+@media (min-width: 640px) {
+  .dmc-horizontal-card__image-wrap {
+    height: 240px;
+  }
+}
+
 @media (min-width: 1024px) {
   .dmc-horizontal-card {
     grid-template-columns: 72px minmax(420px, 1fr) minmax(360px, 0.72fr);
@@ -117,6 +131,15 @@ defineProps({
   }
 
   .dmc-horizontal-card__image-wrap {
+    height: 250px;
+    border-radius: 16px;
+  }
+
+  .dmc-horizontal-card--narrow-image .dmc-horizontal-card__image-wrap {
+    height: clamp(280px, 20vw, 380px);
+  }
+
+  .dmc-horizontal-card__image {
     border-radius: 16px;
   }
 
@@ -145,6 +168,10 @@ defineProps({
 
   .dmc-horizontal-card--narrow-image {
     grid-template-columns: 72px minmax(500px, 0.78fr) minmax(460px, 1fr);
+  }
+
+  .dmc-horizontal-card--narrow-image .dmc-horizontal-card__image-wrap {
+    height: clamp(300px, 20vw, 380px);
   }
 
   .dmc-horizontal-card__description {

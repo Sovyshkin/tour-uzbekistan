@@ -128,6 +128,7 @@ model Partner {
   type            PartnerType
   email           String?
   phone           String?
+  managerPhone    String?
   website         String?
   city            String?
   tin             String?              @unique

@@ -16,6 +16,9 @@ class AuthUserDto {
 
   @ApiProperty()
   isApproved!: boolean;
+
+  @ApiProperty({ required: false, nullable: true })
+  managerPhone!: string | null;
 }
 
 export class AuthResponseDto {

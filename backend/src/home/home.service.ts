@@ -12,6 +12,7 @@ export class HomeService {
     viewer?: { sub: string; role: string } | null,
   ) {
     const canViewPrices = await this.canViewPartnerPrices(viewer);
+    const newsAudienceWhere = canViewPrices ? { syncToB2B: true } : { syncToB2C: true };
     const [banners, countries, recommendedTours, services, whyWe, latestNews, siteSettings] =
       await Promise.all([
         this.prisma.homeBanner.findMany({
@@ -95,7 +96,7 @@ export class HomeService {
           take: 4,
         }),
         this.prisma.news.findMany({
-          where: { status: ContentStatus.PUBLISHED, syncToB2C: true },
+          where: { status: ContentStatus.PUBLISHED, ...newsAudienceWhere },
           orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
           include: {
             translations: {

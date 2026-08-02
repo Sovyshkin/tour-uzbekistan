@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ContentStatus, Locale, Prisma } from '@prisma/client';
+import { ContentStatus, Locale, Prisma, UserRole, UserStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -11,15 +11,21 @@ export class NewsService {
     locale: Locale = Locale.ru,
     page = 1,
     pageSize = 9,
+    viewer?: { sub: string; role: string } | null,
   ) {
     const skip = (page - 1) * pageSize;
+    const canViewB2BNews = await this.canViewB2BNews(viewer);
+    const where: Prisma.NewsWhereInput = {
+      status: ContentStatus.PUBLISHED,
+      ...(canViewB2BNews ? { syncToB2B: true } : { syncToB2C: true }),
+    };
 
     const [total, news] = await Promise.all([
       this.prisma.news.count({
-        where: { status: ContentStatus.PUBLISHED, syncToB2C: true },
+        where,
       }),
       this.prisma.news.findMany({
-        where: { status: ContentStatus.PUBLISHED, syncToB2C: true },
+        where,
         orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
         skip,
         take: pageSize,
@@ -51,12 +57,17 @@ export class NewsService {
     };
   }
 
-  async getNewsBySlug(slug: string, locale: Locale = Locale.ru) {
+  async getNewsBySlug(
+    slug: string,
+    locale: Locale = Locale.ru,
+    viewer?: { sub: string; role: string } | null,
+  ) {
+    const canViewB2BNews = await this.canViewB2BNews(viewer);
     const news = await this.prisma.news.findFirst({
       where: {
         slug,
         status: ContentStatus.PUBLISHED,
-        syncToB2C: true,
+        ...(canViewB2BNews ? { syncToB2B: true } : { syncToB2C: true }),
       },
       include: {
         translations: {
@@ -93,5 +104,25 @@ export class NewsService {
     }
 
     return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  private async canViewB2BNews(viewer?: { sub: string; role: string } | null) {
+    if (!viewer?.sub || viewer.role !== UserRole.PARTNER) {
+      return false;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: viewer.sub },
+      select: {
+        status: true,
+        partner: {
+          select: {
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    return user?.status === UserStatus.ACTIVE && user.partner?.isActive === true;
   }
 }

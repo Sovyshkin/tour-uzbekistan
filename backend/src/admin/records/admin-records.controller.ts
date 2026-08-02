@@ -71,6 +71,26 @@ export class AdminRecordsController {
     return result;
   }
 
+  @Post('users/:id/password/reset-email')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Generate a new partner password and send it by email. Super admin only' })
+  @ApiOkResponse({ description: 'Updated users list' })
+  async resetPartnerPasswordAndEmail(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
+  ) {
+    const result = await this.adminRecordsService.resetPartnerPasswordAndEmail(id, req.user);
+    await this.adminAuditService.log({
+      user: req.user,
+      request: req,
+      action: 'UPDATE',
+      entityType: 'record:users',
+      entityId: id,
+      metadata: { passwordResetEmailSent: true },
+    });
+    return result;
+  }
+
   @Delete('users/:id/permanent')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Permanently delete user. Super admin only' })

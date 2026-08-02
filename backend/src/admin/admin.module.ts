@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AuthModule } from '../auth/auth.module';
+import { MailService } from '../mail/mail.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AdminAuditController } from './audit/admin-audit.controller';
 import { AdminAuditService } from './audit/admin-audit.service';
@@ -32,6 +33,7 @@ import { AdminRecordsService } from './records/admin-records.service';
     AdminDashboardService,
     AdminMediaService,
     AdminRecordsService,
+    MailService,
   ],
 })
 export class AdminModule {}

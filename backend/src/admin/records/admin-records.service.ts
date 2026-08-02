@@ -1,7 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { BookingStatus, LeadStatus, Locale, Prisma, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { randomInt } from 'crypto';
 
+import { MailService } from '../../mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdminRecordCreateDto } from './dto/admin-record-create.dto';
 import { AdminRecordUpdateDto } from './dto/admin-record-update.dto';
@@ -9,7 +12,11 @@ import { AdminRecordType } from './dto/admin-records-query.dto';
 
 @Injectable()
 export class AdminRecordsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+    private readonly mailService: MailService,
+  ) {}
 
   async list(type: AdminRecordType) {
     switch (type) {
@@ -93,6 +100,80 @@ export class AdminRecordsService {
         refreshTokenHash: null,
       },
     });
+
+    return this.list(AdminRecordType.USERS);
+  }
+
+  async resetPartnerPasswordAndEmail(id: string, actor: { role: UserRole }) {
+    this.ensureSuperAdmin(actor);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        translations: {
+          where: { locale: Locale.ru },
+          take: 1,
+        },
+        partner: {
+          include: {
+            translations: {
+              where: { locale: Locale.ru },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Record not found');
+    }
+
+    if (user.role !== UserRole.PARTNER) {
+      throw new BadRequestException('Password reset email is available only for partner users');
+    }
+
+    if (!user.email) {
+      throw new BadRequestException('Partner user does not have an email');
+    }
+
+    await this.mailService.verifyConfiguration();
+
+    const password = this.generatePassword();
+    const passwordHash = await bcrypt.hash(password, 10);
+    const name =
+      user.translations[0]?.displayName ||
+      `${user.firstName} ${user.lastName}`.trim() ||
+      user.partner?.translations[0]?.name ||
+      user.email;
+    const loginUrl = this.getPartnerLoginUrl();
+
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        passwordHash,
+        refreshTokenHash: null,
+      },
+    });
+
+    try {
+      await this.mailService.sendPartnerPasswordReset({
+        email: user.email,
+        name,
+        password,
+        loginUrl,
+      });
+    } catch (error) {
+      await this.prisma.user.update({
+        where: { id },
+        data: {
+          passwordHash: user.passwordHash,
+          refreshTokenHash: user.refreshTokenHash,
+        },
+      });
+
+      throw error;
+    }
 
     return this.list(AdminRecordType.USERS);
   }
@@ -183,6 +264,7 @@ export class AdminRecordsService {
         type: dto.type ?? 'AGENCY',
         email: dto.email?.trim() || null,
         phone: dto.phone?.trim() || null,
+        managerPhone: dto.managerPhone?.trim() || null,
         city: dto.city?.trim() || null,
         tin: dto.tin?.trim() || null,
         preferredLocale: dto.language ?? Locale.ru,
@@ -294,6 +376,7 @@ export class AdminRecordsService {
         slug: partner.slug,
         email: partner.email,
         phone: partner.phone,
+        managerPhone: partner.managerPhone,
         type: partner.type,
         city: partner.city,
         tin: partner.tin,
@@ -466,6 +549,7 @@ export class AdminRecordsService {
           ...(dto.slug !== undefined ? { slug: dto.slug.trim() } : {}),
           ...(dto.email !== undefined ? { email: dto.email.trim() || null } : {}),
           ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
+          ...(dto.managerPhone !== undefined ? { managerPhone: dto.managerPhone.trim() || null } : {}),
           ...(dto.city !== undefined ? { city: dto.city.trim() || null } : {}),
           ...(dto.tin !== undefined ? { tin: dto.tin.trim() || null } : {}),
           ...(dto.language !== undefined ? { preferredLocale: dto.language } : {}),
@@ -542,6 +626,21 @@ export class AdminRecordsService {
     if (actor.role !== UserRole.ADMIN) {
       throw new ForbiddenException('Super admin access only');
     }
+  }
+
+  private generatePassword(length = 14) {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    return Array.from({ length }, () => alphabet[randomInt(alphabet.length)]).join('');
+  }
+
+  private getPartnerLoginUrl() {
+    const baseUrl =
+      this.configService.get<string>('FRONTEND_URL') ||
+      this.configService.get<string>('PUBLIC_SITE_URL') ||
+      'https://centrum-holidays.com';
+    const normalizedBase = baseUrl.replace(/\/+$/, '');
+
+    return `${normalizedBase}/for-agent?auth=login`;
   }
 
   private readIntegration(value: Prisma.JsonValue | null | undefined) {

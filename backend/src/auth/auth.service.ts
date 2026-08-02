@@ -137,6 +137,7 @@ export class AuthService {
         partner: {
           select: {
             isActive: true,
+            managerPhone: true,
           },
         },
       },
@@ -179,6 +180,7 @@ export class AuthService {
         role,
         status: user?.status ?? UserStatus.PENDING,
         isApproved,
+        managerPhone: user?.partner?.managerPhone ?? null,
       },
     };
   }

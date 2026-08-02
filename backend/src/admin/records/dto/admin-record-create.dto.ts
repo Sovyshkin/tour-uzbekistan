@@ -41,6 +41,11 @@ export class AdminRecordCreateDto {
   @IsString()
   phone?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  managerPhone?: string;
+
   @ApiPropertyOptional({ enum: Locale })
   @IsOptional()
   @IsEnum(Locale)

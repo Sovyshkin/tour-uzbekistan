@@ -19,6 +19,7 @@ const { t } = useAdminI18n();
 const loading = ref(false);
 const savingId = ref('');
 const archivingId = ref('');
+const resettingPasswordId = ref('');
 const bulkProcessing = ref(false);
 const creating = ref(false);
 const createOpen = ref(false);
@@ -243,6 +244,7 @@ const columns = computed(() => {
       { prop: 'title', label: t('common.title'), minWidth: 220 },
       { prop: 'email', label: t('common.email'), minWidth: 220 },
       { prop: 'phone', label: t('common.phone'), minWidth: 160 },
+      { prop: 'managerPhone', label: t('common.managerPhone'), minWidth: 170 },
       { prop: 'approvalStatus', label: t('records.partnerApproval'), width: 150 },
       { prop: 'type', label: t('common.type'), width: 170, format: (value: unknown) => labelFrom(partnerTypeLabels.value, value) },
       { prop: 'city', label: t('common.city'), width: 140 },
@@ -376,6 +378,7 @@ const openCreate = async () => {
           name: '',
           email: '',
           phone: '',
+          managerPhone: '',
           city: '',
           tin: '',
           language: 'ru',
@@ -413,6 +416,7 @@ const openEdit = async (row: AnyRecord) => {
           name: row.title ?? '',
           email: row.email ?? '',
           phone: row.phone ?? '',
+          managerPhone: row.managerPhone ?? '',
           city: row.city ?? '',
           tin: row.tin ?? '',
           language: row.language ?? 'ru',
@@ -443,6 +447,7 @@ const buildFormPayload = () => {
       name: createForm.value.name,
       email: createForm.value.email,
       phone: createForm.value.phone,
+      managerPhone: createForm.value.managerPhone,
       city: createForm.value.city,
       tin: createForm.value.tin,
       language: createForm.value.language,
@@ -649,6 +654,37 @@ const changeUserPassword = async () => {
     });
   } finally {
     passwordSaving.value = false;
+  }
+};
+
+const resetPartnerPasswordAndEmail = async (row: AnyRecord) => {
+  try {
+    await ElMessageBox.confirm(
+      t('records.resetPasswordEmailConfirm', { title: row.title }),
+      t('records.resetPasswordEmail'),
+      {
+        confirmButtonText: t('records.resetPasswordEmail'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+      },
+    );
+  } catch {
+    return;
+  }
+
+  resettingPasswordId.value = row.id;
+  try {
+    const response = await http.post<AnyRecord[]>(`/admin/records/users/${row.id}/password/reset-email`);
+    records.value = response.data;
+    ElMessage.success(t('records.passwordResetEmailSent'));
+  } catch (error: any) {
+    ElMessage.error({
+      message: getApiErrorMessage(error, t('records.passwordResetEmailFailed')),
+      duration: 7000,
+      showClose: true,
+    });
+  } finally {
+    resettingPasswordId.value = '';
   }
 };
 
@@ -1049,6 +1085,16 @@ watch(
                   {{ t('records.changePassword') }}
                 </el-button>
                 <el-button
+                  v-if="row.role === 'PARTNER'"
+                  type="success"
+                  plain
+                  size="small"
+                  :loading="resettingPasswordId === row.id"
+                  @click.stop="resetPartnerPasswordAndEmail(row)"
+                >
+                  {{ t('records.resetPasswordEmail') }}
+                </el-button>
+                <el-button
                   v-if="row.id !== authStore.user?.id"
                   type="danger"
                   size="small"
@@ -1108,7 +1154,7 @@ watch(
 
           <section class="cabinet-stats">
             <div class="cabinet-stat">
-              <span>{{ t('records.usersCount') }}</span>
+              <span>{{ t('records.partnerAccountsCount') }}</span>
               <b>{{ partnerCabinetTarget.usersCount ?? 0 }}</b>
             </div>
             <div class="cabinet-stat">
@@ -1133,6 +1179,10 @@ watch(
                 <dd>{{ displayValue(partnerCabinetTarget.phone) }}</dd>
               </div>
               <div>
+                <dt>{{ t('common.managerPhone') }}</dt>
+                <dd>{{ displayValue(partnerCabinetTarget.managerPhone) }}</dd>
+              </div>
+              <div>
                 <dt>{{ t('common.type') }}</dt>
                 <dd>{{ partnerTypeText(partnerCabinetTarget.type) }}</dd>
               </div>
@@ -1152,7 +1202,7 @@ watch(
           </section>
 
           <section class="detail-card cabinet-card">
-            <h3>{{ t('records.partnerUsers') }}</h3>
+            <h3>{{ t('records.partnerAccounts') }}</h3>
             <el-table
               v-if="partnerCabinetTarget.users?.length"
               :data="partnerCabinetTarget.users"
@@ -1178,7 +1228,7 @@ watch(
                 </template>
               </el-table-column>
             </el-table>
-            <el-empty v-else :description="t('records.noUsers')" />
+            <el-empty v-else :description="t('records.noPartnerAccounts')" />
           </section>
 
           <section class="detail-card cabinet-card">
@@ -1309,6 +1359,9 @@ watch(
             </el-form-item>
             <el-form-item :label="t('common.phone')">
               <el-input v-model="createForm.phone" />
+            </el-form-item>
+            <el-form-item :label="t('common.managerPhone')">
+              <el-input v-model="createForm.managerPhone" />
             </el-form-item>
           </div>
           <div class="dialog-grid">
