@@ -30,24 +30,25 @@ export class NewsService {
         skip,
         take: pageSize,
         include: {
-          translations: {
-            where: { locale },
-            take: 1,
-          },
+          translations: true,
         },
       }),
     ]);
 
     return {
-      items: news.map((item) => ({
-        id: item.id,
-        slug: item.slug,
-        title: item.translations[0]?.title ?? '',
-        excerpt: item.translations[0]?.excerpt ?? null,
-        previewImage: item.previewImage,
-        previewImageSettings: item.previewImageSettings,
-        publishedAt: item.publishedAt?.toISOString() ?? null,
-      })),
+      items: news.map((item) => {
+        const translation = this.getTranslation(item.translations, locale);
+
+        return {
+          id: item.id,
+          slug: item.slug,
+          title: translation?.title ?? '',
+          excerpt: translation?.excerpt ?? null,
+          previewImage: item.previewImage,
+          previewImageSettings: item.previewImageSettings,
+          publishedAt: item.publishedAt?.toISOString() ?? null,
+        };
+      }),
       meta: {
         page,
         pageSize,
@@ -70,10 +71,7 @@ export class NewsService {
         ...(canViewB2BNews ? { syncToB2B: true } : { syncToB2C: true }),
       },
       include: {
-        translations: {
-          where: { locale },
-          take: 1,
-        },
+        translations: true,
       },
     });
 
@@ -81,7 +79,7 @@ export class NewsService {
       return null;
     }
 
-    const translation = news.translations[0];
+    const translation = this.getTranslation(news.translations, locale);
 
     return {
       id: news.id,
@@ -106,6 +104,18 @@ export class NewsService {
     return value.filter((item): item is string => typeof item === 'string');
   }
 
+  private getTranslation<
+    TTranslation extends {
+      locale: Locale;
+    },
+  >(translations: TTranslation[], locale: Locale) {
+    return (
+      translations.find((translation) => translation.locale === locale) ||
+      translations.find((translation) => translation.locale === Locale.ru) ||
+      translations[0]
+    );
+  }
+
   private async canViewB2BNews(viewer?: { sub: string; role: string } | null) {
     if (!viewer?.sub || viewer.role !== UserRole.PARTNER) {
       return false;
@@ -123,6 +133,6 @@ export class NewsService {
       },
     });
 
-    return user?.status === UserStatus.ACTIVE && user.partner?.isActive === true;
+    return user?.status !== UserStatus.SUSPENDED && user?.partner?.isActive === true;
   }
 }

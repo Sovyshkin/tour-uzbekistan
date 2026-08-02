@@ -12,7 +12,8 @@ export class HomeService {
     viewer?: { sub: string; role: string } | null,
   ) {
     const canViewPrices = await this.canViewPartnerPrices(viewer);
-    const newsAudienceWhere = canViewPrices ? { syncToB2B: true } : { syncToB2C: true };
+    const canViewB2BNews = await this.canViewB2BNews(viewer);
+    const newsAudienceWhere = canViewB2BNews ? { syncToB2B: true } : { syncToB2C: true };
     const [banners, countries, recommendedTours, services, whyWe, latestNews, siteSettings] =
       await Promise.all([
         this.prisma.homeBanner.findMany({
@@ -99,10 +100,7 @@ export class HomeService {
           where: { status: ContentStatus.PUBLISHED, ...newsAudienceWhere },
           orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
           include: {
-            translations: {
-              where: { locale },
-              take: 1,
-            },
+            translations: true,
           },
           take: 6,
         }),
@@ -185,15 +183,19 @@ export class HomeService {
           imageSettings: fact.imageSettings,
         })),
       })),
-      latestNews: latestNews.map((news) => ({
-        id: news.id,
-        slug: news.slug,
-        title: news.translations[0]?.title ?? '',
-        excerpt: news.translations[0]?.excerpt ?? null,
-        previewImage: news.previewImage,
-        previewImageSettings: news.previewImageSettings,
-        publishedAt: news.publishedAt?.toISOString() ?? null,
-      })),
+      latestNews: latestNews.map((news) => {
+        const translation = this.getTranslation(news.translations, locale);
+
+        return {
+          id: news.id,
+          slug: news.slug,
+          title: translation?.title ?? '',
+          excerpt: translation?.excerpt ?? null,
+          previewImage: news.previewImage,
+          previewImageSettings: news.previewImageSettings,
+          publishedAt: news.publishedAt?.toISOString() ?? null,
+        };
+      }),
     };
   }
 
@@ -215,5 +217,37 @@ export class HomeService {
     });
 
     return user?.status === UserStatus.ACTIVE && user.partner?.isActive === true;
+  }
+
+  private getTranslation<
+    TTranslation extends {
+      locale: Locale;
+    },
+  >(translations: TTranslation[], locale: Locale) {
+    return (
+      translations.find((translation) => translation.locale === locale) ||
+      translations.find((translation) => translation.locale === Locale.ru) ||
+      translations[0]
+    );
+  }
+
+  private async canViewB2BNews(viewer?: { sub: string; role: string } | null) {
+    if (!viewer?.sub || viewer.role !== UserRole.PARTNER) {
+      return false;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: viewer.sub },
+      select: {
+        status: true,
+        partner: {
+          select: {
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    return user?.status !== UserStatus.SUSPENDED && user?.partner?.isActive === true;
   }
 }

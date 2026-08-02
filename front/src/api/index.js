@@ -82,8 +82,52 @@ function clearStoredAuth() {
   window.dispatchEvent(new CustomEvent('tour-auth-changed'));
 }
 
+function readJwtPayload(token) {
+  if (!token || typeof atob !== 'function') {
+    return null;
+  }
+
+  try {
+    const [, payload] = token.split('.');
+
+    if (!payload) {
+      return null;
+    }
+
+    const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedPayload = normalizedPayload.padEnd(
+      normalizedPayload.length + ((4 - (normalizedPayload.length % 4)) % 4),
+      '=',
+    );
+
+    return JSON.parse(atob(paddedPayload));
+  } catch {
+    return null;
+  }
+}
+
+function isAccessTokenExpired(token) {
+  const payload = readJwtPayload(token);
+  const expiresAt = Number(payload?.exp);
+
+  if (!Number.isFinite(expiresAt)) {
+    return false;
+  }
+
+  return expiresAt * 1000 <= Date.now() + 60_000;
+}
+
 async function request(path, options = {}, retry = true) {
-  const auth = getStoredAuth();
+  let auth = getStoredAuth();
+
+  if (
+    auth?.refreshToken &&
+    options.withAuth !== false &&
+    isAccessTokenExpired(auth.accessToken)
+  ) {
+    auth = await refreshTokens(auth.refreshToken).catch(() => auth);
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),

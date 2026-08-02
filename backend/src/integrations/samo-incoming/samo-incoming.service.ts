@@ -273,7 +273,7 @@ export class SamoIncomingService {
 ${people.map((person) => person.xml).join('\n')}
     </peoples>
     <hotels>
-      <hotel inc="${hotelInc}" hcode="${this.escapeXml(config.hotelCode ?? '')}" hname="${this.escapeXml(payload.hotelName || config.hotelName)}" room="${this.escapeXml(config.roomCode)}" rname="${this.escapeXml(config.roomName)}" htplace="${adults}-0" pname="${adults} PAX" meal="${this.escapeXml(config.mealCode)}" mname="${this.escapeXml(config.mealName)}" checkin="${this.formatSamoDate(dateBeg)}" checkout="${this.formatSamoDate(dateEnd)}" rcount="1" index="0" addinfant="0" netcurrency="0" />
+      <hotel inc="${hotelInc}" hcode="${this.escapeXml(config.hotelCode ?? '')}" hname="${this.escapeXml(config.hotelName)}" room="${this.escapeXml(config.roomCode)}" rname="${this.escapeXml(config.roomName)}" htplace="${adults}-0" pname="${adults} PAX" meal="${this.escapeXml(config.mealCode)}" mname="${this.escapeXml(config.mealName)}" checkin="${this.formatSamoDate(dateBeg)}" checkout="${this.formatSamoDate(dateEnd)}" rcount="1" index="0" addinfant="0" netcurrency="0" />
     </hotels>
     <hotellinks>
 ${links}
@@ -308,6 +308,7 @@ ${links}
       `Tour: ${payload.tour.title}`,
       payload.tour.transport ? `Transport: ${payload.tour.transport}` : undefined,
       payload.tour.hotels ? `Hotels: ${payload.tour.hotels}` : undefined,
+      payload.hotelName ? `Requested hotel: ${payload.hotelName}` : undefined,
       payload.tour.includedServices.length > 0
         ? `Included services: ${payload.tour.includedServices.join(', ')}`
         : undefined,
