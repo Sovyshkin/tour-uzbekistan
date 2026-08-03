@@ -132,6 +132,18 @@ const partnerApprovalHint = (row: AnyRecord) =>
 
 const partnerPriceAccess = (row: AnyRecord) => (row?.isApproved ? t('common.yes') : t('common.no'));
 
+const partnerResetUser = (row: AnyRecord) => {
+  if (recordType.value === 'users') {
+    return row.role === 'PARTNER' ? row : null;
+  }
+
+  if (recordType.value !== 'partners' || !Array.isArray(row.users)) {
+    return null;
+  }
+
+  return row.users.find((user: AnyRecord) => user.role === 'PARTNER') ?? row.users[0] ?? null;
+};
+
 const formatMoney = (value: unknown, currency?: unknown) => {
   const amount = displayValue(value);
   return amount === '—' ? '—' : [amount, currency].filter(Boolean).join(' ');
@@ -306,7 +318,8 @@ const loadPartnerOptions = async () => {
 };
 
 const canCreate = computed(() => ['users', 'partners'].includes(recordType.value));
-const canManageUserSecurity = computed(() => recordType.value === 'users' && authStore.user?.role === 'ADMIN');
+const canResetPartnerPassword = computed(() => authStore.user?.role === 'ADMIN');
+const canManageUserSecurity = computed(() => recordType.value === 'users' && canResetPartnerPassword.value);
 const selectedCount = computed(() => selectedRecords.value.length);
 
 const resetSelection = () => {
@@ -658,9 +671,16 @@ const changeUserPassword = async () => {
 };
 
 const resetPartnerPasswordAndEmail = async (row: AnyRecord) => {
+  const targetUser = partnerResetUser(row);
+
+  if (!targetUser) {
+    ElMessage.warning(t('records.noPartnerAccounts'));
+    return;
+  }
+
   try {
     await ElMessageBox.confirm(
-      t('records.resetPasswordEmailConfirm', { title: row.title }),
+      t('records.resetPasswordEmailConfirm', { title: targetUser.title || row.title }),
       t('records.resetPasswordEmail'),
       {
         confirmButtonText: t('records.resetPasswordEmail'),
@@ -674,8 +694,15 @@ const resetPartnerPasswordAndEmail = async (row: AnyRecord) => {
 
   resettingPasswordId.value = row.id;
   try {
-    const response = await http.post<AnyRecord[]>(`/admin/records/users/${row.id}/password/reset-email`);
-    records.value = response.data;
+    const response = await http.post<AnyRecord[]>(`/admin/records/users/${targetUser.id}/password/reset-email`);
+
+    if (recordType.value === 'users') {
+      records.value = response.data;
+    } else {
+      await loadRecords();
+      refreshPartnerCabinetTarget();
+    }
+
     ElMessage.success(t('records.passwordResetEmailSent'));
   } catch (error: any) {
     ElMessage.error({
@@ -989,7 +1016,7 @@ watch(
             </template>
           </template>
         </el-table-column>
-        <el-table-column :label="t('common.management')" width="300">
+        <el-table-column :label="t('common.management')" width="420" fixed="right">
           <template #default="{ row }">
             <div class="record-row-actions">
               <el-button
@@ -1036,6 +1063,17 @@ watch(
                 </el-button>
                 <el-button plain size="small" @click.stop="openPartnerCabinet(row)">
                   {{ t('records.openPartnerCabinet') }}
+                </el-button>
+                <el-button
+                  v-if="canResetPartnerPassword"
+                  type="success"
+                  plain
+                  size="small"
+                  :disabled="!partnerResetUser(row)"
+                  :loading="resettingPasswordId === row.id"
+                  @click.stop="resetPartnerPasswordAndEmail(row)"
+                >
+                  {{ t('records.resetPasswordEmail') }}
                 </el-button>
               </template>
               <el-select
@@ -1149,6 +1187,16 @@ watch(
             </el-button>
             <el-button plain @click="openEdit(partnerCabinetTarget)">
               {{ t('common.edit') }}
+            </el-button>
+            <el-button
+              v-if="canResetPartnerPassword"
+              type="success"
+              plain
+              :disabled="!partnerResetUser(partnerCabinetTarget)"
+              :loading="resettingPasswordId === partnerCabinetTarget.id"
+              @click="resetPartnerPasswordAndEmail(partnerCabinetTarget)"
+            >
+              {{ t('records.resetPasswordEmail') }}
             </el-button>
           </div>
 
@@ -1528,8 +1576,9 @@ watch(
 .record-row-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
-  min-width: 0;
+  min-width: 390px;
 }
 
 .record-row-actions .el-select {
@@ -1538,6 +1587,7 @@ watch(
 
 .record-row-actions .el-button {
   margin-left: 0;
+  flex-shrink: 0;
 }
 
 .record-details {
