@@ -6,7 +6,7 @@ const { t } = useI18n();
 
 const props = defineProps({
   modelValue: [String, Number, Object],
-  placeholder: { type: String, default: 'Выбрать' },
+  placeholder: { type: String, default: '' },
   options: { type: Array, default: () => [] },
   type: { type: String, default: 'list' }, // 'list' | 'calendar' | 'counter'
   min: { type: Number, default: 1 },
@@ -16,6 +16,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:modelValue']);
+const displayPlaceholder = computed(() => props.placeholder || t('register.select_partner'));
 
 const isOpen = ref(false);
 const containerRef = ref(null);
@@ -180,7 +181,7 @@ watch(() => props.modelValue, (val) => {
       <span v-else-if="modelValue" class="text-[#333] truncate">
         {{ typeof modelValue === 'object' ? modelValue.label : modelValue }}
       </span>
-      <span v-else class="text-[#888]">{{ placeholder }}</span>
+      <span v-else class="text-[#888]">{{ displayPlaceholder }}</span>
 
       <div class="flex items-center gap-2 ml-2">
         <button v-if="modelValue && type === 'calendar'" @click.stop="clearSelection" class="p-0.5 hover:bg-[#f0f0f0] rounded-full">

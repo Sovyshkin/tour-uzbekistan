@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ContentStatus, Locale, Prisma } from '@prisma/client';
 
+import { pickTranslation } from '../common/translation.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DEFAULT_PAGE_CONTENT: Partial<Record<string, Record<Locale, unknown[]>>> = {
@@ -72,10 +73,7 @@ export class PagesService {
         status: ContentStatus.PUBLISHED,
       },
       include: {
-        translations: {
-          where: { locale },
-          take: 1,
-        },
+        translations: true,
       },
     });
 
@@ -83,12 +81,12 @@ export class PagesService {
       throw new NotFoundException('Page not found');
     }
 
-    const translation = page.translations[0];
+    const translation = pickTranslation(page.translations, locale);
     const defaultContent = DEFAULT_PAGE_CONTENT[page.slug]?.[locale];
     const shouldUseDefaultContent = isEmptyPageContent(translation?.content) && defaultContent;
     const content = shouldUseDefaultContent ? defaultContent : (translation?.content ?? null);
 
-    if (translation && shouldUseDefaultContent) {
+    if (translation && translation.locale === locale && shouldUseDefaultContent) {
       await this.prisma.pageTranslation.update({
         where: { id: translation.id },
         data: { content: defaultContent as Prisma.InputJsonValue },

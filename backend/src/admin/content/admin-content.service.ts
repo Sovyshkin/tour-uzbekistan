@@ -134,6 +134,9 @@ const TRANSLATION_FIELDS: Record<AdminContentType, string[]> = {
     'welcomeTitle',
     'intro',
     'sidebarTitle',
+    'cities',
+    'toc',
+    'sections',
     'seoTitle',
     'seoDescription',
   ],
@@ -1707,6 +1710,9 @@ export class AdminContentService {
               welcomeTitle: this.readNullableString(fields.welcomeTitle),
               intro: this.readNullableString(fields.intro),
               sidebarTitle: this.readNullableString(fields.sidebarTitle),
+              cities: this.readJson(fields.cities),
+              toc: this.readJson(fields.toc),
+              sections: this.readJson(fields.sections),
               seoTitle: this.readNullableString(fields.seoTitle),
               seoDescription: this.readNullableString(fields.seoDescription),
             };
@@ -2539,7 +2545,9 @@ export class AdminContentService {
         case AdminContentType.COUNTRIES:
           await this.prisma.countryTranslation.updateMany({
             where: { countryId: id, locale: translation.locale },
-            data: data as Prisma.CountryTranslationUpdateManyMutationInput,
+            data: this.prepareCountryTranslationData(
+              data,
+            ) as Prisma.CountryTranslationUpdateManyMutationInput,
           });
           break;
         case AdminContentType.TOURS:
@@ -2638,6 +2646,15 @@ export class AdminContentService {
     } catch {
       return { ...data, content: [{ text: rawContent }] };
     }
+  }
+
+  private prepareCountryTranslationData(data: Record<string, unknown>) {
+    return {
+      ...data,
+      ...(data.cities !== undefined ? { cities: this.readJson(data.cities) } : {}),
+      ...(data.toc !== undefined ? { toc: this.readJson(data.toc) } : {}),
+      ...(data.sections !== undefined ? { sections: this.readJson(data.sections) } : {}),
+    };
   }
 
   private prepareServiceTranslationData(data: Record<string, unknown>) {

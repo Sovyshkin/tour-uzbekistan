@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Locale } from '@prisma/client';
 
+import { pickTranslation } from '../common/translation.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -11,15 +12,12 @@ export class SettingsService {
     const settings = await this.prisma.siteSetting.findMany({
       where: { isPublic: true },
       include: {
-        translations: {
-          where: { locale },
-          take: 1,
-        },
+        translations: true,
       },
     });
 
     return settings.reduce<Record<string, string>>((acc, setting) => {
-      const value = setting.translations[0]?.textValue;
+      const value = pickTranslation(setting.translations, locale)?.textValue;
 
       if (value) {
         acc[setting.key] = value;

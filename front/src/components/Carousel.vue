@@ -36,7 +36,7 @@
       v-if="canNavigate"
       class="carousel-btn prev"
       @click="prev"
-      aria-label="Назад"
+      :aria-label="t('carousel.previous')"
     >
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <polyline points="15 18 9 12 15 6"></polyline>
@@ -47,7 +47,7 @@
       v-if="canNavigate"
       class="carousel-btn next"
       @click="next"
-      aria-label="Вперёд"
+      :aria-label="t('carousel.next')"
     >
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <polyline points="9 18 15 12 9 6"></polyline>
@@ -58,6 +58,9 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
   items: {

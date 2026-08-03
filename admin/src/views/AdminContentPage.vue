@@ -54,7 +54,7 @@ type ContentRecord = {
 type FieldConfig = {
   key: string;
   label: string;
-  type?: 'text' | 'textarea' | 'richtext';
+  type?: 'text' | 'textarea' | 'richtext' | 'cityList' | 'countrySections';
 };
 
 type ImageFieldKey = 'heroImage' | 'mainImage' | 'previewImage' | 'imageUrl' | 'routeMapImage';
@@ -88,6 +88,15 @@ type ImageCropDragState = ImageCropTarget & {
 type PageContentBlock = {
   title: string;
   text: string;
+};
+
+type CountryCity = {
+  code: string;
+  name: string;
+};
+
+type CountrySection = PageContentBlock & {
+  id: string;
 };
 
 type WhyFactForm = {
@@ -159,6 +168,8 @@ const typeFields = computed<Record<ContentType, FieldConfig[]>>(() => ({
     { key: 'welcomeTitle', label: t('content.fields.welcomeTitle') },
     { key: 'intro', label: t('content.fields.intro'), type: 'textarea' },
     { key: 'sidebarTitle', label: t('content.fields.sidebarTitle') },
+    { key: 'cities', label: t('content.fields.cities'), type: 'cityList' },
+    { key: 'sections', label: t('content.fields.sections'), type: 'countrySections' },
     { key: 'seoTitle', label: t('content.fields.seoTitle') },
     { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
@@ -683,6 +694,102 @@ const isNormalizedPageContentBlocks = (value: unknown): value is PageContentBloc
 const clonePageBlocks = (blocks: PageContentBlock[]) =>
   blocks.map((block) => ({ title: block.title, text: block.text }));
 
+const slugifySectionId = (value: string, index: number) => {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]+/gi, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return normalized || `section-${index + 1}`;
+};
+
+const normalizeCountryCities = (value: unknown): CountryCity[] => {
+  const parsed = (() => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((name, index) => ({ code: slugifySectionId(name, index), name }));
+      }
+    }
+
+    return value;
+  })();
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed
+    .map((item, index) => {
+      if (typeof item === 'string') {
+        return { code: slugifySectionId(item, index), name: item };
+      }
+
+      if (typeof item === 'object' && item !== null) {
+        const source = item as Record<string, unknown>;
+        const name = typeof source.name === 'string' ? source.name : '';
+        const code =
+          typeof source.code === 'string' && source.code.trim()
+            ? source.code
+            : slugifySectionId(name, index);
+
+        return { code, name };
+      }
+
+      return { code: `city-${index + 1}`, name: '' };
+    })
+    .filter((city) => city.name.trim());
+};
+
+const isNormalizedCountryCities = (value: unknown): value is CountryCity[] =>
+  Array.isArray(value) &&
+  value.every((city) => {
+    if (typeof city !== 'object' || city === null) {
+      return false;
+    }
+
+    const source = city as Record<string, unknown>;
+    return typeof source.code === 'string' && typeof source.name === 'string';
+  });
+
+const normalizeCountrySections = (value: unknown): CountrySection[] =>
+  normalizePageContentBlocks(value).map((block, index) => {
+    const source = typeof value === 'object' && Array.isArray(value) ? value[index] : null;
+    const sourceId =
+      typeof source === 'object' &&
+      source !== null &&
+      typeof (source as Record<string, unknown>).id === 'string'
+        ? String((source as Record<string, unknown>).id)
+        : '';
+
+    return {
+      id: sourceId || slugifySectionId(block.title, index),
+      title: block.title,
+      text: block.text,
+    };
+  });
+
+const isNormalizedCountrySections = (value: unknown): value is CountrySection[] =>
+  Array.isArray(value) &&
+  value.every((section) => {
+    if (typeof section !== 'object' || section === null) {
+      return false;
+    }
+
+    const source = section as Record<string, unknown>;
+    return (
+      typeof source.id === 'string' &&
+      typeof source.title === 'string' &&
+      typeof source.text === 'string'
+    );
+  });
+
 const applyDefaultPageContent = (slug: string) => {
   const defaults = defaultPageContentBySlug[slug];
 
@@ -774,6 +881,8 @@ const setFactImageMedia = (factIndex: number, value: string | null | undefined) 
 };
 
 const isPageContentField = (field: FieldConfig) => form.type === 'pages' && field.key === 'content';
+const isCountryCityListField = (field: FieldConfig) => form.type === 'countries' && field.key === 'cities';
+const isCountrySectionsField = (field: FieldConfig) => form.type === 'countries' && field.key === 'sections';
 
 const getPageContentBlocks = (localeCode: LocaleCode) => {
   const current = form.translations[localeCode].content;
@@ -804,6 +913,68 @@ const updatePageBlockText = (localeCode: LocaleCode, blockIndex: number, value: 
   blocks[blockIndex].text = value;
   form.translations[localeCode].content = blocks;
 };
+
+const getCountryCities = (localeCode: LocaleCode) => {
+  const current = form.translations[localeCode].cities;
+
+  if (isNormalizedCountryCities(current)) {
+    return current;
+  }
+
+  const cities = normalizeCountryCities(current);
+  form.translations[localeCode].cities = cities;
+  return cities;
+};
+
+const addCountryCity = (localeCode: LocaleCode) => {
+  const cities = getCountryCities(localeCode);
+  cities.push({ code: `city-${cities.length + 1}`, name: '' });
+  form.translations[localeCode].cities = cities;
+};
+
+const removeCountryCity = (localeCode: LocaleCode, index: number) => {
+  const cities = getCountryCities(localeCode);
+  cities.splice(index, 1);
+  form.translations[localeCode].cities = cities;
+};
+
+const getCountrySections = (localeCode: LocaleCode) => {
+  const current = form.translations[localeCode].sections;
+
+  if (isNormalizedCountrySections(current)) {
+    return current;
+  }
+
+  const sections = normalizeCountrySections(current);
+  form.translations[localeCode].sections = sections;
+  return sections;
+};
+
+const addCountrySection = (localeCode: LocaleCode) => {
+  const sections = getCountrySections(localeCode);
+  sections.push({ id: `section-${sections.length + 1}`, title: '', text: '' });
+  form.translations[localeCode].sections = sections;
+};
+
+const removeCountrySection = (localeCode: LocaleCode, index: number) => {
+  const sections = getCountrySections(localeCode);
+  sections.splice(index, 1);
+  form.translations[localeCode].sections = sections;
+};
+
+const updateCountrySectionText = (localeCode: LocaleCode, sectionIndex: number, value: string) => {
+  const sections = getCountrySections(localeCode);
+  sections[sectionIndex].text = value;
+  form.translations[localeCode].sections = sections;
+};
+
+const buildCountryToc = (sections: CountrySection[]) =>
+  sections
+    .map((section, index) => ({
+      id: section.id || slugifySectionId(section.title, index),
+      title: section.title,
+    }))
+    .filter((item) => item.title.trim());
 
 const optimizedPublicAssets = new Map([
   ['/assets/icons/8ec662fe56344049271e593f6db12dfdb7df8bdb.png', '/assets/icons/8ec662fe56344049271e593f6db12dfdb7df8bdb.webp'],
@@ -987,6 +1158,10 @@ const openEditor = async (record: ContentRecord) => {
       form.translations[locale.code][field.key] =
         record.type === 'pages' && field.key === 'content'
           ? normalizePageContentBlocks(value)
+          : record.type === 'countries' && field.key === 'cities'
+            ? normalizeCountryCities(value)
+          : record.type === 'countries' && field.key === 'sections'
+            ? normalizeCountrySections(value)
           : record.type === 'services' && field.key === 'content'
             ? normalizeServiceContentValue(value)
           : normalizeValue(value);
@@ -1052,7 +1227,10 @@ const openCreate = async () => {
     form.translations[locale.code] = {};
     for (const field of typeFields.value[createType]) {
       form.translations[locale.code][field.key] =
-        createType === 'pages' && field.key === 'content' ? [] : '';
+        (createType === 'pages' && field.key === 'content') ||
+        (createType === 'countries' && ['cities', 'sections'].includes(field.key))
+          ? []
+          : '';
     }
   }
 
@@ -1078,6 +1256,11 @@ const saveContent = async () => {
                 ...form.translations[locale.code],
                 title: form.translations[locale.code].name,
               }
+            : form.type === 'countries'
+              ? {
+                  ...form.translations[locale.code],
+                  toc: buildCountryToc(getCountrySections(locale.code)),
+                }
             : form.translations[locale.code],
       })),
     };
@@ -2051,6 +2234,66 @@ watch(
 
                 <el-button type="primary" plain @click="addPageContentBlock(locale.code)">
                   {{ t('content.addBlock') }}
+                </el-button>
+              </div>
+              <div v-else-if="isCountryCityListField(field)" class="page-block-editor">
+                <article
+                  v-for="(city, cityIndex) in getCountryCities(locale.code)"
+                  :key="`${locale.code}-city-${cityIndex}`"
+                  class="page-block-item"
+                >
+                  <div class="page-block-head">
+                    <strong>{{ t('content.city', { number: cityIndex + 1 }) }}</strong>
+                    <el-button
+                      type="danger"
+                      plain
+                      size="small"
+                      @click="removeCountryCity(locale.code, cityIndex)"
+                    >
+                      {{ t('common.delete') }}
+                    </el-button>
+                  </div>
+                  <el-input
+                    v-model="getCountryCities(locale.code)[cityIndex].name"
+                    :placeholder="t('content.cityNamePlaceholder')"
+                  />
+                </article>
+
+                <el-button type="primary" plain @click="addCountryCity(locale.code)">
+                  {{ t('content.addCity') }}
+                </el-button>
+              </div>
+              <div v-else-if="isCountrySectionsField(field)" class="page-block-editor">
+                <article
+                  v-for="(section, sectionIndex) in getCountrySections(locale.code)"
+                  :key="`${locale.code}-country-section-${sectionIndex}`"
+                  class="page-block-item"
+                >
+                  <div class="page-block-head">
+                    <strong>{{ t('content.countrySection', { number: sectionIndex + 1 }) }}</strong>
+                    <el-button
+                      type="danger"
+                      plain
+                      size="small"
+                      @click="removeCountrySection(locale.code, sectionIndex)"
+                    >
+                      {{ t('common.delete') }}
+                    </el-button>
+                  </div>
+                  <el-input
+                    v-model="getCountrySections(locale.code)[sectionIndex].title"
+                    :placeholder="t('content.sectionTitlePlaceholder')"
+                  />
+                  <RichTextEditor
+                    :model-value="getCountrySections(locale.code)[sectionIndex].text"
+                    :placeholder="t('content.startWriting')"
+                    :min-height="220"
+                    @update:model-value="(value: string) => updateCountrySectionText(locale.code, sectionIndex, value)"
+                  />
+                </article>
+
+                <el-button type="primary" plain @click="addCountrySection(locale.code)">
+                  {{ t('content.addSection') }}
                 </el-button>
               </div>
               <el-input

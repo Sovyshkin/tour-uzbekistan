@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ContentStatus, Locale } from '@prisma/client';
 
+import { pickTranslation } from '../common/translation.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -12,25 +13,19 @@ export class WhyUsService {
       where: { status: ContentStatus.PUBLISHED },
       orderBy: { sortOrder: 'asc' },
       include: {
-        translations: {
-          where: { locale },
-          take: 1,
-        },
+        translations: true,
         facts: {
           where: { status: ContentStatus.PUBLISHED },
           orderBy: { sortOrder: 'asc' },
           include: {
-            translations: {
-              where: { locale },
-              take: 1,
-            },
+            translations: true,
           },
         },
       },
     });
 
     return categories.map((category) => {
-      const translation = category.translations[0];
+      const translation = pickTranslation(category.translations, locale);
 
       return {
         id: category.id,
@@ -40,14 +35,18 @@ export class WhyUsService {
         title: translation?.title ?? '',
         subtitle: translation?.subtitle ?? null,
         description: translation?.description ?? null,
-        facts: category.facts.map((fact) => ({
-          id: fact.id,
-          imageUrl: fact.imageUrl,
-          imageSettings: fact.imageSettings,
-          title: fact.translations[0]?.title ?? '',
-          subtitle: fact.translations[0]?.subtitle ?? null,
-          description: fact.translations[0]?.description ?? '',
-        })),
+        facts: category.facts.map((fact) => {
+          const factTranslation = pickTranslation(fact.translations, locale);
+
+          return {
+            id: fact.id,
+            imageUrl: fact.imageUrl,
+            imageSettings: fact.imageSettings,
+            title: factTranslation?.title ?? '',
+            subtitle: factTranslation?.subtitle ?? null,
+            description: factTranslation?.description ?? '',
+          };
+        }),
       };
     });
   }
@@ -59,18 +58,12 @@ export class WhyUsService {
         status: ContentStatus.PUBLISHED,
       },
       include: {
-        translations: {
-          where: { locale },
-          take: 1,
-        },
+        translations: true,
         facts: {
           where: { status: ContentStatus.PUBLISHED },
           orderBy: { sortOrder: 'asc' },
           include: {
-            translations: {
-              where: { locale },
-              take: 1,
-            },
+            translations: true,
           },
         },
       },
@@ -80,7 +73,7 @@ export class WhyUsService {
       return null;
     }
 
-    const translation = category.translations[0];
+    const translation = pickTranslation(category.translations, locale);
 
     return {
       id: category.id,
@@ -92,14 +85,18 @@ export class WhyUsService {
       description: translation?.description ?? null,
       seoTitle: translation?.seoTitle ?? null,
       seoDescription: translation?.seoDescription ?? null,
-      facts: category.facts.map((fact) => ({
-        id: fact.id,
-        imageUrl: fact.imageUrl,
-        imageSettings: fact.imageSettings,
-        title: fact.translations[0]?.title ?? '',
-        subtitle: fact.translations[0]?.subtitle ?? null,
-        description: fact.translations[0]?.description ?? '',
-      })),
+      facts: category.facts.map((fact) => {
+        const factTranslation = pickTranslation(fact.translations, locale);
+
+        return {
+          id: fact.id,
+          imageUrl: fact.imageUrl,
+          imageSettings: fact.imageSettings,
+          title: factTranslation?.title ?? '',
+          subtitle: factTranslation?.subtitle ?? null,
+          description: factTranslation?.description ?? '',
+        };
+      }),
     };
   }
 }

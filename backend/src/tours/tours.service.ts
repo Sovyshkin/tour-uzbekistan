@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ContentStatus, Locale, Prisma, UserRole, UserStatus } from '@prisma/client';
 
+import { pickTranslation } from '../common/translation.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ToursQueryDto } from './dto/tours-query.dto';
 
@@ -26,12 +27,12 @@ export class ToursService {
         orderBy: [{ isFeatured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
         skip,
         take: pageSize,
-        include: this.buildInclude(locale),
+        include: this.buildInclude(),
       }),
     ]);
 
     return {
-      items: tours.map((tour) => this.mapTourSummary(tour, canViewPrices)),
+      items: tours.map((tour) => this.mapTourSummary(tour, canViewPrices, locale)),
       meta: {
         page,
         pageSize,
@@ -52,14 +53,14 @@ export class ToursService {
         slug,
         status: ContentStatus.PUBLISHED,
       },
-      include: this.buildInclude(locale),
+      include: this.buildInclude(),
     });
 
     if (!tour) {
       return null;
     }
 
-    return this.mapTourDetail(tour, canViewPrices);
+    return this.mapTourDetail(tour, canViewPrices, locale);
   }
 
   private buildWhere(
@@ -118,11 +119,13 @@ export class ToursService {
     }
 
     if (query.search) {
+      const searchLocales = locale === Locale.ru ? [locale] : [locale, Locale.ru];
+
       where.OR = [
         {
           translations: {
             some: {
-              locale,
+              locale: { in: searchLocales },
               title: {
                 contains: query.search,
                 mode: 'insensitive',
@@ -133,7 +136,7 @@ export class ToursService {
         {
           translations: {
             some: {
-              locale,
+              locale: { in: searchLocales },
               route: {
                 contains: query.search,
                 mode: 'insensitive',
@@ -144,7 +147,7 @@ export class ToursService {
         {
           translations: {
             some: {
-              locale,
+              locale: { in: searchLocales },
               description: {
                 contains: query.search,
                 mode: 'insensitive',
@@ -158,36 +161,24 @@ export class ToursService {
     return where;
   }
 
-  private buildInclude(locale: Locale) {
+  private buildInclude() {
     return {
       country: {
         include: {
-          translations: {
-            where: { locale },
-            take: 1,
-          },
+          translations: true,
         },
       },
-      translations: {
-        where: { locale },
-        take: 1,
-      },
+      translations: true,
       images: {
         orderBy: [{ isCover: 'desc' }, { sortOrder: 'asc' }],
         include: {
-          translations: {
-            where: { locale },
-            take: 1,
-          },
+          translations: true,
         },
       },
       days: {
         orderBy: { dayNumber: 'asc' },
         include: {
-          translations: {
-            where: { locale },
-            take: 1,
-          },
+          translations: true,
         },
       },
     } satisfies Prisma.TourInclude;
@@ -196,8 +187,10 @@ export class ToursService {
   private mapTourSummary(
     tour: Prisma.TourGetPayload<{ include: ReturnType<ToursService['buildInclude']> }>,
     isAuthorized: boolean,
+    locale: Locale,
   ) {
-    const translation = tour.translations[0];
+    const translation = pickTranslation(tour.translations, locale);
+    const countryTranslation = pickTranslation(tour.country.translations, locale);
     const payload = {
       id: tour.id,
       slug: tour.slug,
@@ -206,7 +199,7 @@ export class ToursService {
       route: translation?.route ?? '',
       durationDays: tour.durationDays,
       durationNights: tour.durationNights,
-      country: tour.country.translations[0]?.name ?? null,
+      country: countryTranslation?.name ?? null,
       heroImage: tour.heroImage,
       mainImage: tour.mainImage,
       mainImageSettings: tour.mainImageSettings,
@@ -216,23 +209,31 @@ export class ToursService {
       transportInfo: translation?.transportInfo ?? null,
       hotelsInfo: translation?.hotelsInfo ?? null,
       included: this.readStringArray(translation?.included),
-      images: tour.images.map((image) => ({
-        id: image.id,
-        imageUrl: image.imageUrl,
-        isCover: image.isCover,
-        altText: image.translations[0]?.altText ?? null,
-        caption: image.translations[0]?.caption ?? null,
-      })),
-      program: tour.days.map((day) => ({
-        id: day.id,
-        dayNumber: day.dayNumber,
-        overnightAt: day.overnightAt,
-        image: day.image,
-        title: day.translations[0]?.title ?? '',
-        shortTitle: day.translations[0]?.shortTitle ?? null,
-        description: day.translations[0]?.description ?? '',
-        inclusions: this.readStringArray(day.translations[0]?.inclusions),
-      })),
+      images: tour.images.map((image) => {
+        const imageTranslation = pickTranslation(image.translations, locale);
+
+        return {
+          id: image.id,
+          imageUrl: image.imageUrl,
+          isCover: image.isCover,
+          altText: imageTranslation?.altText ?? null,
+          caption: imageTranslation?.caption ?? null,
+        };
+      }),
+      program: tour.days.map((day) => {
+        const dayTranslation = pickTranslation(day.translations, locale);
+
+        return {
+          id: day.id,
+          dayNumber: day.dayNumber,
+          overnightAt: day.overnightAt,
+          image: day.image,
+          title: dayTranslation?.title ?? '',
+          shortTitle: dayTranslation?.shortTitle ?? null,
+          description: dayTranslation?.description ?? '',
+          inclusions: this.readStringArray(dayTranslation?.inclusions),
+        };
+      }),
     } as Record<string, unknown>;
 
     if (isAuthorized && tour.priceFrom) {
@@ -246,8 +247,10 @@ export class ToursService {
   private mapTourDetail(
     tour: Prisma.TourGetPayload<{ include: ReturnType<ToursService['buildInclude']> }>,
     isAuthorized: boolean,
+    locale: Locale,
   ) {
-    const translation = tour.translations[0];
+    const translation = pickTranslation(tour.translations, locale);
+    const countryTranslation = pickTranslation(tour.country.translations, locale);
     const payload = {
       id: tour.id,
       slug: tour.slug,
@@ -262,7 +265,7 @@ export class ToursService {
       durationNights: tour.durationNights,
       minGroupSize: tour.minGroupSize,
       maxGroupSize: tour.maxGroupSize,
-      country: tour.country.translations[0]?.name ?? null,
+      country: countryTranslation?.name ?? null,
       heroImage: tour.heroImage,
       mainImage: tour.mainImage,
       mainImageSettings: tour.mainImageSettings,
@@ -274,23 +277,31 @@ export class ToursService {
       countriesInfo: translation?.countriesInfo ?? null,
       included: this.readStringArray(translation?.included),
       excluded: this.readStringArray(translation?.excluded),
-      images: tour.images.map((image) => ({
-        id: image.id,
-        imageUrl: image.imageUrl,
-        isCover: image.isCover,
-        altText: image.translations[0]?.altText ?? null,
-        caption: image.translations[0]?.caption ?? null,
-      })),
-      program: tour.days.map((day) => ({
-        id: day.id,
-        dayNumber: day.dayNumber,
-        overnightAt: day.overnightAt,
-        image: day.image,
-        title: day.translations[0]?.title ?? '',
-        shortTitle: day.translations[0]?.shortTitle ?? null,
-        description: day.translations[0]?.description ?? '',
-        inclusions: this.readStringArray(day.translations[0]?.inclusions),
-      })),
+      images: tour.images.map((image) => {
+        const imageTranslation = pickTranslation(image.translations, locale);
+
+        return {
+          id: image.id,
+          imageUrl: image.imageUrl,
+          isCover: image.isCover,
+          altText: imageTranslation?.altText ?? null,
+          caption: imageTranslation?.caption ?? null,
+        };
+      }),
+      program: tour.days.map((day) => {
+        const dayTranslation = pickTranslation(day.translations, locale);
+
+        return {
+          id: day.id,
+          dayNumber: day.dayNumber,
+          overnightAt: day.overnightAt,
+          image: day.image,
+          title: dayTranslation?.title ?? '',
+          shortTitle: dayTranslation?.shortTitle ?? null,
+          description: dayTranslation?.description ?? '',
+          inclusions: this.readStringArray(dayTranslation?.inclusions),
+        };
+      }),
     } as Record<string, unknown>;
 
     if (isAuthorized && tour.priceFrom) {

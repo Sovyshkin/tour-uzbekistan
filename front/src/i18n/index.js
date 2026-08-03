@@ -25,6 +25,10 @@ const messages = {
       sun: 'Вс',
       clear: 'Очистить',
     },
+    carousel: {
+      previous: 'Назад',
+      next: 'Вперёд',
+    },
     countrySections: {
       why: 'Почему Узбекистан?',
       cuisine: 'Кухня Узбекистана',
@@ -288,6 +292,7 @@ const messages = {
       more_details: 'Подробнее',
       hide_descriptions: 'Скрыть описания',
       show_descriptions: 'Показать описания',
+      info_coming_soon: 'Информация скоро появится.',
       buy: 'Бронировать',
       other_dates: 'Другие даты',
       date_on_request: 'Дата по запросу',
@@ -480,6 +485,10 @@ const messages = {
       sat: 'Sat',
       sun: 'Sun',
       clear: 'Clear',
+    },
+    carousel: {
+      previous: 'Previous',
+      next: 'Next',
     },
     countrySections: {
       why: 'Why Uzbekistan?',
@@ -741,6 +750,7 @@ const messages = {
       more_details: 'More details',
       hide_descriptions: 'Hide descriptions',
       show_descriptions: 'Show descriptions',
+      info_coming_soon: 'Information will appear soon.',
       buy: 'Book',
       other_dates: 'Other dates',
       date_on_request: 'Date on request',
@@ -932,6 +942,10 @@ const messages = {
       sat: 'Sha',
       sun: 'Yak',
       clear: 'Tozalash',
+    },
+    carousel: {
+      previous: 'Oldingi',
+      next: 'Keyingi',
     },
     countrySections: {
       why: "Nima uchun O'zbekiston?",
@@ -1196,6 +1210,7 @@ const messages = {
       more_details: 'Batafsil',
       hide_descriptions: 'Tavsiflarni yashirish',
       show_descriptions: "Tavsiflarni ko'rsatish",
+      info_coming_soon: "Ma'lumot tez orada paydo bo'ladi.",
       buy: 'Bron qilish',
       other_dates: 'Boshqa sanalar',
       date_on_request: "Sana so'rov bo'yicha",

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ContentStatus, Locale, Prisma } from '@prisma/client';
 
+import { pickTranslation } from '../common/translation.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -12,25 +13,26 @@ export class CountriesService {
       where: { status: ContentStatus.PUBLISHED },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       include: {
-        translations: {
-          where: { locale },
-          take: 1,
-        },
+        translations: true,
       },
     });
 
-    return countries.map((country) => ({
-      id: country.id,
-      slug: country.slug,
-      isoCode: country.isoCode,
-      heroImage: country.heroImage,
-      heroImageSettings: country.heroImageSettings,
-      flagImage: country.flagImage,
-      name: country.translations[0]?.name ?? '',
-      welcomeTitle: country.translations[0]?.welcomeTitle ?? null,
-      intro: country.translations[0]?.intro ?? null,
-      isFeatured: country.isFeatured,
-    }));
+    return countries.map((country) => {
+      const translation = pickTranslation(country.translations, locale);
+
+      return {
+        id: country.id,
+        slug: country.slug,
+        isoCode: country.isoCode,
+        heroImage: country.heroImage,
+        heroImageSettings: country.heroImageSettings,
+        flagImage: country.flagImage,
+        name: translation?.name ?? '',
+        welcomeTitle: translation?.welcomeTitle ?? null,
+        intro: translation?.intro ?? null,
+        isFeatured: country.isFeatured,
+      };
+    });
   }
 
   async getCountryBySlug(slug: string, locale: Locale = Locale.ru) {
@@ -40,10 +42,7 @@ export class CountriesService {
         status: ContentStatus.PUBLISHED,
       },
       include: {
-        translations: {
-          where: { locale },
-          take: 1,
-        },
+        translations: true,
       },
     });
 
@@ -51,7 +50,7 @@ export class CountriesService {
       return null;
     }
 
-    const translation = country.translations[0];
+    const translation = pickTranslation(country.translations, locale);
 
     return {
       id: country.id,

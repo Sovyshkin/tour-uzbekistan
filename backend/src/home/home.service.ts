@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ContentStatus, Locale, UserRole, UserStatus } from '@prisma/client';
 
+import { pickTranslation } from '../common/translation.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -20,10 +21,7 @@ export class HomeService {
           where: { isActive: true },
           orderBy: { sortOrder: 'asc' },
           include: {
-            translations: {
-              where: { locale },
-              take: 1,
-            },
+            translations: true,
           },
         }),
         this.prisma.country.findMany({
@@ -33,10 +31,7 @@ export class HomeService {
           },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
           include: {
-            translations: {
-              where: { locale },
-              take: 1,
-            },
+            translations: true,
           },
         }),
         this.prisma.tour.findMany({
@@ -48,16 +43,10 @@ export class HomeService {
           include: {
             country: {
               include: {
-                translations: {
-                  where: { locale },
-                  take: 1,
-                },
+                translations: true,
               },
             },
-            translations: {
-              where: { locale },
-              take: 1,
-            },
+            translations: true,
           },
           take: 8,
         }),
@@ -68,10 +57,7 @@ export class HomeService {
           },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
           include: {
-            translations: {
-              where: { locale },
-              take: 1,
-            },
+            translations: true,
           },
           take: 6,
         }),
@@ -79,18 +65,12 @@ export class HomeService {
           where: { status: ContentStatus.PUBLISHED },
           orderBy: { sortOrder: 'asc' },
           include: {
-            translations: {
-              where: { locale },
-              take: 1,
-            },
+            translations: true,
             facts: {
               where: { status: ContentStatus.PUBLISHED },
               orderBy: { sortOrder: 'asc' },
               include: {
-                translations: {
-                  where: { locale },
-                  take: 1,
-                },
+                translations: true,
               },
             },
           },
@@ -107,82 +87,104 @@ export class HomeService {
         this.prisma.siteSetting.findMany({
           where: { isPublic: true },
           include: {
-            translations: {
-              where: { locale },
-              take: 1,
-            },
+            translations: true,
           },
         }),
       ]);
 
     return {
       settings: siteSettings.reduce<Record<string, unknown>>((acc, setting) => {
-        const translation = setting.translations[0];
+        const translation = pickTranslation(setting.translations, locale);
         acc[setting.key] = translation?.textValue ?? setting.value ?? null;
         return acc;
       }, {}),
-      banners: banners.map((banner) => ({
-        id: banner.id,
-        slug: banner.slug,
-        imageUrl: banner.imageUrl,
-        imageSettings: banner.imageSettings,
-        mobileImageUrl: banner.mobileImageUrl,
-        linkUrl: banner.linkUrl,
-        title: banner.translations[0]?.title ?? '',
-        subtitle: banner.translations[0]?.subtitle ?? null,
-        buttonLabel: banner.translations[0]?.buttonLabel ?? null,
-        altText: banner.translations[0]?.altText ?? null,
-      })),
-      countries: countries.map((country) => ({
-        id: country.id,
-        slug: country.slug,
-        heroImage: country.heroImage,
-        heroImageSettings: country.heroImageSettings,
-        flagImage: country.flagImage,
-        name: country.translations[0]?.name ?? '',
-        intro: country.translations[0]?.intro ?? null,
-      })),
-      recommendedTours: recommendedTours.map((tour) => ({
-        id: tour.id,
-        slug: tour.slug,
-        title: tour.translations[0]?.title ?? '',
-        subtitle: tour.translations[0]?.subtitle ?? null,
-        route: tour.translations[0]?.route ?? '',
-        image: tour.mainImage,
-        imageSettings: tour.mainImageSettings,
-        durationDays: tour.durationDays,
-        durationNights: tour.durationNights,
-        countrySlug: tour.country.slug,
-        country: tour.country.translations[0]?.name ?? null,
-        priceFrom: canViewPrices ? tour.priceFrom?.toString() ?? null : null,
-        currency: canViewPrices ? tour.currency ?? null : null,
-        sortOrder: tour.sortOrder,
-      })),
-      services: services.map((service) => ({
-        id: service.id,
-        slug: service.slug,
-        name: service.translations[0]?.name ?? '',
-        title: service.translations[0]?.title ?? null,
-        subtitle: service.translations[0]?.subtitle ?? service.translations[0]?.shortDescription ?? null,
-        shortDescription: service.translations[0]?.shortDescription ?? service.translations[0]?.subtitle ?? null,
-        previewImage: service.previewImage,
-        previewImageSettings: service.previewImageSettings,
-      })),
-      whyWe: whyWe.map((category) => ({
-        id: category.id,
-        slug: category.slug,
-        title: category.translations[0]?.title ?? '',
-        subtitle: category.translations[0]?.subtitle ?? null,
-        description: category.translations[0]?.description ?? null,
-        facts: category.facts.map((fact) => ({
-          id: fact.id,
-          title: fact.translations[0]?.title ?? '',
-          subtitle: fact.translations[0]?.subtitle ?? null,
-          description: fact.translations[0]?.description ?? '',
-          imageUrl: fact.imageUrl,
-          imageSettings: fact.imageSettings,
-        })),
-      })),
+      banners: banners.map((banner) => {
+        const translation = pickTranslation(banner.translations, locale);
+
+        return {
+          id: banner.id,
+          slug: banner.slug,
+          imageUrl: banner.imageUrl,
+          imageSettings: banner.imageSettings,
+          mobileImageUrl: banner.mobileImageUrl,
+          linkUrl: banner.linkUrl,
+          title: translation?.title ?? '',
+          subtitle: translation?.subtitle ?? null,
+          buttonLabel: translation?.buttonLabel ?? null,
+          altText: translation?.altText ?? null,
+        };
+      }),
+      countries: countries.map((country) => {
+        const translation = pickTranslation(country.translations, locale);
+
+        return {
+          id: country.id,
+          slug: country.slug,
+          heroImage: country.heroImage,
+          heroImageSettings: country.heroImageSettings,
+          flagImage: country.flagImage,
+          name: translation?.name ?? '',
+          intro: translation?.intro ?? null,
+        };
+      }),
+      recommendedTours: recommendedTours.map((tour) => {
+        const translation = pickTranslation(tour.translations, locale);
+        const countryTranslation = pickTranslation(tour.country.translations, locale);
+
+        return {
+          id: tour.id,
+          slug: tour.slug,
+          title: translation?.title ?? '',
+          subtitle: translation?.subtitle ?? null,
+          route: translation?.route ?? '',
+          image: tour.mainImage,
+          imageSettings: tour.mainImageSettings,
+          durationDays: tour.durationDays,
+          durationNights: tour.durationNights,
+          countrySlug: tour.country.slug,
+          country: countryTranslation?.name ?? null,
+          priceFrom: canViewPrices ? tour.priceFrom?.toString() ?? null : null,
+          currency: canViewPrices ? tour.currency ?? null : null,
+          sortOrder: tour.sortOrder,
+        };
+      }),
+      services: services.map((service) => {
+        const translation = pickTranslation(service.translations, locale);
+
+        return {
+          id: service.id,
+          slug: service.slug,
+          name: translation?.name ?? '',
+          title: translation?.title ?? null,
+          subtitle: translation?.subtitle ?? translation?.shortDescription ?? null,
+          shortDescription: translation?.shortDescription ?? translation?.subtitle ?? null,
+          previewImage: service.previewImage,
+          previewImageSettings: service.previewImageSettings,
+        };
+      }),
+      whyWe: whyWe.map((category) => {
+        const translation = pickTranslation(category.translations, locale);
+
+        return {
+          id: category.id,
+          slug: category.slug,
+          title: translation?.title ?? '',
+          subtitle: translation?.subtitle ?? null,
+          description: translation?.description ?? null,
+          facts: category.facts.map((fact) => {
+            const factTranslation = pickTranslation(fact.translations, locale);
+
+            return {
+              id: fact.id,
+              title: factTranslation?.title ?? '',
+              subtitle: factTranslation?.subtitle ?? null,
+              description: factTranslation?.description ?? '',
+              imageUrl: fact.imageUrl,
+              imageSettings: fact.imageSettings,
+            };
+          }),
+        };
+      }),
       latestNews: latestNews.map((news) => {
         const translation = this.getTranslation(news.translations, locale);
 

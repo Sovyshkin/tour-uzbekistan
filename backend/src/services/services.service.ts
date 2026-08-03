@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ContentStatus, Locale, Prisma } from '@prisma/client';
 
+import { pickTranslation } from '../common/translation.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -24,26 +25,27 @@ export class ServicesService {
         skip,
         take: pageSize,
         include: {
-          translations: {
-            where: { locale },
-            take: 1,
-          },
+          translations: true,
         },
       }),
     ]);
 
     return {
-      items: services.map((service) => ({
-        id: service.id,
-        slug: service.slug,
-        name: service.translations[0]?.name ?? '',
-        title: service.translations[0]?.title ?? null,
-        subtitle: service.translations[0]?.subtitle ?? service.translations[0]?.shortDescription ?? null,
-        shortDescription: service.translations[0]?.shortDescription ?? service.translations[0]?.subtitle ?? null,
-        previewImage: service.previewImage,
-        previewImageSettings: service.previewImageSettings,
-        isFeatured: service.isFeatured,
-      })),
+      items: services.map((service) => {
+        const translation = pickTranslation(service.translations, locale);
+
+        return {
+          id: service.id,
+          slug: service.slug,
+          name: translation?.name ?? '',
+          title: translation?.title ?? null,
+          subtitle: translation?.subtitle ?? translation?.shortDescription ?? null,
+          shortDescription: translation?.shortDescription ?? translation?.subtitle ?? null,
+          previewImage: service.previewImage,
+          previewImageSettings: service.previewImageSettings,
+          isFeatured: service.isFeatured,
+        };
+      }),
       meta: {
         page,
         pageSize,
@@ -60,10 +62,7 @@ export class ServicesService {
         status: ContentStatus.PUBLISHED,
       },
       include: {
-        translations: {
-          where: { locale },
-          take: 1,
-        },
+        translations: true,
       },
     });
 
@@ -71,7 +70,7 @@ export class ServicesService {
       return null;
     }
 
-    const translation = service.translations[0];
+    const translation = pickTranslation(service.translations, locale);
 
     return {
       id: service.id,

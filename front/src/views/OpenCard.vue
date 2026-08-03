@@ -270,27 +270,6 @@ const loadCountries = async () => {
   }
 };
 
-// ─── Данные тура ───
-const legacyTour = {
-  title: 'Тур "Выходные в Узбекистане"',
-  subtitle: '(3 дня / 2 ночи)',
-  mainImage: '/assets/icons/card1.webp',
-  gallery: [
-    '/assets/icons/card2.webp',
-    '/assets/icons/card3.webp',
-    '/assets/icons/card4.webp',
-    '/assets/icons/card5.webp',
-  ],
-  description:
-    'Подробное описание тура временно недоступно.',
-  duration: '3 дня',
-  transport: 'Поезд, автобус',
-  tourists: 'от 2 до 16',
-  hotels: '2 ночи',
-  comfort: '3, 4 звезды',
-  mapImage: '/assets/icons/map.png',
-};
-
 const activeImage = ref('/assets/icons/card1.webp');
 const activeIndex = ref(0);
 
@@ -525,7 +504,7 @@ onUnmounted(() => {
             type="counter"
             :min="1"
             :max="20"
-            unit="человек"
+            :unit="t('openCard.search_people_unit')"
           />
           <CustomSelect
             v-model="duration"
@@ -533,7 +512,7 @@ onUnmounted(() => {
             type="counter"
             :min="1"
             :max="30"
-            unit="дней"
+            :unit="t('openCard.search_days_unit')"
           />
           <button
             class="bg-[#a6a6aa] text-white px-8 py-3 text-[14px] font-medium hover:bg-[#285aff] transition cursor-pointer rounded-r-[10px] flex-shrink-0"
@@ -789,7 +768,7 @@ onUnmounted(() => {
               class="tour-tab-card tour-tab-empty"
             >
               <div class="tour-tab-kicker">{{ tabs.find((tab) => tab.id === activeTab)?.label }}</div>
-              <p>Информация скоро появится.</p>
+              <p>{{ t('openCard.info_coming_soon') }}</p>
             </div>
 
             <div
