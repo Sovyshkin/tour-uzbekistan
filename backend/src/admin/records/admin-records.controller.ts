@@ -111,6 +111,26 @@ export class AdminRecordsController {
     return result;
   }
 
+  @Delete('partners/:id/permanent')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Permanently delete partner. Super admin only' })
+  @ApiOkResponse({ description: 'Updated partners list' })
+  async deletePartner(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
+  ) {
+    const result = await this.adminRecordsService.deletePartner(id, req.user);
+    await this.adminAuditService.log({
+      user: req.user,
+      request: req,
+      action: 'ARCHIVE',
+      entityType: 'record:partners',
+      entityId: id,
+      metadata: { permanentlyDeleted: true },
+    });
+    return result;
+  }
+
   @Patch(':type/:id')
   @ApiOperation({ summary: 'Update admin operational record' })
   @ApiOkResponse({ description: 'Updated records list' })

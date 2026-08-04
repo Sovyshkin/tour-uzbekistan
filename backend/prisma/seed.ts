@@ -392,6 +392,12 @@ async function main() {
       en: 'true',
       uz: 'true',
     },
+    {
+      key: 'home.hero_slider_interval_ms',
+      ru: '6000',
+      en: '6000',
+      uz: '6000',
+    },
   ];
 
   for (const setting of homeTextSettings) {

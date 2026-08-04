@@ -209,6 +209,15 @@ export class AdminRecordsService {
     return this.list(AdminRecordType.USERS);
   }
 
+  async deletePartner(id: string, actor: { role: UserRole }) {
+    this.ensureSuperAdmin(actor);
+
+    await this.ensureExists(this.prisma.partner.count({ where: { id } }));
+    await this.prisma.partner.delete({ where: { id } });
+
+    return this.list(AdminRecordType.PARTNERS);
+  }
+
   private async createUser(dto: AdminRecordCreateDto) {
     if (!dto.email || !dto.password) {
       throw new BadRequestException('Email and password are required');

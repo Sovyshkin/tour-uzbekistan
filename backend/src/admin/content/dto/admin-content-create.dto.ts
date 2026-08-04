@@ -91,6 +91,46 @@ class AdminWhyFactCreateDto {
   translations?: AdminWhyFactTranslationCreateDto[];
 }
 
+class AdminTourDayTranslationCreateDto {
+  @ApiPropertyOptional({ enum: Locale })
+  @IsEnum(Locale)
+  locale!: Locale;
+
+  @ApiPropertyOptional()
+  @IsObject()
+  fields!: Record<string, unknown>;
+}
+
+class AdminTourDayCreateDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  dayNumber?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  overnightAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  image?: string;
+
+  @ApiPropertyOptional({ type: [AdminTourDayTranslationCreateDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdminTourDayTranslationCreateDto)
+  translations?: AdminTourDayTranslationCreateDto[];
+}
+
 export class AdminContentCreateDto {
   @ApiPropertyOptional()
   @IsString()
@@ -254,6 +294,13 @@ export class AdminContentCreateDto {
   @ValidateNested({ each: true })
   @Type(() => AdminWhyFactCreateDto)
   whyFacts?: AdminWhyFactCreateDto[];
+
+  @ApiPropertyOptional({ type: [AdminTourDayCreateDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdminTourDayCreateDto)
+  tourDays?: AdminTourDayCreateDto[];
 
   @ApiPropertyOptional({ type: [AdminContentTranslationCreateDto] })
   @IsArray()

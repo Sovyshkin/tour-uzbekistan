@@ -39,6 +39,7 @@ type AdminContentRecord = {
   imageSettings?: Record<string, ImageTransformSettings | null>;
   translations: Record<Locale, Record<string, unknown>>;
   whyFacts?: AdminWhyFactRecord[];
+  tourDays?: AdminTourDayRecord[];
 };
 
 type AdminWhyFactRecord = {
@@ -47,6 +48,14 @@ type AdminWhyFactRecord = {
   status: ContentStatus;
   imageUrl: string | null;
   imageSettings?: ImageTransformSettings | null;
+  translations: Record<Locale, Record<string, unknown>>;
+};
+
+type AdminTourDayRecord = {
+  id: string;
+  dayNumber: number;
+  overnightAt: string | null;
+  image: string | null;
   translations: Record<Locale, Record<string, unknown>>;
 };
 
@@ -151,6 +160,8 @@ const TRANSLATION_FIELDS: Record<AdminContentType, string[]> = {
     'hotelsInfo',
     'transportInfo',
     'countriesInfo',
+    'included',
+    'excluded',
     'seoTitle',
     'seoDescription',
   ],
@@ -1479,6 +1490,21 @@ const DEFAULT_SITE_SETTINGS: DefaultSiteSettingSeed[] = [
     },
   },
   {
+    key: 'home.hero_slider_interval_ms',
+    group: 'home',
+    label: 'Главная: скорость перелистывания баннера',
+    textValue: {
+      ru: '6000',
+      en: '6000',
+      uz: '6000',
+    },
+    description: {
+      ru: 'Интервал автоперелистывания баннеров в миллисекундах. Например: 4000 быстро, 7000 спокойно. 0 - выключить автоперелистывание.',
+      en: 'Home banner autoplay interval in milliseconds. For example: 4000 fast, 7000 calm. 0 disables autoplay.',
+      uz: 'Bosh sahifa bannerlarini avtomatik almashtirish oralig‘i millisekundlarda. Masalan: 4000 tez, 7000 sokin. 0 - avtomatik almashtirishni o‘chiradi.',
+    },
+  },
+  {
     key: 'home.why_facts_limit',
     group: 'home',
     label: 'Главная: количество фактов Почему мы',
@@ -1773,6 +1799,8 @@ export class AdminContentService {
               hotelsInfo: this.readNullableString(fields.hotelsInfo),
               transportInfo: this.readNullableString(fields.transportInfo),
               countriesInfo: this.readNullableString(fields.countriesInfo),
+              included: this.readJson(fields.included),
+              excluded: this.readJson(fields.excluded),
               seoTitle: this.readNullableString(fields.seoTitle),
               seoDescription: this.readNullableString(fields.seoDescription),
             };
@@ -1780,6 +1808,8 @@ export class AdminContentService {
         },
       },
     });
+
+    await this.updateTourDays(record.id, dto);
 
     const items = await this.list(AdminContentType.TOURS);
     return items.find((item) => item.id === record.id);
@@ -2077,7 +2107,13 @@ export class AdminContentService {
   private async listTours() {
     const records = await this.prisma.tour.findMany({
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
-      include: { translations: true },
+      include: {
+        translations: true,
+        days: {
+          orderBy: { dayNumber: 'asc' },
+          include: { translations: true },
+        },
+      },
     });
 
     return records.map((record): AdminContentRecord => ({
@@ -2110,6 +2146,13 @@ export class AdminContentService {
         routeMapImage: readImageSettings(record.routeMapImageSettings),
       },
       translations: this.mapTranslations(AdminContentType.TOURS, record.translations),
+      tourDays: record.days.map((day) => ({
+        id: day.id,
+        dayNumber: day.dayNumber,
+        overnightAt: day.overnightAt,
+        image: day.image,
+        translations: this.mapTourDayTranslations(day.translations),
+      })),
     }));
   }
 
@@ -2305,6 +2348,87 @@ export class AdminContentService {
       },
     });
     await this.updateTranslations(AdminContentType.TOURS, id, dto);
+    await this.updateTourDays(id, dto);
+  }
+
+  private async updateTourDays(tourId: string, dto: AdminContentCreateDto | AdminContentUpdateDto) {
+    if (!dto.tourDays) {
+      return;
+    }
+
+    const activeIds: string[] = [];
+
+    for (const [index, day] of dto.tourDays.entries()) {
+      const dayNumber = day.dayNumber ?? index + 1;
+      const baseData = {
+        dayNumber,
+        overnightAt: this.readNullableString(day.overnightAt),
+        image: this.readNullableString(day.image),
+      };
+
+      const record = day.id
+        ? await this.prisma.tourDay.update({
+            where: { id: day.id },
+            data: baseData,
+          })
+        : await this.prisma.tourDay.create({
+            data: {
+              tourId,
+              ...baseData,
+              translations: {
+                create: LOCALES.map((locale) => {
+                  const fields = day.translations?.find((translation) => translation.locale === locale)?.fields ?? {};
+
+                  return {
+                    locale,
+                    title: this.readString(fields.title, `День ${dayNumber}`),
+                    shortTitle: this.readNullableString(fields.shortTitle),
+                    description: this.readString(fields.description, 'Описание будет добавлено позже.'),
+                    inclusions: this.readJson(fields.inclusions),
+                  };
+                }),
+              },
+            },
+          });
+
+      activeIds.push(record.id);
+
+      if (!day.id || !day.translations) {
+        continue;
+      }
+
+      for (const translation of day.translations) {
+        await this.prisma.tourDayTranslation.upsert({
+          where: {
+            tourDayId_locale: {
+              tourDayId: record.id,
+              locale: translation.locale,
+            },
+          },
+          create: {
+            tourDayId: record.id,
+            locale: translation.locale,
+            title: this.readString(translation.fields.title, `День ${dayNumber}`),
+            shortTitle: this.readNullableString(translation.fields.shortTitle),
+            description: this.readString(translation.fields.description, 'Описание будет добавлено позже.'),
+            inclusions: this.readJson(translation.fields.inclusions),
+          },
+          update: {
+            title: this.readString(translation.fields.title, `День ${dayNumber}`),
+            shortTitle: this.readNullableString(translation.fields.shortTitle),
+            description: this.readString(translation.fields.description, 'Описание будет добавлено позже.'),
+            inclusions: this.readJson(translation.fields.inclusions),
+          },
+        });
+      }
+    }
+
+    await this.prisma.tourDay.deleteMany({
+      where: {
+        tourId,
+        id: { notIn: activeIds },
+      },
+    });
   }
 
   private async updateService(id: string, dto: AdminContentUpdateDto) {
@@ -2553,7 +2677,9 @@ export class AdminContentService {
         case AdminContentType.TOURS:
           await this.prisma.tourTranslation.updateMany({
             where: { tourId: id, locale: translation.locale },
-            data: data as Prisma.TourTranslationUpdateManyMutationInput,
+            data: this.prepareTourTranslationData(
+              data,
+            ) as Prisma.TourTranslationUpdateManyMutationInput,
           });
           break;
         case AdminContentType.SERVICES:
@@ -2612,6 +2738,26 @@ export class AdminContentService {
     return result;
   }
 
+  private mapTourDayTranslations(
+    translations: ContentTranslation[],
+  ): Record<Locale, Record<string, unknown>> {
+    const result = LOCALES.reduce(
+      (acc, locale) => ({ ...acc, [locale]: {} }),
+      {} as Record<Locale, Record<string, unknown>>,
+    );
+
+    for (const translation of translations) {
+      result[translation.locale] = this.pickAllowedFields(translation, [
+        'title',
+        'shortTitle',
+        'description',
+        'inclusions',
+      ]);
+    }
+
+    return result;
+  }
+
   private getTitle(translations: ContentTranslation[], field: string) {
     const preferred =
       translations.find((translation) => translation.locale === Locale.ru) ??
@@ -2654,6 +2800,14 @@ export class AdminContentService {
       ...(data.cities !== undefined ? { cities: this.readJson(data.cities) } : {}),
       ...(data.toc !== undefined ? { toc: this.readJson(data.toc) } : {}),
       ...(data.sections !== undefined ? { sections: this.readJson(data.sections) } : {}),
+    };
+  }
+
+  private prepareTourTranslationData(data: Record<string, unknown>) {
+    return {
+      ...data,
+      ...(data.included !== undefined ? { included: this.readJson(data.included) } : {}),
+      ...(data.excluded !== undefined ? { excluded: this.readJson(data.excluded) } : {}),
     };
   }
 

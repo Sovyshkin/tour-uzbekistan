@@ -28,6 +28,11 @@ export class HomeService {
           where: {
             isFeatured: true,
             status: ContentStatus.PUBLISHED,
+            tours: {
+              some: {
+                status: ContentStatus.PUBLISHED,
+              },
+            },
           },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
           include: {

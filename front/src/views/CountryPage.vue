@@ -66,14 +66,6 @@ watch(isCityModalOpen, (val) => {
 });
 onUnmounted(() => window.removeEventListener('scroll', onScroll));
 
-const translatedToc = computed(() => {
-  return data.value.toc;
-});
-
-const translatedSections = computed(() => {
-  return data.value.sections;
-});
-
 const data = computed(() => {
   return countryData.value || {
     heroImage: '',
@@ -87,6 +79,62 @@ const data = computed(() => {
     sections: [],
   };
 });
+
+const selectedCityData = computed(() => {
+  if (!selectedCity.value) {
+    return null;
+  }
+
+  return data.value.cities.find((city) => city.code === selectedCity.value) || null;
+});
+
+const buildTocFromSections = (sections) =>
+  sections
+    .map((section, index) => ({
+      id: section.id || `section-${index + 1}`,
+      title: section.title || '',
+    }))
+    .filter((item) => item.title.trim());
+
+const activeIntro = computed(() => {
+  return selectedCityData.value?.intro || data.value.intro;
+});
+
+const translatedSections = computed(() => {
+  const citySections = selectedCityData.value?.sections;
+  return Array.isArray(citySections) && citySections.length ? citySections : data.value.sections;
+});
+
+const translatedToc = computed(() => {
+  const cityToc = selectedCityData.value?.toc;
+
+  if (Array.isArray(cityToc) && cityToc.length) {
+    return cityToc;
+  }
+
+  if (selectedCityData.value) {
+    return buildTocFromSections(translatedSections.value);
+  }
+
+  return data.value.toc;
+});
+
+const pageTitle = computed(() => {
+  return (
+    selectedCityData.value?.welcomeTitle ||
+    selectedCityData.value?.name ||
+    `${t('countryPage.welcome_prefix')} ${data.value.name}`
+  );
+});
+
+const sidebarTitle = computed(() => {
+  return (
+    selectedCityData.value?.sidebarTitle ||
+    data.value.sidebarTitle ||
+    `${t('countryPage.sidebar_title_prefix')} ${data.value.name}`
+  );
+});
+
 const heroStyle = computed(() => {
   if (!countryLoaded.value) {
     return undefined;
@@ -99,7 +147,7 @@ const heroStyle = computed(() => {
 const breadcrumbs = computed(() => [
   { label: t('breadcrumbs.main'), path: '/' },
   { label: t('breadcrumbs.countries'), path: null },
-  { label: data.value.welcomeTitle, path: null },
+  { label: selectedCityData.value?.name || data.value.welcomeTitle, path: null },
 ]);
 
 const filters = ref({
@@ -120,6 +168,7 @@ const loadCountry = async () => {
       heroImageSettings: payload.heroImageSettings,
       flagImage: resolveAssetUrl(payload.flagImage),
     };
+    selectedCity.value = '';
   } catch (error) {
     countryData.value = null;
     notifyError(error.message || t('notifications.loadCountryFailed'), t('notifications.countryUnavailable'));
@@ -298,8 +347,7 @@ onMounted(() => {
           <h1
             class="text-[28px] sm:text-[36px] lg:text-[42px] font-normal text-black mb-[20px] leading-tight"
           >
-            {{ $t('countryPage.welcome_prefix') }}
-            {{ data.name }}
+            {{ pageTitle }}
           </h1>
 
           <div class="lg:hidden mb-[15px]">
@@ -330,11 +378,10 @@ onMounted(() => {
             </button>
           </div>
 
-          <p
+          <div
             class="text-[13px] sm:text-[14px] text-[#333] leading-[1.7] mb-[30px]"
-          >
-            {{ data.intro }}
-          </p>
+            v-html="activeIntro"
+          ></div>
 
           <hr class="border-[#e5e5e6] mb-[30px]" />
 
@@ -389,7 +436,7 @@ onMounted(() => {
             <h3
               class="text-[14px] font-medium text-black mb-[15px] leading-snug"
             >
-              {{ t('countryPage.sidebar_title_prefix') }} {{ data.name }}
+              {{ sidebarTitle }}
             </h3>
             <div class="flex flex-col gap-[10px]">
               <label

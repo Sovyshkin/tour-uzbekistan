@@ -80,6 +80,11 @@ const cmsBoolean = (key, fallback = false) => {
   return fallback;
 };
 
+const cmsNumber = (key, fallback) => {
+  const value = Number(homeData.value.settings?.[key]);
+  return Number.isFinite(value) ? value : fallback;
+};
+
 const toursAutoplay = computed(() =>
   cmsBoolean('home.tours_animation_enabled', true) ? 5000 : 0,
 );
@@ -119,7 +124,70 @@ const mass = computed(() => [
   },
 ]);
 
-const heroBanner = computed(() => homeData.value.banners[0] || null);
+const activeHeroIndex = ref(0);
+const isHeroPaused = ref(false);
+let heroTimer = null;
+
+const heroBanners = computed(() => {
+  const banners = homeData.value.banners || [];
+
+  if (banners.length) {
+    return banners;
+  }
+
+  return [
+    {
+      id: 'fallback-hero',
+      imageUrl: '/assets/icons/8ec662fe56344049271e593f6db12dfdb7df8bdb.webp',
+      title: '',
+    },
+  ];
+});
+const heroBanner = computed(() => heroBanners.value[activeHeroIndex.value] || heroBanners.value[0] || null);
+const heroSliderInterval = computed(() => Math.max(0, cmsNumber('home.hero_slider_interval_ms', 6000)));
+const hasHeroSlider = computed(() => (homeData.value.banners || []).length > 1);
+
+const heroSlideStyle = (banner) =>
+  banner?.imageUrl ? backgroundImageStyle(cmsAsset(banner.imageUrl), banner.imageSettings) : undefined;
+
+const clearHeroTimer = () => {
+  if (heroTimer) {
+    window.clearInterval(heroTimer);
+    heroTimer = null;
+  }
+};
+
+const nextHero = () => {
+  if (!hasHeroSlider.value) {
+    return;
+  }
+
+  activeHeroIndex.value = (activeHeroIndex.value + 1) % heroBanners.value.length;
+};
+
+const setHeroIndex = (index) => {
+  activeHeroIndex.value = index;
+};
+
+const restartHeroTimer = () => {
+  clearHeroTimer();
+
+  if (!hasHeroSlider.value || isHeroPaused.value || heroSliderInterval.value <= 0) {
+    return;
+  }
+
+  heroTimer = window.setInterval(nextHero, heroSliderInterval.value);
+};
+
+const pauseHero = () => {
+  isHeroPaused.value = true;
+  clearHeroTimer();
+};
+
+const resumeHero = () => {
+  isHeroPaused.value = false;
+  restartHeroTimer();
+};
 
 const buttons = computed(() => [
   { title: cmsText('buttons.all', t('buttons.all')), category: 'all', url: null },
@@ -233,27 +301,54 @@ const loadHome = async () => {
         countrySlug: tour.countrySlug || null,
       })),
     };
+    activeHeroIndex.value = 0;
   } catch (error) {
     notifyError(error.message || t('notifications.loadHomeFailed'), t('notifications.homeUnavailable'));
   }
 };
 
 watch(() => locale.value, loadHome);
+watch([heroBanners, heroSliderInterval, isHeroPaused], restartHeroTimer, { flush: 'post' });
 onMounted(loadHome);
+onUnmounted(clearHeroTimer);
 </script>
 
 <template>
   <div class="page-wrapper relative">
     <!-- Hero секция -->
     <section>
-      <div class="hero-section">
-        <div
-          class="hero-image"
-          :style="heroBanner?.imageUrl ? backgroundImageStyle(cmsAsset(heroBanner.imageUrl)) : undefined"
-        ></div>
+      <div
+        class="hero-section hero-slider"
+        @mouseenter="pauseHero"
+        @mouseleave="resumeHero"
+        @focusin="pauseHero"
+        @focusout="resumeHero"
+      >
+        <div class="hero-slider-media">
+          <div
+            v-for="(banner, index) in heroBanners"
+            :key="banner.id || banner.slug || index"
+            class="hero-image hero-slide"
+            :class="{ 'hero-slide-active': index === activeHeroIndex }"
+            :style="heroSlideStyle(banner)"
+            :aria-hidden="index !== activeHeroIndex"
+          ></div>
+        </div>
         <AppContainer>
           <div class="hero-content">
             <h1>{{ heroBanner?.title || cmsText('home.hero_title', $t('home.hero_title')) }}</h1>
+            <div v-if="hasHeroSlider" class="hero-dots" aria-label="Home banner slides">
+              <button
+                v-for="(banner, index) in heroBanners"
+                :key="`hero-dot-${banner.id || index}`"
+                type="button"
+                class="hero-dot"
+                :class="{ 'hero-dot-active': index === activeHeroIndex }"
+                :aria-label="`Slide ${index + 1}`"
+                :aria-pressed="index === activeHeroIndex"
+                @click="setHeroIndex(index)"
+              ></button>
+            </div>
           </div>
         </AppContainer>
       </div>
@@ -544,6 +639,19 @@ onMounted(loadHome);
   width: 100%;
 }
 
+.hero-slider {
+  overflow: hidden;
+  isolation: isolate;
+  background: #111827;
+}
+
+.hero-slider-media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
 .hero-image {
   position: absolute;
   top: 0;
@@ -556,12 +664,39 @@ onMounted(loadHome);
   z-index: 0;
 }
 
+.hero-slide {
+  opacity: 0;
+  transform: scale(1.035);
+  transition:
+    opacity 1100ms ease,
+    transform 7200ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.hero-slide::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0.12) 45%, rgba(0, 0, 0, 0.04)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.22));
+  pointer-events: none;
+}
+
+.hero-slide-active {
+  opacity: 1;
+  transform: scale(1);
+  z-index: 1;
+}
+
 /* Контент поверх картинки */
 .hero-content {
   position: relative;
   z-index: 2;
   height: 458px;
   display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
 }
 
 h1 {
@@ -570,6 +705,34 @@ h1 {
   color: #fff;
   max-width: 500px;
   margin-top: 100px;
+}
+
+.hero-dots {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  margin-bottom: 130px;
+}
+
+.hero-dot {
+  width: 36px;
+  height: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.42);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    width 260ms ease,
+    background-color 260ms ease,
+    opacity 260ms ease;
+}
+
+.hero-dot:hover,
+.hero-dot-active {
+  width: 54px;
+  background: #ffffff;
 }
 
 /* Карточки */
@@ -707,6 +870,17 @@ h1 {
   }
   .hero-content {
     height: 358px;
+  }
+  .hero-dots {
+    gap: 8px;
+    margin-bottom: 82px;
+  }
+  .hero-dot {
+    width: 26px;
+  }
+  .hero-dot:hover,
+  .hero-dot-active {
+    width: 38px;
   }
 }
 

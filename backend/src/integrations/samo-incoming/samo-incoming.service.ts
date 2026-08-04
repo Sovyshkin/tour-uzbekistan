@@ -192,7 +192,6 @@ export class SamoIncomingService {
       ['SAMO_INCOMING_ENDPOINT', config.endpoint],
       ['SAMO_INCOMING_USER', config.user],
       ['SAMO_INCOMING_PASSWORD', config.password],
-      ['SAMO_INCOMING_TOUR_ID', config.tourId],
       ['SAMO_INCOMING_HOTEL_CODE', config.hotelCode],
     ]
       .filter(([, value]) => !value)
@@ -259,6 +258,9 @@ export class SamoIncomingService {
     const dateEnd = this.addDays(dateBeg, Math.max(1, payload.tour.durationDays));
     const hotelInc = claimNumber + 1;
     const people = this.buildPeople(payload, adults);
+    const tourAttribute = config.tourId
+      ? ` tour="${this.escapeXml(config.tourId)}"`
+      : '';
     const links = people
       .map(
         (person) =>
@@ -267,7 +269,7 @@ export class SamoIncomingService {
       .join('\n');
 
     return `<claimlist>
-  <claim number="${claimNumber}" action="E" id="${this.escapeXml(payload.bookingNumber)}" cdate="${this.formatSamoDate(payload.createdAt)}" tour="${this.escapeXml(config.tourId ?? '')}" datebeg="${this.formatSamoDate(dateBeg)}" dateend="${this.formatSamoDate(dateEnd)}">
+  <claim number="${claimNumber}" action="E" id="${this.escapeXml(payload.bookingNumber)}" cdate="${this.formatSamoDate(payload.createdAt)}"${tourAttribute} datebeg="${this.formatSamoDate(dateBeg)}" dateend="${this.formatSamoDate(dateEnd)}">
     <note>${this.escapeXml(this.buildNote(payload))}</note>
     <peoples>
 ${people.map((person) => person.xml).join('\n')}

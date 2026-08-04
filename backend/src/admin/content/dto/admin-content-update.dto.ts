@@ -98,6 +98,46 @@ class AdminWhyFactUpdateDto {
   translations?: AdminWhyFactTranslationUpdateDto[];
 }
 
+class AdminTourDayTranslationUpdateDto {
+  @ApiPropertyOptional({ enum: Locale })
+  @IsEnum(Locale)
+  locale!: Locale;
+
+  @ApiPropertyOptional()
+  @IsObject()
+  fields!: Record<string, unknown>;
+}
+
+class AdminTourDayUpdateDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  dayNumber?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  overnightAt?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  image?: string;
+
+  @ApiPropertyOptional({ type: [AdminTourDayTranslationUpdateDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdminTourDayTranslationUpdateDto)
+  translations?: AdminTourDayTranslationUpdateDto[];
+}
+
 export class AdminContentUpdateDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -299,4 +339,11 @@ export class AdminContentUpdateDto {
   @ValidateNested({ each: true })
   @Type(() => AdminWhyFactUpdateDto)
   whyFacts?: AdminWhyFactUpdateDto[];
+
+  @ApiPropertyOptional({ type: [AdminTourDayUpdateDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdminTourDayUpdateDto)
+  tourDays?: AdminTourDayUpdateDto[];
 }

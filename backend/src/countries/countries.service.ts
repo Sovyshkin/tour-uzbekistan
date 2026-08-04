@@ -10,7 +10,14 @@ export class CountriesService {
 
   async getCountries(locale: Locale = Locale.ru) {
     const countries = await this.prisma.country.findMany({
-      where: { status: ContentStatus.PUBLISHED },
+      where: {
+        status: ContentStatus.PUBLISHED,
+        tours: {
+          some: {
+            status: ContentStatus.PUBLISHED,
+          },
+        },
+      },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       include: {
         translations: true,

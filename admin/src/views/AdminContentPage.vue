@@ -48,13 +48,14 @@ type ContentRecord = {
   images?: Record<string, string | null>;
   imageSettings?: Partial<Record<ImageFieldKey, ImageTransformSettings | null>>;
   whyFacts?: WhyFactForm[];
+  tourDays?: TourDayForm[];
   translations: Record<LocaleCode, Record<string, any>>;
 };
 
 type FieldConfig = {
   key: string;
   label: string;
-  type?: 'text' | 'textarea' | 'richtext' | 'cityList' | 'countrySections';
+  type?: 'text' | 'textarea' | 'richtext' | 'cityList' | 'countrySections' | 'stringList';
 };
 
 type ImageFieldKey = 'heroImage' | 'mainImage' | 'previewImage' | 'imageUrl' | 'routeMapImage';
@@ -93,10 +94,27 @@ type PageContentBlock = {
 type CountryCity = {
   code: string;
   name: string;
+  welcomeTitle: string;
+  intro: string;
+  sidebarTitle: string;
+  toc?: Array<{ id: string; title: string }>;
+  sections: CountrySection[];
 };
 
 type CountrySection = PageContentBlock & {
   id: string;
+};
+
+type TourDayForm = {
+  id?: string;
+  dayNumber: number;
+  overnightAt: string;
+  image: string;
+  translations: Record<LocaleCode, {
+    title: string;
+    shortTitle: string;
+    description: string;
+  }>;
 };
 
 type WhyFactForm = {
@@ -184,6 +202,8 @@ const typeFields = computed<Record<ContentType, FieldConfig[]>>(() => ({
     { key: 'transportInfo', label: t('content.fields.transportInfo'), type: 'richtext' },
     { key: 'countriesInfo', label: t('content.fields.countriesInfo'), type: 'richtext' },
     { key: 'hotelsInfo', label: t('content.fields.hotelsInfo'), type: 'textarea' },
+    { key: 'included', label: t('content.fields.included'), type: 'stringList' },
+    { key: 'excluded', label: t('content.fields.excluded'), type: 'stringList' },
     { key: 'seoTitle', label: t('content.fields.seoTitle') },
     { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
@@ -376,6 +396,7 @@ const form = reactive<{
   media: Partial<Record<ImageFieldKey, string>>;
   imageSettings: Partial<Record<ImageFieldKey, ImageTransformSettings>>;
   whyFacts: WhyFactForm[];
+  tourDays: TourDayForm[];
   translations: Record<LocaleCode, Record<string, unknown>>;
 }>({
   id: '',
@@ -402,6 +423,7 @@ const form = reactive<{
   media: {},
   imageSettings: {},
   whyFacts: [],
+  tourDays: [],
   translations: {
     ru: {},
     en: {},
@@ -470,6 +492,7 @@ const resetForm = () => {
   form.media = {};
   form.imageSettings = {};
   form.whyFacts = [];
+  form.tourDays = [];
   form.translations = { ru: {}, en: {}, uz: {} };
   activeLocale.value = 'ru';
 };
@@ -714,7 +737,14 @@ const normalizeCountryCities = (value: unknown): CountryCity[] => {
           .split('\n')
           .map((line) => line.trim())
           .filter(Boolean)
-          .map((name, index) => ({ code: slugifySectionId(name, index), name }));
+          .map((name, index) => ({
+            code: slugifySectionId(name, index),
+            name,
+            welcomeTitle: '',
+            intro: '',
+            sidebarTitle: '',
+            sections: [],
+          }));
       }
     }
 
@@ -728,7 +758,14 @@ const normalizeCountryCities = (value: unknown): CountryCity[] => {
   return parsed
     .map((item, index) => {
       if (typeof item === 'string') {
-        return { code: slugifySectionId(item, index), name: item };
+        return {
+          code: slugifySectionId(item, index),
+          name: item,
+          welcomeTitle: '',
+          intro: '',
+          sidebarTitle: '',
+          sections: [],
+        };
       }
 
       if (typeof item === 'object' && item !== null) {
@@ -738,11 +775,32 @@ const normalizeCountryCities = (value: unknown): CountryCity[] => {
           typeof source.code === 'string' && source.code.trim()
             ? source.code
             : slugifySectionId(name, index);
+        const welcomeTitle =
+          typeof source.welcomeTitle === 'string' ? source.welcomeTitle : '';
+        const intro = typeof source.intro === 'string' ? source.intro : '';
+        const sidebarTitle =
+          typeof source.sidebarTitle === 'string' ? source.sidebarTitle : '';
+        const sections = normalizeCountrySections(source.sections);
 
-        return { code, name };
+        return {
+          code,
+          name,
+          welcomeTitle,
+          intro,
+          sidebarTitle,
+          toc: buildCountryToc(sections),
+          sections,
+        };
       }
 
-      return { code: `city-${index + 1}`, name: '' };
+      return {
+        code: `city-${index + 1}`,
+        name: '',
+        welcomeTitle: '',
+        intro: '',
+        sidebarTitle: '',
+        sections: [],
+      };
     })
     .filter((city) => city.name.trim());
 };
@@ -755,7 +813,14 @@ const isNormalizedCountryCities = (value: unknown): value is CountryCity[] =>
     }
 
     const source = city as Record<string, unknown>;
-    return typeof source.code === 'string' && typeof source.name === 'string';
+    return (
+      typeof source.code === 'string' &&
+      typeof source.name === 'string' &&
+      typeof source.welcomeTitle === 'string' &&
+      typeof source.intro === 'string' &&
+      typeof source.sidebarTitle === 'string' &&
+      isNormalizedCountrySections(source.sections)
+    );
   });
 
 const normalizeCountrySections = (value: unknown): CountrySection[] =>
@@ -788,6 +853,70 @@ const isNormalizedCountrySections = (value: unknown): value is CountrySection[] 
       typeof source.title === 'string' &&
       typeof source.text === 'string'
     );
+  });
+
+const normalizeStringList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item : ''))
+      .filter((item) => item.trim());
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return normalizeStringList(parsed);
+      }
+    } catch {
+      return value
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+};
+
+const isNormalizedStringList = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string');
+
+const emptyTourDayTranslations = (): TourDayForm['translations'] => ({
+  ru: { title: '', shortTitle: '', description: '' },
+  en: { title: '', shortTitle: '', description: '' },
+  uz: { title: '', shortTitle: '', description: '' },
+});
+
+const normalizeTourDayText = (value: unknown) => (typeof value === 'string' ? value : '');
+
+const normalizeTourDays = (value?: TourDayForm[]): TourDayForm[] =>
+  (value ?? []).map((day, index) => {
+    const sourceTranslations = day.translations ?? emptyTourDayTranslations();
+
+    return {
+      id: day.id,
+      dayNumber: Number.isFinite(Number(day.dayNumber)) ? Number(day.dayNumber) : index + 1,
+      overnightAt: normalizeTourDayText(day.overnightAt),
+      image: normalizeTourDayText(day.image),
+      translations: {
+        ru: {
+          title: normalizeTourDayText(sourceTranslations.ru?.title),
+          shortTitle: normalizeTourDayText(sourceTranslations.ru?.shortTitle),
+          description: normalizeTourDayText(sourceTranslations.ru?.description),
+        },
+        en: {
+          title: normalizeTourDayText(sourceTranslations.en?.title),
+          shortTitle: normalizeTourDayText(sourceTranslations.en?.shortTitle),
+          description: normalizeTourDayText(sourceTranslations.en?.description),
+        },
+        uz: {
+          title: normalizeTourDayText(sourceTranslations.uz?.title),
+          shortTitle: normalizeTourDayText(sourceTranslations.uz?.shortTitle),
+          description: normalizeTourDayText(sourceTranslations.uz?.description),
+        },
+      },
+    };
   });
 
 const applyDefaultPageContent = (slug: string) => {
@@ -883,6 +1012,7 @@ const setFactImageMedia = (factIndex: number, value: string | null | undefined) 
 const isPageContentField = (field: FieldConfig) => form.type === 'pages' && field.key === 'content';
 const isCountryCityListField = (field: FieldConfig) => form.type === 'countries' && field.key === 'cities';
 const isCountrySectionsField = (field: FieldConfig) => form.type === 'countries' && field.key === 'sections';
+const isStringListField = (field: FieldConfig) => field.type === 'stringList';
 
 const getPageContentBlocks = (localeCode: LocaleCode) => {
   const current = form.translations[localeCode].content;
@@ -928,7 +1058,14 @@ const getCountryCities = (localeCode: LocaleCode) => {
 
 const addCountryCity = (localeCode: LocaleCode) => {
   const cities = getCountryCities(localeCode);
-  cities.push({ code: `city-${cities.length + 1}`, name: '' });
+  cities.push({
+    code: `city-${cities.length + 1}`,
+    name: '',
+    welcomeTitle: '',
+    intro: '',
+    sidebarTitle: '',
+    sections: [],
+  });
   form.translations[localeCode].cities = cities;
 };
 
@@ -936,6 +1073,49 @@ const removeCountryCity = (localeCode: LocaleCode, index: number) => {
   const cities = getCountryCities(localeCode);
   cities.splice(index, 1);
   form.translations[localeCode].cities = cities;
+};
+
+const getCountryCitySections = (localeCode: LocaleCode, cityIndex: number) => {
+  const cities = getCountryCities(localeCode);
+  const city = cities[cityIndex];
+
+  if (!city) {
+    return [];
+  }
+
+  if (isNormalizedCountrySections(city.sections)) {
+    return city.sections;
+  }
+
+  city.sections = normalizeCountrySections(city.sections);
+  return city.sections;
+};
+
+const addCountryCitySection = (localeCode: LocaleCode, cityIndex: number) => {
+  const sections = getCountryCitySections(localeCode, cityIndex);
+  sections.push({ id: `section-${sections.length + 1}`, title: '', text: '' });
+  getCountryCities(localeCode)[cityIndex].sections = sections;
+};
+
+const removeCountryCitySection = (localeCode: LocaleCode, cityIndex: number, sectionIndex: number) => {
+  const sections = getCountryCitySections(localeCode, cityIndex);
+  sections.splice(sectionIndex, 1);
+  getCountryCities(localeCode)[cityIndex].sections = sections;
+};
+
+const updateCountryCityIntro = (localeCode: LocaleCode, cityIndex: number, value: string) => {
+  getCountryCities(localeCode)[cityIndex].intro = value;
+};
+
+const updateCountryCitySectionText = (
+  localeCode: LocaleCode,
+  cityIndex: number,
+  sectionIndex: number,
+  value: string,
+) => {
+  const sections = getCountryCitySections(localeCode, cityIndex);
+  sections[sectionIndex].text = value;
+  getCountryCities(localeCode)[cityIndex].sections = sections;
 };
 
 const getCountrySections = (localeCode: LocaleCode) => {
@@ -975,6 +1155,47 @@ const buildCountryToc = (sections: CountrySection[]) =>
       title: section.title,
     }))
     .filter((item) => item.title.trim());
+
+const getStringList = (localeCode: LocaleCode, fieldKey: string) => {
+  const current = form.translations[localeCode][fieldKey];
+
+  if (isNormalizedStringList(current)) {
+    return current;
+  }
+
+  const items = normalizeStringList(current);
+  form.translations[localeCode][fieldKey] = items;
+  return items;
+};
+
+const addStringListItem = (localeCode: LocaleCode, fieldKey: string) => {
+  const items = getStringList(localeCode, fieldKey);
+  items.push('');
+  form.translations[localeCode][fieldKey] = items;
+};
+
+const removeStringListItem = (localeCode: LocaleCode, fieldKey: string, index: number) => {
+  const items = getStringList(localeCode, fieldKey);
+  items.splice(index, 1);
+  form.translations[localeCode][fieldKey] = items;
+};
+
+const addTourDay = () => {
+  form.tourDays.push({
+    dayNumber: form.tourDays.length + 1,
+    overnightAt: '',
+    image: '',
+    translations: emptyTourDayTranslations(),
+  });
+};
+
+const removeTourDay = (index: number) => {
+  form.tourDays.splice(index, 1);
+};
+
+const updateTourDayDescription = (dayIndex: number, localeCode: LocaleCode, value: string) => {
+  form.tourDays[dayIndex].translations[localeCode].description = value;
+};
 
 const optimizedPublicAssets = new Map([
   ['/assets/icons/8ec662fe56344049271e593f6db12dfdb7df8bdb.png', '/assets/icons/8ec662fe56344049271e593f6db12dfdb7df8bdb.webp'],
@@ -1259,6 +1480,10 @@ const saveContent = async () => {
             : form.type === 'countries'
               ? {
                   ...form.translations[locale.code],
+                  cities: getCountryCities(locale.code).map((city, cityIndex) => ({
+                    ...city,
+                    toc: buildCountryToc(getCountryCitySections(locale.code, cityIndex)),
+                  })),
                   toc: buildCountryToc(getCountrySections(locale.code)),
                 }
             : form.translations[locale.code],
@@ -2253,10 +2478,76 @@ watch(
                       {{ t('common.delete') }}
                     </el-button>
                   </div>
-                  <el-input
-                    v-model="getCountryCities(locale.code)[cityIndex].name"
-                    :placeholder="t('content.cityNamePlaceholder')"
-                  />
+                  <div class="page-block-subsection">
+                    <span>{{ t('content.fields.name') }}</span>
+                    <el-input
+                      v-model="getCountryCities(locale.code)[cityIndex].name"
+                      :placeholder="t('content.cityNamePlaceholder')"
+                    />
+                  </div>
+                  <div class="page-block-subsection">
+                    <span>{{ t('content.fields.welcomeTitle') }}</span>
+                    <el-input
+                      v-model="getCountryCities(locale.code)[cityIndex].welcomeTitle"
+                      :placeholder="t('content.fields.welcomeTitle')"
+                    />
+                  </div>
+                  <div class="page-block-subsection">
+                    <span>{{ t('content.cityIntro') }}</span>
+                    <RichTextEditor
+                      :model-value="getCountryCities(locale.code)[cityIndex].intro"
+                      :placeholder="t('content.startWriting')"
+                      :min-height="160"
+                      @update:model-value="(value: string) => updateCountryCityIntro(locale.code, cityIndex, value)"
+                    />
+                  </div>
+                  <div class="page-block-subsection">
+                    <span>{{ t('content.fields.sidebarTitle') }}</span>
+                    <el-input
+                      v-model="getCountryCities(locale.code)[cityIndex].sidebarTitle"
+                      :placeholder="t('content.fields.sidebarTitle')"
+                    />
+                  </div>
+                  <div class="page-block-subsection">
+                    <div class="page-block-head">
+                      <span>{{ t('content.citySections') }}</span>
+                      <el-button
+                        type="primary"
+                        plain
+                        size="small"
+                        @click="addCountryCitySection(locale.code, cityIndex)"
+                      >
+                        {{ t('content.addSection') }}
+                      </el-button>
+                    </div>
+                    <article
+                      v-for="(section, sectionIndex) in getCountryCitySections(locale.code, cityIndex)"
+                      :key="`${locale.code}-city-${cityIndex}-section-${sectionIndex}`"
+                      class="page-block-item page-block-item--nested"
+                    >
+                      <div class="page-block-head">
+                        <strong>{{ t('content.countrySection', { number: sectionIndex + 1 }) }}</strong>
+                        <el-button
+                          type="danger"
+                          plain
+                          size="small"
+                          @click="removeCountryCitySection(locale.code, cityIndex, sectionIndex)"
+                        >
+                          {{ t('common.delete') }}
+                        </el-button>
+                      </div>
+                      <el-input
+                        v-model="getCountryCitySections(locale.code, cityIndex)[sectionIndex].title"
+                        :placeholder="t('content.sectionTitlePlaceholder')"
+                      />
+                      <RichTextEditor
+                        :model-value="getCountryCitySections(locale.code, cityIndex)[sectionIndex].text"
+                        :placeholder="t('content.startWriting')"
+                        :min-height="180"
+                        @update:model-value="(value: string) => updateCountryCitySectionText(locale.code, cityIndex, sectionIndex, value)"
+                      />
+                    </article>
+                  </div>
                 </article>
 
                 <el-button type="primary" plain @click="addCountryCity(locale.code)">
@@ -2932,6 +3223,24 @@ watch(
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #f8fafc;
+}
+
+.page-block-item--nested {
+  padding: 12px;
+  background: #ffffff;
+}
+
+.page-block-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.page-block-subsection > span {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .page-block-head {

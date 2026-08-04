@@ -320,6 +320,7 @@ const loadPartnerOptions = async () => {
 const canCreate = computed(() => ['users', 'partners'].includes(recordType.value));
 const canResetPartnerPassword = computed(() => authStore.user?.role === 'ADMIN');
 const canManageUserSecurity = computed(() => recordType.value === 'users' && canResetPartnerPassword.value);
+const canManagePartnerSecurity = computed(() => recordType.value === 'partners' && canResetPartnerPassword.value);
 const selectedCount = computed(() => selectedRecords.value.length);
 
 const resetSelection = () => {
@@ -742,6 +743,35 @@ const deleteUser = async (row: AnyRecord) => {
   }
 };
 
+const deletePartner = async (row: AnyRecord) => {
+  try {
+    await ElMessageBox.confirm(
+      t('records.deletePartnerConfirm', { title: row.title }),
+      t('records.deletePartner'),
+      {
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+      },
+    );
+  } catch {
+    return;
+  }
+
+  archivingId.value = row.id;
+  try {
+    const response = await http.delete<AnyRecord[]>(`/admin/records/partners/${row.id}/permanent`);
+    records.value = response.data;
+    refreshPartnerCabinetTarget();
+    dashboardStore.load();
+    ElMessage.success(t('records.partnerDeleted'));
+  } catch (error: any) {
+    ElMessage.error(getApiErrorMessage(error, t('records.partnerDeleteFailed')));
+  } finally {
+    archivingId.value = '';
+  }
+};
+
 const bulkArchiveRecords = async () => {
   if (!selectedRecords.value.length) {
     return;
@@ -1074,6 +1104,15 @@ watch(
                   @click.stop="resetPartnerPasswordAndEmail(row)"
                 >
                   {{ t('records.resetPasswordEmail') }}
+                </el-button>
+                <el-button
+                  v-if="canManagePartnerSecurity"
+                  type="danger"
+                  size="small"
+                  :loading="archivingId === row.id"
+                  @click.stop="deletePartner(row)"
+                >
+                  {{ t('common.delete') }}
                 </el-button>
               </template>
               <el-select
