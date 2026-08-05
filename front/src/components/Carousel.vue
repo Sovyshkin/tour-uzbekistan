@@ -105,17 +105,13 @@ let autoplayInterval = null;
 let resizeObserver = null;
 
 const canNavigate = computed(() => props.items.length > props.visibleCount);
-const cloneCount = computed(() => (canNavigate.value ? props.visibleCount : 0));
-const firstRealIndex = computed(() => cloneCount.value);
-const lastRealIndex = computed(() => cloneCount.value + props.items.length - 1);
+const loopCopies = 9;
+const middleCopy = Math.floor(loopCopies / 2);
+const loopStartIndex = computed(() => (canNavigate.value ? props.items.length * middleCopy : 0));
 const displayItems = computed(() => {
   if (!canNavigate.value) return props.items;
 
-  return [
-    ...props.items.slice(-cloneCount.value),
-    ...props.items,
-    ...props.items.slice(0, cloneCount.value),
-  ];
+  return Array.from({ length: loopCopies }, () => props.items).flat();
 });
 
 /* ─── Размеры ─── */
@@ -173,10 +169,14 @@ const jumpToIndex = (index) => {
 const onTransitionEnd = () => {
   if (!canNavigate.value || disableTransition.value) return;
 
-  if (currentIndex.value > lastRealIndex.value) {
-    jumpToIndex(firstRealIndex.value);
-  } else if (currentIndex.value < firstRealIndex.value) {
-    jumpToIndex(lastRealIndex.value);
+  const itemCount = props.items.length;
+  const safeStart = loopStartIndex.value - itemCount;
+  const safeEnd = loopStartIndex.value + itemCount * 2;
+
+  if (currentIndex.value >= safeEnd) {
+    jumpToIndex(currentIndex.value - itemCount);
+  } else if (currentIndex.value <= safeStart) {
+    jumpToIndex(currentIndex.value + itemCount);
   }
 };
 
@@ -288,15 +288,18 @@ const updateDimensionsAndPosition = () => {
     return;
   }
 
-  if (currentIndex.value < firstRealIndex.value || currentIndex.value > lastRealIndex.value) {
-    jumpToIndex(firstRealIndex.value);
+  const minIndex = props.items.length;
+  const maxIndex = props.items.length * (loopCopies - 2);
+
+  if (currentIndex.value < minIndex || currentIndex.value > maxIndex) {
+    jumpToIndex(loopStartIndex.value);
   }
 };
 
 onMounted(() => {
   nextTick(() => {
     setDimensions();
-    currentIndex.value = firstRealIndex.value;
+    currentIndex.value = loopStartIndex.value;
   });
   
   window.addEventListener('resize', updateDimensionsAndPosition);
@@ -322,8 +325,9 @@ onUnmounted(() => {
   stopAutoplay();
 });
 
-watch([() => props.items.length, cloneCount], () => {
+watch([() => props.items.length], () => {
   nextTick(() => {
+    currentIndex.value = loopStartIndex.value;
     updateDimensionsAndPosition();
   });
 });
