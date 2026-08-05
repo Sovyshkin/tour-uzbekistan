@@ -98,20 +98,18 @@ const isDragging = ref(false);
 const wasDragged = ref(false);
 const dragStartX = ref(0);
 const dragDelta = ref(0);
-let wheelDelta = 0;
 let wheelTimer = null;
-let wheelLock = false;
 let autoplayInterval = null;
 let resizeObserver = null;
 
 const canNavigate = computed(() => props.items.length > props.visibleCount);
-const loopCopies = 9;
-const middleCopy = Math.floor(loopCopies / 2);
-const loopStartIndex = computed(() => (canNavigate.value ? props.items.length * middleCopy : 0));
+const initialLoopCopies = 40;
+const loopCopies = ref(initialLoopCopies);
+const loopStartIndex = computed(() => (canNavigate.value ? props.items.length * 10 : 0));
 const displayItems = computed(() => {
   if (!canNavigate.value) return props.items;
 
-  return Array.from({ length: loopCopies }, () => props.items).flat();
+  return Array.from({ length: loopCopies.value }, () => props.items).flat();
 });
 
 /* ─── Размеры ─── */
@@ -128,6 +126,7 @@ const setDimensions = () => {
 };
 
 const baseTranslate = computed(() => currentIndex.value * (itemWidth.value + props.gap));
+const scrollStep = computed(() => Math.max(1, itemWidth.value + props.gap));
 
 const trackStyle = computed(() => {
   const offset = isDragging.value ? dragDelta.value : 0;
@@ -135,7 +134,7 @@ const trackStyle = computed(() => {
     transform: `translateX(${offset - baseTranslate.value}px)`,
     transition: (isDragging.value || disableTransition.value)
       ? 'none'
-      : 'transform 0.5s cubic-bezier(0.25, 1, 0.5, 1)',
+      : 'transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
     gap: `${props.gap}px`
   };
 });
@@ -148,12 +147,37 @@ const itemStyle = computed(() => ({
 /* ─── Бесконечная навигация ─── */
 const next = () => {
   if (!canNavigate.value || isDragging.value) return;
+  ensureForwardSpace();
   currentIndex.value += 1;
 };
 
 const prev = () => {
   if (!canNavigate.value || isDragging.value) return;
+  ensureBackwardSpace();
   currentIndex.value -= 1;
+};
+
+const ensureForwardSpace = () => {
+  if (!canNavigate.value) return;
+
+  const remainingItems = displayItems.value.length - currentIndex.value - props.visibleCount;
+  if (remainingItems < props.items.length * 4) {
+    loopCopies.value += 20;
+  }
+};
+
+const ensureBackwardSpace = () => {
+  if (!canNavigate.value) return;
+
+  if (currentIndex.value < props.items.length * 3) {
+    loopCopies.value += 20;
+    jumpToIndex(currentIndex.value + props.items.length * 20);
+  }
+};
+
+const ensureScrollSpace = () => {
+  ensureForwardSpace();
+  ensureBackwardSpace();
 };
 
 const jumpToIndex = (index) => {
@@ -167,17 +191,7 @@ const jumpToIndex = (index) => {
 };
 
 const onTransitionEnd = () => {
-  if (!canNavigate.value || disableTransition.value) return;
-
-  const itemCount = props.items.length;
-  const safeStart = loopStartIndex.value - itemCount;
-  const safeEnd = loopStartIndex.value + itemCount * 2;
-
-  if (currentIndex.value >= safeEnd) {
-    jumpToIndex(currentIndex.value - itemCount);
-  } else if (currentIndex.value <= safeStart) {
-    jumpToIndex(currentIndex.value + itemCount);
-  }
+  ensureForwardSpace();
 };
 
 /* ─── Drag / Swipe ─── */
@@ -206,14 +220,12 @@ const onDragMove = (e) => {
 const onDragEnd = () => {
   if (!isDragging.value) return;
   isDragging.value = false;
-  
-  const threshold = Math.min(120, itemWidth.value / 4);
-  if (dragDelta.value < -threshold) {
-    next();
-  } else if (dragDelta.value > threshold) {
-    prev();
+
+  if (Math.abs(dragDelta.value) > 4) {
+    currentIndex.value -= dragDelta.value / scrollStep.value;
+    ensureScrollSpace();
   }
-  
+
   dragDelta.value = 0;
   startAutoplay();
 };
@@ -238,30 +250,15 @@ const onWheel = (event) => {
 
   event.preventDefault();
   stopAutoplay();
-  wheelDelta += horizontalDelta;
+  currentIndex.value += horizontalDelta / scrollStep.value;
+  ensureScrollSpace();
 
   if (wheelTimer) {
     clearTimeout(wheelTimer);
   }
-
-  const threshold = Math.min(80, Math.max(30, itemWidth.value * 0.18));
-  if (!wheelLock && Math.abs(wheelDelta) >= threshold) {
-    wheelLock = true;
-    if (wheelDelta > 0) {
-      next();
-    } else {
-      prev();
-    }
-    wheelDelta = 0;
-    window.setTimeout(() => {
-      wheelLock = false;
-    }, 260);
-  }
-
   wheelTimer = window.setTimeout(() => {
-    wheelDelta = 0;
     startAutoplay();
-  }, 180);
+  }, 240);
 };
 
 /* ─── Autoplay ─── */
@@ -289,7 +286,7 @@ const updateDimensionsAndPosition = () => {
   }
 
   const minIndex = props.items.length;
-  const maxIndex = props.items.length * (loopCopies - 2);
+  const maxIndex = props.items.length * (loopCopies.value - 2);
 
   if (currentIndex.value < minIndex || currentIndex.value > maxIndex) {
     jumpToIndex(loopStartIndex.value);
@@ -327,6 +324,7 @@ onUnmounted(() => {
 
 watch([() => props.items.length], () => {
   nextTick(() => {
+    loopCopies.value = initialLoopCopies;
     currentIndex.value = loopStartIndex.value;
     updateDimensionsAndPosition();
   });

@@ -85,10 +85,6 @@ const cmsNumber = (key, fallback) => {
   return Number.isFinite(value) ? value : fallback;
 };
 
-const toursAutoplay = computed(() =>
-  cmsBoolean('home.tours_animation_enabled', true) ? 5000 : 0,
-);
-
 const mass = computed(() => [
   {
     title: cmsText('home.cards.about.title', t('nav.about')),
@@ -429,7 +425,7 @@ onUnmounted(clearHeroTimer);
         :items="filteredTours"
         :visible-count="tourVisible"
         :gap="14"
-        :autoplay="toursAutoplay"
+        :autoplay="0"
       >
         <template #default="{ item }">
           <Card :tour="item" />
