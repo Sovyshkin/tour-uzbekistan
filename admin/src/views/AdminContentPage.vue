@@ -449,7 +449,12 @@ const normalizedActiveType = computed<ContentType>(() =>
   routeTypes.value.includes(activeType.value) ? activeType.value : routeTypes.value[0] ?? activeType.value,
 );
 const activeItems = computed(() => contentByType[normalizedActiveType.value]);
-const activeFields = computed(() => typeFields.value[form.type]);
+const hiddenTourFieldKeys = new Set(['included', 'excluded']);
+const activeFields = computed(() =>
+  form.type === 'tours'
+    ? typeFields.value[form.type].filter((field) => !hiddenTourFieldKeys.has(field.key))
+    : typeFields.value[form.type],
+);
 const activeImageFields = computed(() => imageFieldsByType.value[form.type] ?? []);
 const isCreatableType = computed(() => creatableTypes.includes(normalizedActiveType.value));
 const isTourForm = computed(() => form.type === 'tours');
@@ -1174,10 +1179,28 @@ const addStringListItem = (localeCode: LocaleCode, fieldKey: string) => {
   form.translations[localeCode][fieldKey] = items;
 };
 
+const updateStringListItem = (
+  localeCode: LocaleCode,
+  fieldKey: string,
+  index: number,
+  value: string,
+) => {
+  const items = getStringList(localeCode, fieldKey);
+  items[index] = value;
+  form.translations[localeCode][fieldKey] = items;
+};
+
 const removeStringListItem = (localeCode: LocaleCode, fieldKey: string, index: number) => {
   const items = getStringList(localeCode, fieldKey);
   items.splice(index, 1);
   form.translations[localeCode][fieldKey] = items;
+};
+
+const reindexTourDays = () => {
+  form.tourDays = form.tourDays.map((day, index) => ({
+    ...day,
+    dayNumber: index + 1,
+  }));
 };
 
 const addTourDay = () => {
@@ -1191,6 +1214,7 @@ const addTourDay = () => {
 
 const removeTourDay = (index: number) => {
   form.tourDays.splice(index, 1);
+  reindexTourDays();
 };
 
 const updateTourDayDescription = (dayIndex: number, localeCode: LocaleCode, value: string) => {
@@ -1366,6 +1390,7 @@ const openEditor = async (record: ContentRecord) => {
 
   if (record.type === 'tours') {
     await loadCountryOptions();
+    form.tourDays = normalizeTourDays(record.tourDays);
   }
 
   for (const locale of locales.value) {
@@ -1503,6 +1528,16 @@ const saveContent = async () => {
       payload.incomingTourId = form.incomingTourId;
       payload.incomingHotelCode = form.incomingHotelCode;
       payload.incomingHotelName = form.incomingHotelName;
+      payload.tourDays = form.tourDays.map((day, index) => ({
+        id: day.id,
+        dayNumber: Number.isFinite(Number(day.dayNumber)) ? Number(day.dayNumber) : index + 1,
+        overnightAt: day.overnightAt || null,
+        image: day.image || null,
+        translations: locales.value.map((locale) => ({
+          locale: locale.code,
+          fields: day.translations[locale.code],
+        })),
+      }));
     }
 
     for (const field of imageFieldsByType.value[form.type] ?? []) {
@@ -2416,6 +2451,144 @@ watch(
           <el-empty v-if="!form.whyFacts.length" :description="t('content.emptyFacts')" />
         </section>
 
+        <section v-if="isTourForm" class="tour-composer">
+          <div class="composer-header">
+            <div>
+              <h3>{{ t('content.tourListsTitle') }}</h3>
+              <p>{{ t('content.tourListsSubtitle') }}</p>
+            </div>
+          </div>
+
+          <el-tabs class="composer-tabs">
+            <el-tab-pane
+              v-for="locale in locales"
+              :key="`tour-lists-${locale.code}`"
+              :label="locale.label"
+            >
+              <div class="tour-list-grid">
+                <article
+                  v-for="fieldKey in ['included', 'excluded']"
+                  :key="`${locale.code}-${fieldKey}`"
+                  class="tour-list-card"
+                >
+                  <div class="tour-list-card__head">
+                    <strong>{{ t(`content.fields.${fieldKey}`) }}</strong>
+                    <el-button
+                      type="primary"
+                      plain
+                      size="small"
+                      @click="addStringListItem(locale.code, fieldKey)"
+                    >
+                      {{ t('content.addListItem') }}
+                    </el-button>
+                  </div>
+
+                  <div class="tour-list-items">
+                    <div
+                      v-for="(item, itemIndex) in getStringList(locale.code, fieldKey)"
+                      :key="`${locale.code}-${fieldKey}-${itemIndex}`"
+                      class="tour-list-item"
+                    >
+                      <el-input
+                        :model-value="item"
+                        :placeholder="t('content.listItemPlaceholder')"
+                        @update:model-value="(value: string) => updateStringListItem(locale.code, fieldKey, itemIndex, value)"
+                      />
+                      <el-button
+                        type="danger"
+                        plain
+                        size="small"
+                        @click="removeStringListItem(locale.code, fieldKey, itemIndex)"
+                      >
+                        {{ t('common.delete') }}
+                      </el-button>
+                    </div>
+                    <el-empty
+                      v-if="!getStringList(locale.code, fieldKey).length"
+                      :description="t('content.emptyListItems')"
+                    />
+                  </div>
+                </article>
+              </div>
+            </el-tab-pane>
+          </el-tabs>
+        </section>
+
+        <section v-if="isTourForm" class="tour-composer">
+          <div class="composer-header">
+            <div>
+              <h3>{{ t('content.tourDaysTitle') }}</h3>
+              <p>{{ t('content.tourDaysSubtitle') }}</p>
+            </div>
+            <el-button type="primary" plain @click="addTourDay">
+              {{ t('content.addTourDay') }}
+            </el-button>
+          </div>
+
+          <article
+            v-for="(day, dayIndex) in form.tourDays"
+            :key="day.id || `new-day-${dayIndex}`"
+            class="tour-day-card"
+          >
+            <div class="tour-day-card__head">
+              <strong>{{ t('content.tourDay', { number: dayIndex + 1 }) }}</strong>
+              <el-button type="danger" plain size="small" @click="removeTourDay(dayIndex)">
+                {{ t('common.delete') }}
+              </el-button>
+            </div>
+
+            <div class="tour-day-base">
+              <el-form-item :label="t('content.dayNumber')">
+                <el-input-number v-model="day.dayNumber" :min="1" />
+              </el-form-item>
+              <el-form-item :label="t('content.overnightAt')">
+                <el-input v-model="day.overnightAt" :placeholder="t('content.overnightPlaceholder')" />
+              </el-form-item>
+              <el-form-item :label="t('content.dayImage')">
+                <el-select
+                  v-model="day.image"
+                  filterable
+                  clearable
+                  :placeholder="t('common.selectMedia')"
+                >
+                  <el-option
+                    v-for="asset in mediaOptions"
+                    :key="asset.id"
+                    :label="asset.title"
+                    :value="asset.image || ''"
+                  />
+                </el-select>
+              </el-form-item>
+            </div>
+
+            <el-tabs class="tour-day-tabs">
+              <el-tab-pane
+                v-for="locale in locales"
+                :key="`${day.id || dayIndex}-${locale.code}`"
+                :label="locale.label"
+              >
+                <div class="tour-day-translation-grid">
+                  <el-form-item :label="t('content.dayTitle')">
+                    <el-input v-model="day.translations[locale.code].title" />
+                  </el-form-item>
+                  <el-form-item :label="t('content.dayShortTitle')">
+                    <el-input v-model="day.translations[locale.code].shortTitle" />
+                  </el-form-item>
+                </div>
+                <el-form-item :label="t('content.dayDescription')">
+                  <el-input
+                    v-model="day.translations[locale.code].description"
+                    type="textarea"
+                    :rows="5"
+                  />
+                </el-form-item>
+              </el-tab-pane>
+            </el-tabs>
+          </article>
+
+          <el-empty v-if="!form.tourDays.length" :description="t('content.emptyTourDays')" />
+        </section>
+
         <el-tabs v-model="activeLocale">
           <el-tab-pane
             v-for="locale in locales"
@@ -3136,6 +3309,110 @@ watch(
   justify-content: flex-end;
 }
 
+.tour-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.composer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.composer-header h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.composer-header p {
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.composer-tabs,
+.tour-day-tabs {
+  min-width: 0;
+}
+
+.composer-tabs :deep(.el-tabs__content),
+.tour-day-tabs :deep(.el-tabs__content) {
+  overflow: visible;
+}
+
+.tour-list-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.tour-list-card,
+.tour-day-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.tour-list-card__head,
+.tour-day-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: #111827;
+}
+
+.tour-list-card__head .el-button,
+.tour-day-card__head .el-button,
+.composer-header .el-button {
+  margin-left: 0;
+  flex-shrink: 0;
+}
+
+.tour-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tour-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.tour-day-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tour-day-base,
+.tour-day-translation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tour-day-translation-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .why-fact-actions .el-button {
   margin-left: 0;
 }
@@ -3509,6 +3786,30 @@ watch(
 
   .why-fact-actions {
     justify-content: stretch;
+  }
+
+  .tour-composer {
+    padding: 12px;
+  }
+
+  .composer-header,
+  .tour-list-card__head,
+  .tour-day-card__head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .composer-header .el-button,
+  .tour-list-card__head .el-button,
+  .tour-day-card__head .el-button {
+    width: 100%;
+  }
+
+  .tour-list-grid,
+  .tour-day-base,
+  .tour-day-translation-grid,
+  .tour-list-item {
+    grid-template-columns: 1fr;
   }
 }
 </style>

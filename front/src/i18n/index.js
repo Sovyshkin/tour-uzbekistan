@@ -282,8 +282,7 @@ const messages = {
       included_title: 'В тур включено / В тур не включено',
       included: 'В тур включено',
       not_included: 'В тур не включено',
-      sidebar_description:
-        'Исследуйте красоты страны, насладитесь местной кухней и откройте для себя культурные достопримечательности за 3 дня',
+      sidebar_description: '',
       duration: 'Длительность:',
       transport: 'Транспорт:',
       tourists: 'Туристов:',
@@ -740,8 +739,7 @@ const messages = {
       included_title: 'Included / Not included',
       included: 'Included',
       not_included: 'Not included',
-      sidebar_description:
-        'Explore the beauty of the country, enjoy local cuisine and discover cultural attractions in 3 days',
+      sidebar_description: '',
       duration: 'Duration:',
       transport: 'Transport:',
       tourists: 'Tourists:',
@@ -1200,8 +1198,7 @@ const messages = {
       included_title: 'Turga kiritilgan / kiritilmagan',
       included: 'Kiritilgan',
       not_included: 'Kiritilmagan',
-      sidebar_description:
-        "Mamlakat go'zalliklarini kashf eting, mahalliy taomlardan zavqlaning va 3 kun ichida madaniy diqqatga sazovor joylarni oching",
+      sidebar_description: '',
       duration: 'Davomiyligi:',
       transport: 'Transport:',
       tourists: 'Sayohatchilar:',

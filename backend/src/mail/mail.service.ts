@@ -14,10 +14,25 @@ export class MailService {
   constructor(private readonly configService: ConfigService) {}
 
   async verifyConfiguration() {
+    if (this.isGraphConfigured()) {
+      await this.getGraphAccessToken();
+      return;
+    }
+
     await this.createTransport().verify();
   }
 
   async sendPartnerPasswordReset(input: PartnerPasswordMailInput) {
+    if (this.isGraphConfigured()) {
+      await this.sendGraphMail({
+        to: input.email,
+        subject: 'Новый пароль для кабинета партнера Centrum Holidays DMC',
+        text: this.buildPartnerPasswordText(input),
+        html: this.buildPartnerPasswordHtml(input),
+      });
+      return;
+    }
+
     const transport = this.createTransport();
     const from = this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER');
 
@@ -31,6 +46,109 @@ export class MailService {
     });
   }
 
+  private isGraphConfigured() {
+    return Boolean(
+      this.configService.get<string>('GRAPH_TENANT_ID') &&
+        this.configService.get<string>('GRAPH_CLIENT_ID') &&
+        this.configService.get<string>('GRAPH_CLIENT_SECRET') &&
+        this.getGraphMailbox(),
+    );
+  }
+
+  private getGraphMailbox() {
+    return (
+      this.configService.get<string>('GRAPH_MAILBOX') ||
+      this.configService.get<string>('GRAPH_SHARED_MAILBOX') ||
+      this.configService.get<string>('SMTP_USER')
+    );
+  }
+
+  private async getGraphAccessToken() {
+    const tenantId = this.configService.get<string>('GRAPH_TENANT_ID');
+    const clientId = this.configService.get<string>('GRAPH_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('GRAPH_CLIENT_SECRET');
+
+    if (!tenantId || !clientId || !clientSecret || !this.getGraphMailbox()) {
+      throw new ServiceUnavailableException('Mail is not configured');
+    }
+
+    const body = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope: 'https://graph.microsoft.com/.default',
+      grant_type: 'client_credentials',
+    });
+    const response = await fetch(
+      `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body,
+      },
+    );
+    const payload = await response.json().catch(() => null) as
+      | { access_token?: string; error?: string; error_description?: string }
+      | null;
+
+    if (!response.ok || !payload?.access_token) {
+      throw new ServiceUnavailableException(
+        payload?.error_description || payload?.error || `Microsoft Graph auth failed: HTTP ${response.status}`,
+      );
+    }
+
+    return payload.access_token;
+  }
+
+  private async sendGraphMail(input: {
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+  }) {
+    const mailbox = this.getGraphMailbox();
+    if (!mailbox) {
+      throw new ServiceUnavailableException('Mail is not configured');
+    }
+
+    const accessToken = await this.getGraphAccessToken();
+    const response = await fetch(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(mailbox)}/sendMail`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: {
+            subject: input.subject,
+            body: {
+              contentType: 'HTML',
+              content: input.html,
+            },
+            toRecipients: [
+              {
+                emailAddress: {
+                  address: input.to,
+                },
+              },
+            ],
+          },
+          saveToSentItems: true,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new ServiceUnavailableException(
+        `Microsoft Graph sendMail failed: HTTP ${response.status}: ${errorText.slice(0, 500)}`,
+      );
+    }
+  }
+
   private createTransport() {
     const host = this.configService.get<string>('SMTP_HOST');
     const user = this.configService.get<string>('SMTP_USER');
@@ -38,7 +156,7 @@ export class MailService {
     const from = this.configService.get<string>('SMTP_FROM') || user;
 
     if (!host || !user || !pass || !from) {
-      throw new ServiceUnavailableException('SMTP is not configured');
+      throw new ServiceUnavailableException('Mail is not configured');
     }
 
     return createTransport({

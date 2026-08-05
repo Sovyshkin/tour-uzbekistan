@@ -367,6 +367,7 @@ const tabContent = computed(() => ({
 }));
 
 const activeTabContent = computed(() => tabContent.value[activeTab.value] || '');
+const tourShortDescription = computed(() => tour.value.description || '');
 
 const scrollToDetails = async () => {
   activeTab.value = 'details';
@@ -876,10 +877,10 @@ onUnmounted(() => {
             <div class="tour-summary-card">
               <!-- Описание -->
               <p
-                v-if="descriptionsVisible"
+                v-if="descriptionsVisible && hasContent(tourShortDescription)"
                 class="tour-summary-description"
               >
-                {{ t('openCard.sidebar_description') }}
+                {{ tourShortDescription }}
               </p>
 
               <!-- Характеристики -->

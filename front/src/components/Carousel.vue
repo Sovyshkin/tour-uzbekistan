@@ -21,10 +21,11 @@
         @touchstart.passive="onDragStart"
         @touchmove.passive="onDragMove"
         @touchend="onDragEnd"
+        @transitionend="onTransitionEnd"
       >
         <div 
-          v-for="(item, idx) in items" 
-          :key="item?.id || item?.slug || idx"
+          v-for="(item, idx) in displayItems" 
+          :key="`${item?.id || item?.slug || idx}-${idx}`"
           class="carousel-item"
           :style="itemStyle"
         >
@@ -92,6 +93,7 @@ const trackRef = ref(null);
 
 const currentIndex = ref(0);
 const itemWidth = ref(0);
+const disableTransition = ref(false);
 const isDragging = ref(false);
 const wasDragged = ref(false);
 const dragStartX = ref(0);
@@ -103,7 +105,18 @@ let autoplayInterval = null;
 let resizeObserver = null;
 
 const canNavigate = computed(() => props.items.length > props.visibleCount);
-const maxIndex = computed(() => Math.max(0, props.items.length - props.visibleCount));
+const cloneCount = computed(() => (canNavigate.value ? props.visibleCount : 0));
+const firstRealIndex = computed(() => cloneCount.value);
+const lastRealIndex = computed(() => cloneCount.value + props.items.length - 1);
+const displayItems = computed(() => {
+  if (!canNavigate.value) return props.items;
+
+  return [
+    ...props.items.slice(-cloneCount.value),
+    ...props.items,
+    ...props.items.slice(0, cloneCount.value),
+  ];
+});
 
 /* ─── Размеры ─── */
 const setDimensions = () => {
@@ -124,7 +137,9 @@ const trackStyle = computed(() => {
   const offset = isDragging.value ? dragDelta.value : 0;
   return {
     transform: `translateX(${offset - baseTranslate.value}px)`,
-    transition: isDragging.value ? 'none' : 'transform 0.5s cubic-bezier(0.25, 1, 0.5, 1)',
+    transition: (isDragging.value || disableTransition.value)
+      ? 'none'
+      : 'transform 0.5s cubic-bezier(0.25, 1, 0.5, 1)',
     gap: `${props.gap}px`
   };
 });
@@ -137,12 +152,32 @@ const itemStyle = computed(() => ({
 /* ─── Бесконечная навигация ─── */
 const next = () => {
   if (!canNavigate.value || isDragging.value) return;
-  currentIndex.value = currentIndex.value >= maxIndex.value ? 0 : currentIndex.value + 1;
+  currentIndex.value += 1;
 };
 
 const prev = () => {
   if (!canNavigate.value || isDragging.value) return;
-  currentIndex.value = currentIndex.value <= 0 ? maxIndex.value : currentIndex.value - 1;
+  currentIndex.value -= 1;
+};
+
+const jumpToIndex = (index) => {
+  disableTransition.value = true;
+  currentIndex.value = index;
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      disableTransition.value = false;
+    });
+  });
+};
+
+const onTransitionEnd = () => {
+  if (!canNavigate.value || disableTransition.value) return;
+
+  if (currentIndex.value > lastRealIndex.value) {
+    jumpToIndex(firstRealIndex.value);
+  } else if (currentIndex.value < firstRealIndex.value) {
+    jumpToIndex(lastRealIndex.value);
+  }
 };
 
 /* ─── Drag / Swipe ─── */
@@ -248,15 +283,20 @@ const stopAutoplay = () => {
 /* ─── Жизненный цикл ─── */
 const updateDimensionsAndPosition = () => {
   setDimensions();
-  if (currentIndex.value > maxIndex.value) {
-    currentIndex.value = maxIndex.value;
+  if (!canNavigate.value) {
+    currentIndex.value = 0;
+    return;
+  }
+
+  if (currentIndex.value < firstRealIndex.value || currentIndex.value > lastRealIndex.value) {
+    jumpToIndex(firstRealIndex.value);
   }
 };
 
 onMounted(() => {
   nextTick(() => {
     setDimensions();
-    currentIndex.value = 0;
+    currentIndex.value = firstRealIndex.value;
   });
   
   window.addEventListener('resize', updateDimensionsAndPosition);
@@ -282,7 +322,7 @@ onUnmounted(() => {
   stopAutoplay();
 });
 
-watch([() => props.items.length, maxIndex], () => {
+watch([() => props.items.length, cloneCount], () => {
   nextTick(() => {
     updateDimensionsAndPosition();
   });
