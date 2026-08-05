@@ -36,6 +36,7 @@ export class AdminIncomingSearchService {
 
     return {
       ok: reference.ok,
+      message: reference.ok ? undefined : `XMLGate returned HTTP ${reference.status}`,
       config: this.getSafeConfig(config),
       request: {
         endpoint: config.endpoint,

@@ -23,6 +23,22 @@ const formattedItems = computed(() =>
 
 const formattedRaw = computed(() => result.value?.reference?.raw || '');
 
+const resultState = computed(() => {
+  if (!result.value) {
+    return { label: '', type: 'info' as const };
+  }
+
+  if (result.value.ok) {
+    return { label: 'OK', type: 'success' as const };
+  }
+
+  if (result.value.skippedReason) {
+    return { label: 'SKIPPED', type: 'warning' as const };
+  }
+
+  return { label: 'ERROR', type: 'danger' as const };
+});
+
 const search = async () => {
   loading.value = true;
   try {
@@ -87,14 +103,14 @@ const search = async () => {
       <template #header>
         <div class="incoming-result-header">
           <strong>Результат</strong>
-          <el-tag :type="result.ok ? 'success' : 'warning'">
-            {{ result.ok ? 'OK' : 'SKIPPED' }}
+          <el-tag :type="resultState.type">
+            {{ resultState.label }}
           </el-tag>
         </div>
       </template>
 
-      <div v-if="result.skippedReason" class="incoming-warning">
-        {{ result.skippedReason }}
+      <div v-if="result.skippedReason || result.message" class="incoming-warning">
+        {{ result.skippedReason || result.message }}
       </div>
 
       <dl class="incoming-summary">

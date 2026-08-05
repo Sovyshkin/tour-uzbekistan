@@ -1,9 +1,11 @@
 <template>
   <div 
     class="carousel-container select-none" 
+    :class="{ 'is-dragging': isDragging }"
     ref="containerRef"
     @mouseenter="stopAutoplay"
     @mouseleave="startAutoplay"
+    @click.capture="onClickCapture"
   >
     <div class="carousel-wrapper py-[20px]" ref="wrapperRef">
       <div 
@@ -11,7 +13,6 @@
         ref="trackRef"
         :class="{ 'justify-center w-full': !canNavigate }"
         :style="trackStyle"
-        @transitionend="onTransitionEnd"
         @mousedown="onDragStart"
         @mousemove="onDragMove"
         @mouseup="onDragEnd"
@@ -21,8 +22,8 @@
         @touchend="onDragEnd"
       >
         <div 
-          v-for="(item, idx) in displayItems" 
-          :key="idx"
+          v-for="(item, idx) in items" 
+          :key="item?.id || item?.slug || idx"
           class="carousel-item"
           :style="itemStyle"
         >
@@ -90,40 +91,27 @@ const trackRef = ref(null);
 
 const currentIndex = ref(0);
 const itemWidth = ref(0);
-const disableTransition = ref(false);
 const isDragging = ref(false);
+const wasDragged = ref(false);
 const dragStartX = ref(0);
 const dragDelta = ref(0);
 let autoplayInterval = null;
 let resizeObserver = null;
 
-/* ─── Дублирование элементов для бесконечности ─── */
-const displayItems = computed(() => {
-  if (props.items.length <= props.visibleCount) return props.items;
-  const cloneStart = props.items.slice(-props.visibleCount);
-  const cloneEnd = props.items.slice(0, props.visibleCount);
-  return [...cloneStart, ...props.items, ...cloneEnd];
-});
-
 const canNavigate = computed(() => props.items.length > props.visibleCount);
-
-// Индекс, с которого начинаются реальные элементы
-const startOffset = computed(() => canNavigate.value ? props.visibleCount : 0);
-
-// Максимальный индекс (последний реальный элемент в массиве displayItems)
-const maxRealIndex = computed(() => {
-  if (!canNavigate.value) return Math.max(0, props.items.length - 1);
-  return props.items.length + props.visibleCount - 1;
-});
+const maxIndex = computed(() => Math.max(0, props.items.length - props.visibleCount));
 
 /* ─── Размеры ─── */
 const setDimensions = () => {
   if (!wrapperRef.value) return;
+  if (props.itemWidth) {
+    itemWidth.value = props.itemWidth;
+    return;
+  }
+
   const totalWidth = wrapperRef.value.clientWidth;
   const totalGaps = props.gap * (props.visibleCount - 1);
-  let newWidth = Math.floor((totalWidth - totalGaps) / props.visibleCount);
-  newWidth = Math.min(newWidth, 270);
-  itemWidth.value = newWidth;
+  itemWidth.value = Math.max(1, Math.floor((totalWidth - totalGaps) / props.visibleCount));
 };
 
 const baseTranslate = computed(() => currentIndex.value * (itemWidth.value + props.gap));
@@ -131,10 +119,8 @@ const baseTranslate = computed(() => currentIndex.value * (itemWidth.value + pro
 const trackStyle = computed(() => {
   const offset = isDragging.value ? dragDelta.value : 0;
   return {
-    transform: `translateX(-${baseTranslate.value - offset}px)`,
-    transition: (isDragging.value || disableTransition.value) 
-      ? 'none' 
-      : 'transform 0.5s cubic-bezier(0.25, 1, 0.5, 1)',
+    transform: `translateX(${offset - baseTranslate.value}px)`,
+    transition: isDragging.value ? 'none' : 'transform 0.5s cubic-bezier(0.25, 1, 0.5, 1)',
     gap: `${props.gap}px`
   };
 });
@@ -147,65 +133,57 @@ const itemStyle = computed(() => ({
 /* ─── Бесконечная навигация ─── */
 const next = () => {
   if (!canNavigate.value || isDragging.value) return;
-  currentIndex.value++;
+  currentIndex.value = currentIndex.value >= maxIndex.value ? 0 : currentIndex.value + 1;
 };
 
 const prev = () => {
   if (!canNavigate.value || isDragging.value) return;
-  currentIndex.value--;
-};
-
-/* ─── Телепорт без скачков ─── */
-const onTransitionEnd = () => {
-  if (disableTransition.value || !canNavigate.value) return;
-  
-  if (currentIndex.value >= props.items.length + startOffset.value) {
-    disableTransition.value = true;
-    currentIndex.value = startOffset.value;
-    nextTick(() => {
-      requestAnimationFrame(() => {
-        disableTransition.value = false;
-      });
-    });
-  }
-  
-  if (currentIndex.value <= startOffset.value - 1) {
-    disableTransition.value = true;
-    currentIndex.value = maxRealIndex.value - (startOffset.value - currentIndex.value);
-    nextTick(() => {
-      requestAnimationFrame(() => {
-        disableTransition.value = false;
-      });
-    });
-  }
+  currentIndex.value = currentIndex.value <= 0 ? maxIndex.value : currentIndex.value - 1;
 };
 
 /* ─── Drag / Swipe ─── */
 const onDragStart = (e) => {
   if (!canNavigate.value) return;
+  stopAutoplay();
   isDragging.value = true;
+  wasDragged.value = false;
   dragStartX.value = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
   dragDelta.value = 0;
 };
 
 const onDragMove = (e) => {
   if (!isDragging.value) return;
+  if (e.type.includes('mouse')) {
+    e.preventDefault();
+  }
+
   const x = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
-  dragDelta.value = dragStartX.value - x;
+  dragDelta.value = x - dragStartX.value;
+  if (Math.abs(dragDelta.value) > 6) {
+    wasDragged.value = true;
+  }
 };
 
 const onDragEnd = () => {
   if (!isDragging.value) return;
   isDragging.value = false;
   
-  const threshold = itemWidth.value / 3;
-  if (dragDelta.value > threshold) {
+  const threshold = Math.min(120, itemWidth.value / 4);
+  if (dragDelta.value < -threshold) {
     next();
-  } else if (dragDelta.value < -threshold) {
+  } else if (dragDelta.value > threshold) {
     prev();
   }
   
   dragDelta.value = 0;
+  startAutoplay();
+};
+
+const onClickCapture = (event) => {
+  if (!wasDragged.value) return;
+  event.preventDefault();
+  event.stopPropagation();
+  wasDragged.value = false;
 };
 
 /* ─── Autoplay ─── */
@@ -227,21 +205,15 @@ const stopAutoplay = () => {
 /* ─── Жизненный цикл ─── */
 const updateDimensionsAndPosition = () => {
   setDimensions();
-  if (!disableTransition.value) {
-    disableTransition.value = true;
-    currentIndex.value = startOffset.value;
-    nextTick(() => {
-      requestAnimationFrame(() => {
-        disableTransition.value = false;
-      });
-    });
+  if (currentIndex.value > maxIndex.value) {
+    currentIndex.value = maxIndex.value;
   }
 };
 
 onMounted(() => {
   nextTick(() => {
     setDimensions();
-    currentIndex.value = startOffset.value;
+    currentIndex.value = 0;
   });
   
   window.addEventListener('resize', updateDimensionsAndPosition);
@@ -264,7 +236,7 @@ onUnmounted(() => {
   stopAutoplay();
 });
 
-watch(() => props.items.length, () => {
+watch([() => props.items.length, maxIndex], () => {
   nextTick(() => {
     updateDimensionsAndPosition();
   });
@@ -299,6 +271,12 @@ watch(
 .carousel-track {
   will-change: transform;
   display: flex;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.is-dragging .carousel-track {
+  cursor: grabbing;
 }
 
 .carousel-item {
