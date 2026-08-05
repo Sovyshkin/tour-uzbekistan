@@ -6,6 +6,7 @@
     @mouseenter="stopAutoplay"
     @mouseleave="startAutoplay"
     @click.capture="onClickCapture"
+    @wheel="onWheel"
   >
     <div class="carousel-wrapper py-[20px]" ref="wrapperRef">
       <div 
@@ -95,6 +96,9 @@ const isDragging = ref(false);
 const wasDragged = ref(false);
 const dragStartX = ref(0);
 const dragDelta = ref(0);
+let wheelDelta = 0;
+let wheelTimer = null;
+let wheelLock = false;
 let autoplayInterval = null;
 let resizeObserver = null;
 
@@ -186,6 +190,45 @@ const onClickCapture = (event) => {
   wasDragged.value = false;
 };
 
+const onWheel = (event) => {
+  if (!canNavigate.value) return;
+
+  const horizontalDelta = Math.abs(event.deltaX) >= Math.abs(event.deltaY)
+    ? event.deltaX
+    : event.shiftKey
+      ? event.deltaY
+      : 0;
+
+  if (!horizontalDelta) return;
+
+  event.preventDefault();
+  stopAutoplay();
+  wheelDelta += horizontalDelta;
+
+  if (wheelTimer) {
+    clearTimeout(wheelTimer);
+  }
+
+  const threshold = Math.min(80, Math.max(30, itemWidth.value * 0.18));
+  if (!wheelLock && Math.abs(wheelDelta) >= threshold) {
+    wheelLock = true;
+    if (wheelDelta > 0) {
+      next();
+    } else {
+      prev();
+    }
+    wheelDelta = 0;
+    window.setTimeout(() => {
+      wheelLock = false;
+    }, 260);
+  }
+
+  wheelTimer = window.setTimeout(() => {
+    wheelDelta = 0;
+    startAutoplay();
+  }, 180);
+};
+
 /* ─── Autoplay ─── */
 const startAutoplay = () => {
   if (!props.autoplay || !canNavigate.value) return;
@@ -232,6 +275,9 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateDimensionsAndPosition);
   if (resizeObserver) {
     resizeObserver.disconnect();
+  }
+  if (wheelTimer) {
+    clearTimeout(wheelTimer);
   }
   stopAutoplay();
 });
