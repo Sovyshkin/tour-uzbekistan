@@ -75,8 +75,13 @@ export type SamoIncomingResult = {
 type SamoIncomingConfig = {
   enabled: boolean;
   endpoint?: string;
+  form: string;
+  action: string;
+  method: string;
+  payloadParam: string;
   user?: string;
   password?: string;
+  aesKey?: string;
   tourId?: string;
   hotelCode?: string;
   hotelName: string;
@@ -117,10 +122,10 @@ export class SamoIncomingService {
     }
 
     const claimNumber = this.buildClaimNumber(payload.bookingNumber, payload.createdAt);
-    const requestXml = this.buildSoapEnvelope(config, payload, claimNumber);
+    const requestXml = this.buildClaimlist(config, payload, claimNumber);
 
     try {
-      const response = await this.postSoap(config, requestXml);
+      const response = await this.sendXmlGateRequest(config, requestXml);
       return {
         enabled: true,
         sent: true,
@@ -147,9 +152,29 @@ export class SamoIncomingService {
   private getConfig(payload?: SamoClaimPayload): SamoIncomingConfig {
     return {
       enabled: this.isEnabled('SAMO_INCOMING_ENABLED', 'SAMO_ENABLED'),
-      endpoint: this.getFirstConfig('SAMO_INCOMING_ENDPOINT', 'SAMO_BASE_URL'),
+      endpoint: this.getFirstConfig(
+        'SAMO_XMLGATE_ENDPOINT',
+        'SAMO_INCOMING_XMLGATE_ENDPOINT',
+        'SAMO_INCOMING_ENDPOINT',
+        'SAMO_BASE_URL',
+      ),
+      form:
+        this.getFirstConfig('SAMO_XMLGATE_FORM', 'SAMO_INCOMING_FORM') ??
+        'http://samo.travel',
+      action:
+        this.getFirstConfig('SAMO_XMLGATE_BOOK_ACTION', 'SAMO_INCOMING_XMLGATE_ACTION') ??
+        'claimlist',
+      method:
+        this.getFirstConfig('SAMO_XMLGATE_BOOK_METHOD', 'SAMO_INCOMING_XMLGATE_METHOD') ??
+        'POST',
+      payloadParam:
+        this.getFirstConfig(
+          'SAMO_XMLGATE_BOOK_PAYLOAD_PARAM',
+          'SAMO_INCOMING_XMLGATE_PAYLOAD_PARAM',
+        ) ?? 'claimlist',
       user: this.getFirstConfig('SAMO_INCOMING_USER', 'SAMO_USERNAME'),
       password: this.getFirstConfig('SAMO_INCOMING_PASSWORD', 'SAMO_PASSWORD'),
+      aesKey: this.getFirstConfig('SAMO_XMLGATE_AES_KEY', 'SAMO_AES_KEY'),
       tourId:
         payload?.incomingTourId ??
         this.configService.get<string>('SAMO_INCOMING_TOUR_ID'),
@@ -189,31 +214,50 @@ export class SamoIncomingService {
 
   private getMissingConfig(config: SamoIncomingConfig) {
     return [
-      ['SAMO_INCOMING_ENDPOINT', config.endpoint],
-      ['SAMO_INCOMING_USER', config.user],
-      ['SAMO_INCOMING_PASSWORD', config.password],
+      ['SAMO_XMLGATE_ENDPOINT', config.endpoint],
       ['SAMO_INCOMING_HOTEL_CODE', config.hotelCode],
     ]
       .filter(([, value]) => !value)
       .map(([name]) => name);
   }
 
-  private async postSoap(config: SamoIncomingConfig, body: string) {
+  private async sendXmlGateRequest(config: SamoIncomingConfig, claimlist: string) {
     if (!config.endpoint) {
-      throw new Error('SAMO_INCOMING_ENDPOINT is empty');
+      throw new Error('SAMO_XMLGATE_ENDPOINT is empty');
     }
+
+    const method = config.method.toUpperCase() === 'GET' ? 'GET' : 'POST';
+    const url = new URL(config.endpoint);
+    url.searchParams.set('samo_action', config.action);
+    url.searchParams.set('form', config.form);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+    const body = new URLSearchParams();
+    body.set(config.payloadParam, claimlist);
+
+    if (config.user) {
+      body.set('user', config.user);
+    }
+
+    if (config.password) {
+      body.set('password', config.password);
+    }
+
+    if (method === 'GET') {
+      for (const [key, value] of body.entries()) {
+        url.searchParams.set(key, value);
+      }
+    }
 
     try {
-      const response = await fetch(config.endpoint, {
-        method: 'POST',
+      const response = await fetch(url, {
+        method,
         headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
-          SOAPAction: 'processClaimlist',
+          'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+          Accept: 'text/xml, application/xml, text/plain, */*',
         },
-        body,
+        body: method === 'GET' ? undefined : body,
         signal: controller.signal,
       });
 
@@ -226,26 +270,6 @@ export class SamoIncomingService {
     } finally {
       clearTimeout(timeout);
     }
-  }
-
-  private buildSoapEnvelope(
-    config: SamoIncomingConfig,
-    payload: SamoClaimPayload,
-    claimNumber: number,
-  ) {
-    const claimlist = this.buildClaimlist(config, payload, claimNumber);
-
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ws="http://www.example.org/">
-  <soapenv:Header/>
-  <soapenv:Body>
-    <ws:processClaimlist>
-      <user>${this.escapeXml(config.user ?? '')}</user>
-      <password>${this.escapeXml(config.password ?? '')}</password>
-      <claimlist><![CDATA[${claimlist}]]></claimlist>
-    </ws:processClaimlist>
-  </soapenv:Body>
-</soapenv:Envelope>`;
   }
 
   private buildClaimlist(

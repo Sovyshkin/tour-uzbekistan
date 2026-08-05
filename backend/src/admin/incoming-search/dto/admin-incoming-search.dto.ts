@@ -3,6 +3,11 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class AdminIncomingSearchDto {
+  @ApiPropertyOptional({ example: 'hotel' })
+  @IsOptional()
+  @IsString()
+  referenceType?: string;
+
   @ApiPropertyOptional({ example: '2026-10-10' })
   @IsOptional()
   @IsString()

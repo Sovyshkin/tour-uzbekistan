@@ -11,28 +11,17 @@ const loading = ref(false);
 const result = ref<Record<string, any> | null>(null);
 
 const form = reactive({
-  checkIn: '',
-  nights: 3,
-  adults: 2,
-  children: 0,
-  currency: 'USD',
-  tourId: '',
-  hotelCode: '',
-  city: '',
+  referenceType: 'hotel',
   extraParams: '',
 });
 
-const formattedHotels = computed(() =>
-  result.value?.hotels?.parsed
-    ? JSON.stringify(result.value.hotels.parsed, null, 2)
-    : result.value?.hotels?.raw || '',
+const formattedItems = computed(() =>
+  result.value?.reference?.items
+    ? JSON.stringify(result.value.reference.items.slice(0, 100), null, 2)
+    : '',
 );
 
-const formattedMinPrice = computed(() =>
-  result.value?.minPriceDetails?.parsed
-    ? JSON.stringify(result.value.minPriceDetails.parsed, null, 2)
-    : result.value?.minPriceDetails?.raw || '',
-);
+const formattedRaw = computed(() => result.value?.reference?.raw || '');
 
 const search = async () => {
   loading.value = true;
@@ -45,10 +34,10 @@ const search = async () => {
       return;
     }
 
-    ElMessage.success('Incoming search completed');
+    ElMessage.success('XMLGate request completed');
   } catch (error: any) {
     ElMessage.error({
-      message: getApiErrorMessage(error, 'Incoming search failed'),
+      message: getApiErrorMessage(error, 'XMLGate request failed'),
       duration: 7000,
       showClose: true,
     });
@@ -63,51 +52,32 @@ const search = async () => {
     <section class="incoming-toolbar">
       <div>
         <h2>{{ t('nav.incomingSearch') }}</h2>
-        <p>Тестовый поиск SAMO Incoming: wizard/getHotels -> wizard/getMinPrice.</p>
+        <p>Диагностика SAMO XMLGate: export/default.php?samo_action=reference.</p>
       </div>
       <el-button type="primary" :loading="loading" @click="search">
-        Запустить поиск
+        Выполнить XMLGate запрос
       </el-button>
     </section>
 
     <el-card shadow="never">
       <el-form label-position="top" class="incoming-form">
-        <el-form-item label="Дата заезда">
-          <el-date-picker
-            v-model="form.checkIn"
-            type="date"
-            value-format="YYYY-MM-DD"
-            placeholder="YYYY-MM-DD"
-            class="w-full"
-          />
-        </el-form-item>
-        <el-form-item label="Ночей">
-          <el-input-number v-model="form.nights" :min="1" :max="60" class="w-full" />
-        </el-form-item>
-        <el-form-item label="Взрослых">
-          <el-input-number v-model="form.adults" :min="1" :max="20" class="w-full" />
-        </el-form-item>
-        <el-form-item label="Детей">
-          <el-input-number v-model="form.children" :min="0" :max="10" class="w-full" />
-        </el-form-item>
-        <el-form-item label="Валюта">
-          <el-input v-model="form.currency" placeholder="USD" />
-        </el-form-item>
-        <el-form-item label="Tour ID">
-          <el-input v-model="form.tourId" placeholder="Если требуется SAMO" />
-        </el-form-item>
-        <el-form-item label="Hotel code / ID">
-          <el-input v-model="form.hotelCode" placeholder="incomingHotelCode" />
-        </el-form-item>
-        <el-form-item label="Город / направление">
-          <el-input v-model="form.city" placeholder="Если требуется SAMO" />
+        <el-form-item label="Тип справочника">
+          <el-select v-model="form.referenceType" class="w-full" filterable allow-create>
+            <el-option label="hotel" value="hotel" />
+            <el-option label="town" value="town" />
+            <el-option label="tour" value="tour" />
+            <el-option label="state" value="state" />
+            <el-option label="star" value="star" />
+            <el-option label="meal" value="meal" />
+            <el-option label="room" value="room" />
+          </el-select>
         </el-form-item>
         <el-form-item class="incoming-form-wide" label="Дополнительные параметры SAMO JSON">
           <el-input
             v-model="form.extraParams"
             type="textarea"
             :rows="5"
-            placeholder='{"STATEINC":"1","TOWNFROMINC":"1"}'
+            placeholder='{"laststamp":"0x0000000000000000","delstamp":"0x0000000000000000"}'
           />
         </el-form-item>
       </el-form>
@@ -129,20 +99,20 @@ const search = async () => {
 
       <dl class="incoming-summary">
         <div>
-          <dt>Минимальная цена</dt>
-          <dd>{{ result.summary?.minPrice ?? 'Не найдена' }}</dd>
+          <dt>Тип</dt>
+          <dd>{{ result.summary?.referenceType ?? '-' }}</dd>
         </div>
         <div>
-          <dt>sGUID</dt>
-          <dd>{{ result.summary?.sGuid ?? 'Не найден' }}</dd>
+          <dt>Записей</dt>
+          <dd>{{ result.summary?.count ?? 0 }}</dd>
         </div>
         <div>
-          <dt>getHotels status</dt>
-          <dd>{{ result.hotels?.status ?? '-' }}</dd>
+          <dt>HTTP status</dt>
+          <dd>{{ result.reference?.status ?? '-' }}</dd>
         </div>
         <div>
-          <dt>getMinPrice status</dt>
-          <dd>{{ result.minPriceDetails?.status ?? '-' }}</dd>
+          <dt>AES key</dt>
+          <dd>{{ result.config?.hasAesKey ? 'Задан' : 'Не задан' }}</dd>
         </div>
       </dl>
 
@@ -150,11 +120,11 @@ const search = async () => {
         <el-tab-pane label="Запрос">
           <pre>{{ JSON.stringify(result.request || result.config, null, 2) }}</pre>
         </el-tab-pane>
-        <el-tab-pane label="getHotels">
-          <pre>{{ formattedHotels }}</pre>
+        <el-tab-pane label="Записи">
+          <pre>{{ formattedItems }}</pre>
         </el-tab-pane>
-        <el-tab-pane label="getMinPrice">
-          <pre>{{ formattedMinPrice || 'getMinPrice не вызывался: sGUID не найден в getHotels.' }}</pre>
+        <el-tab-pane label="Raw XML">
+          <pre>{{ formattedRaw }}</pre>
         </el-tab-pane>
       </el-tabs>
     </el-card>

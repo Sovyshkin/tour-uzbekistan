@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 
@@ -17,9 +17,16 @@ export class AdminIncomingSearchController {
   constructor(private readonly incomingSearchService: AdminIncomingSearchService) {}
 
   @Post('search')
-  @ApiOperation({ summary: 'Run SAMO Incoming wizard search from admin panel' })
-  @ApiOkResponse({ description: 'SAMO Incoming search diagnostic result' })
+  @ApiOperation({ summary: 'Run SAMO XMLGate reference request from admin panel' })
+  @ApiOkResponse({ description: 'SAMO XMLGate diagnostic result' })
   search(@Body() dto: AdminIncomingSearchDto) {
     return this.incomingSearchService.search(dto);
+  }
+
+  @Get('reference/:type')
+  @ApiOperation({ summary: 'Load SAMO XMLGate reference by type' })
+  @ApiOkResponse({ description: 'SAMO XMLGate reference result' })
+  reference(@Param('type') type: string, @Query('extraParams') extraParams?: string) {
+    return this.incomingSearchService.reference(type, extraParams);
   }
 }

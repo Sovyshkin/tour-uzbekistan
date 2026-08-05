@@ -3,12 +3,10 @@ import { ConfigService } from '@nestjs/config';
 
 import { AdminIncomingSearchDto } from './dto/admin-incoming-search.dto';
 
-type IncomingSearchConfig = {
-  baseUrl?: string;
-  user?: string;
-  password?: string;
-  hotelsPath: string;
-  minPricePath: string;
+type XmlGateConfig = {
+  endpoint?: string;
+  form: string;
+  aesKey?: string;
   timeoutMs: number;
 };
 
@@ -17,63 +15,57 @@ export class AdminIncomingSearchService {
   constructor(private readonly configService: ConfigService) {}
 
   async search(dto: AdminIncomingSearchDto) {
+    return this.reference(dto.referenceType, dto.extraParams);
+  }
+
+  async reference(referenceTypeValue?: string, extraParams?: string) {
     const config = this.getConfig();
     const missing = this.getMissingConfig(config);
 
     if (missing.length) {
       return {
         ok: false,
-        skippedReason: `SAMO Incoming search config is incomplete: ${missing.join(', ')}`,
+        skippedReason: `SAMO XMLGate config is incomplete: ${missing.join(', ')}`,
         config: this.getSafeConfig(config),
       };
     }
 
-    const params = this.buildParams(dto);
-    const hotels = await this.request(config, config.hotelsPath, params);
-    const minPrice = this.findPrice(hotels.parsed);
-    const sGuid = this.findStringKey(hotels.parsed, 'sGUID') ?? this.findStringKey(hotels.parsed, 'sguid');
-    const minPriceDetails = sGuid
-      ? await this.request(config, config.minPricePath, { ...params, sGUID: sGuid })
-      : null;
+    const referenceType = this.normalizeReferenceType(referenceTypeValue);
+    const params = this.buildReferenceParams(config, referenceType, extraParams);
+    const reference = await this.request(config, params);
 
     return {
-      ok: true,
+      ok: reference.ok,
       config: this.getSafeConfig(config),
       request: {
-        hotelsPath: config.hotelsPath,
-        minPricePath: config.minPricePath,
+        endpoint: config.endpoint,
+        mode: 'xmlgate-reference',
+        referenceType,
         params,
       },
       summary: {
-        minPrice,
-        sGuid,
+        referenceType,
+        count: reference.items.length,
+        firstItem: reference.items[0] ?? null,
       },
-      hotels,
-      minPriceDetails,
+      reference,
     };
   }
 
-  private getConfig(): IncomingSearchConfig {
+  private getConfig(): XmlGateConfig {
     return {
-      baseUrl: this.getFirstConfig(
+      endpoint: this.getFirstConfig(
+        'SAMO_XMLGATE_ENDPOINT',
+        'SAMO_INCOMING_XMLGATE_ENDPOINT',
         'SAMO_INCOMING_SEARCH_BASE_URL',
-        'SAMO_INCOMING_API_BASE_URL',
         'SAMO_BASE_URL',
       ),
-      user: this.getFirstConfig('SAMO_INCOMING_SEARCH_USER', 'SAMO_INCOMING_USER', 'SAMO_USERNAME'),
-      password: this.getFirstConfig(
-        'SAMO_INCOMING_SEARCH_PASSWORD',
-        'SAMO_INCOMING_PASSWORD',
-        'SAMO_PASSWORD',
-      ),
-      hotelsPath:
-        this.configService.get<string>('SAMO_INCOMING_SEARCH_HOTELS_PATH') ??
-        '/wizard/getHotels',
-      minPricePath:
-        this.configService.get<string>('SAMO_INCOMING_SEARCH_MIN_PRICE_PATH') ??
-        '/wizard/getMinPrice',
+      form:
+        this.getFirstConfig('SAMO_XMLGATE_FORM', 'SAMO_INCOMING_FORM') ??
+        'http://samo.travel',
+      aesKey: this.getFirstConfig('SAMO_XMLGATE_AES_KEY', 'SAMO_AES_KEY'),
       timeoutMs: Number(
-        this.configService.get<string>('SAMO_INCOMING_SEARCH_TIMEOUT_MS') ?? 15000,
+        this.configService.get<string>('SAMO_XMLGATE_TIMEOUT_MS') ?? 15000,
       ),
     };
   }
@@ -89,39 +81,42 @@ export class AdminIncomingSearchService {
     return undefined;
   }
 
-  private getMissingConfig(config: IncomingSearchConfig) {
-    return [
-      ['SAMO_INCOMING_SEARCH_BASE_URL', config.baseUrl],
-      ['SAMO_INCOMING_SEARCH_USER', config.user],
-      ['SAMO_INCOMING_SEARCH_PASSWORD', config.password],
-    ]
+  private getMissingConfig(config: XmlGateConfig) {
+    return [['SAMO_XMLGATE_ENDPOINT', config.endpoint]]
       .filter(([, value]) => !value)
       .map(([name]) => name);
   }
 
-  private getSafeConfig(config: IncomingSearchConfig) {
+  private getSafeConfig(config: XmlGateConfig) {
     return {
-      baseUrl: config.baseUrl,
-      hotelsPath: config.hotelsPath,
-      minPricePath: config.minPricePath,
+      endpoint: config.endpoint,
+      form: config.form,
       timeoutMs: config.timeoutMs,
-      hasUser: Boolean(config.user),
-      hasPassword: Boolean(config.password),
+      hasAesKey: Boolean(config.aesKey),
     };
   }
 
-  private buildParams(dto: AdminIncomingSearchDto) {
-    const extraParams = this.parseExtraParams(dto.extraParams);
+  private normalizeReferenceType(value?: string) {
+    const normalized = value?.trim().toLowerCase() || 'hotel';
+    if (!/^[a-z0-9_-]+$/.test(normalized)) {
+      throw new BadRequestException('referenceType must contain only latin letters, numbers, _ or -');
+    }
+
+    return normalized;
+  }
+
+  private buildReferenceParams(
+    config: XmlGateConfig,
+    referenceType: string,
+    extraParams?: string,
+  ) {
     return {
-      ...extraParams,
-      ...(dto.checkIn ? { checkIn: dto.checkIn } : {}),
-      ...(dto.nights ? { nights: String(dto.nights) } : {}),
-      ...(dto.adults ? { adults: String(dto.adults) } : {}),
-      ...(dto.children !== undefined ? { children: String(dto.children) } : {}),
-      ...(dto.currency ? { currency: dto.currency } : {}),
-      ...(dto.tourId ? { tour: dto.tourId } : {}),
-      ...(dto.hotelCode ? { hotel: dto.hotelCode, hcode: dto.hotelCode } : {}),
-      ...(dto.city ? { city: dto.city } : {}),
+      samo_action: 'reference',
+      form: config.form,
+      type: referenceType,
+      laststamp: '0x0000000000000000',
+      delstamp: '0x0000000000000000',
+      ...this.parseExtraParams(extraParams),
     };
   }
 
@@ -146,16 +141,12 @@ export class AdminIncomingSearchService {
     }
   }
 
-  private async request(
-    config: IncomingSearchConfig,
-    path: string,
-    params: Record<string, string>,
-  ) {
-    if (!config.baseUrl || !config.user || !config.password) {
-      throw new BadRequestException('SAMO Incoming search config is incomplete');
+  private async request(config: XmlGateConfig, params: Record<string, string>) {
+    if (!config.endpoint) {
+      throw new BadRequestException('SAMO XMLGate config is incomplete');
     }
 
-    const url = new URL(path.replace(/^\/+/, ''), `${config.baseUrl.replace(/\/+$/, '')}/`);
+    const url = new URL(config.endpoint);
     for (const [key, value] of Object.entries(params)) {
       if (value) {
         url.searchParams.set(key, value);
@@ -168,110 +159,66 @@ export class AdminIncomingSearchService {
     try {
       const response = await fetch(url, {
         headers: {
-          Authorization: `Basic ${Buffer.from(`${config.user}:${config.password}`).toString('base64')}`,
-          Accept: 'application/json, text/plain, */*',
+          Accept: 'text/xml, application/xml, text/plain, */*',
         },
         signal: controller.signal,
       });
       const raw = await response.text();
-      const parsed = this.parseBody(raw);
+      const items = this.parseReferenceItems(raw);
 
       return {
         url: this.redactUrl(url.toString()),
         status: response.status,
         ok: response.ok,
+        contentType: response.headers.get('content-type'),
         raw: raw.slice(0, 10000),
-        parsed,
+        items,
       };
     } finally {
       clearTimeout(timeout);
     }
   }
 
-  private parseBody(raw: string) {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return null;
+  private parseReferenceItems(raw: string) {
+    const items: Record<string, string>[] = [];
+    const tagMatcher = /<([a-zA-Z][\w:-]*)\s+([^<>]*?)\/>/g;
+
+    for (const match of raw.matchAll(tagMatcher)) {
+      const [, tagName, attributes] = match;
+      if (tagName.toLowerCase() === 'response') {
+        continue;
+      }
+
+      items.push({
+        _type: tagName,
+        ...this.parseAttributes(attributes),
+      });
     }
+
+    return items;
+  }
+
+  private parseAttributes(value: string) {
+    const attributes: Record<string, string> = {};
+    const matcher = /([\w:-]+)="([^"]*)"/g;
+
+    for (const match of value.matchAll(matcher)) {
+      attributes[match[1]] = this.decodeXml(match[2]);
+    }
+
+    return attributes;
+  }
+
+  private decodeXml(value: string) {
+    return value
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
   }
 
   private redactUrl(value: string) {
-    return value.replace(/([?&](?:password|pass|pwd)=)[^&]*/gi, '$1***');
-  }
-
-  private findPrice(value: unknown): number | null {
-    const candidates = ['minPrice', 'price', 'cost', 'amount', 'total'];
-    const found = this.findNumberByKeys(value, candidates);
-    return found;
-  }
-
-  private findNumberByKeys(value: unknown, keys: string[]): number | null {
-    if (!value || typeof value !== 'object') {
-      return null;
-    }
-
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        const found = this.findNumberByKeys(item, keys);
-        if (found !== null) {
-          return found;
-        }
-      }
-
-      return null;
-    }
-
-    const record = value as Record<string, unknown>;
-    for (const [key, item] of Object.entries(record)) {
-      if (keys.some((candidate) => candidate.toLowerCase() === key.toLowerCase())) {
-        const number = Number(item);
-        if (Number.isFinite(number)) {
-          return number;
-        }
-      }
-    }
-
-    for (const item of Object.values(record)) {
-      const found = this.findNumberByKeys(item, keys);
-      if (found !== null) {
-        return found;
-      }
-    }
-
-    return null;
-  }
-
-  private findStringKey(value: unknown, targetKey: string): string | null {
-    if (!value || typeof value !== 'object') {
-      return null;
-    }
-
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        const found = this.findStringKey(item, targetKey);
-        if (found) {
-          return found;
-        }
-      }
-
-      return null;
-    }
-
-    const record = value as Record<string, unknown>;
-    for (const [key, item] of Object.entries(record)) {
-      if (key.toLowerCase() === targetKey.toLowerCase() && typeof item === 'string') {
-        return item;
-      }
-    }
-
-    for (const item of Object.values(record)) {
-      const found = this.findStringKey(item, targetKey);
-      if (found) {
-        return found;
-      }
-    }
-
-    return null;
+    return value.replace(/([?&](?:password|pass|pwd|token|partner_token)=)[^&]*/gi, '$1***');
   }
 }
