@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import AdminContentPage from '@/views/AdminContentPage.vue';
 import AdminAuditLogsPage from '@/views/AdminAuditLogsPage.vue';
+import AdminIncomingSearchPage from '@/views/AdminIncomingSearchPage.vue';
 import AdminRecordsPage from '@/views/AdminRecordsPage.vue';
 import DashboardPage from '@/views/DashboardPage.vue';
 import LoginPage from '@/views/LoginPage.vue';
@@ -118,6 +119,14 @@ const router = createRouter({
           meta: {
             titleKey: 'nav.bookings',
             recordType: 'bookings',
+          },
+        },
+        {
+          path: 'incoming-search',
+          name: 'incoming-search',
+          component: AdminIncomingSearchPage,
+          meta: {
+            titleKey: 'nav.incomingSearch',
           },
         },
         {

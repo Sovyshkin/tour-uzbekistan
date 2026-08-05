@@ -31,6 +31,7 @@ export class HomeService {
             tours: {
               some: {
                 status: ContentStatus.PUBLISHED,
+                isFeatured: true,
               },
             },
           },

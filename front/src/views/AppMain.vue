@@ -189,15 +189,6 @@ const resumeHero = () => {
   restartHeroTimer();
 };
 
-const buttons = computed(() => [
-  { title: cmsText('buttons.all', t('buttons.all')), category: 'all', url: null },
-  ...homeData.value.countries.map((country) => ({
-    title: country.name,
-    category: country.slug,
-    url: cmsAsset(country.flagImage),
-  })),
-]);
-
 const allTours = computed(() =>
   homeData.value.recommendedTours.map((tour) => ({
     id: tour.id,
@@ -213,6 +204,19 @@ const allTours = computed(() =>
     },
   })),
 );
+
+const tourCountrySlugs = computed(() => new Set(allTours.value.map((tour) => tour.category).filter(Boolean)));
+
+const buttons = computed(() => [
+  { title: cmsText('buttons.all', t('buttons.all')), category: 'all', url: null },
+  ...homeData.value.countries
+    .filter((country) => tourCountrySlugs.value.has(country.slug))
+    .map((country) => ({
+      title: country.name,
+      category: country.slug,
+      url: cmsAsset(country.flagImage),
+    })),
+]);
 
 const filteredTours = computed(() => {
   if (activeCategory.value === 'all') {
@@ -309,6 +313,11 @@ const loadHome = async () => {
 
 watch(() => locale.value, loadHome);
 watch([heroBanners, heroSliderInterval, isHeroPaused], restartHeroTimer, { flush: 'post' });
+watch(buttons, (items) => {
+  if (!items.some((item) => item.category === activeCategory.value)) {
+    activeCategory.value = 'all';
+  }
+});
 onMounted(loadHome);
 onUnmounted(clearHeroTimer);
 </script>
