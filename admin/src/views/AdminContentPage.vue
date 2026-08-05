@@ -2451,144 +2451,6 @@ watch(
           <el-empty v-if="!form.whyFacts.length" :description="t('content.emptyFacts')" />
         </section>
 
-        <section v-if="isTourForm" class="tour-composer">
-          <div class="composer-header">
-            <div>
-              <h3>{{ t('content.tourListsTitle') }}</h3>
-              <p>{{ t('content.tourListsSubtitle') }}</p>
-            </div>
-          </div>
-
-          <el-tabs class="composer-tabs">
-            <el-tab-pane
-              v-for="locale in locales"
-              :key="`tour-lists-${locale.code}`"
-              :label="locale.label"
-            >
-              <div class="tour-list-grid">
-                <article
-                  v-for="fieldKey in ['included', 'excluded']"
-                  :key="`${locale.code}-${fieldKey}`"
-                  class="tour-list-card"
-                >
-                  <div class="tour-list-card__head">
-                    <strong>{{ t(`content.fields.${fieldKey}`) }}</strong>
-                    <el-button
-                      type="primary"
-                      plain
-                      size="small"
-                      @click="addStringListItem(locale.code, fieldKey)"
-                    >
-                      {{ t('content.addListItem') }}
-                    </el-button>
-                  </div>
-
-                  <div class="tour-list-items">
-                    <div
-                      v-for="(item, itemIndex) in getStringList(locale.code, fieldKey)"
-                      :key="`${locale.code}-${fieldKey}-${itemIndex}`"
-                      class="tour-list-item"
-                    >
-                      <el-input
-                        :model-value="item"
-                        :placeholder="t('content.listItemPlaceholder')"
-                        @update:model-value="(value: string) => updateStringListItem(locale.code, fieldKey, itemIndex, value)"
-                      />
-                      <el-button
-                        type="danger"
-                        plain
-                        size="small"
-                        @click="removeStringListItem(locale.code, fieldKey, itemIndex)"
-                      >
-                        {{ t('common.delete') }}
-                      </el-button>
-                    </div>
-                    <el-empty
-                      v-if="!getStringList(locale.code, fieldKey).length"
-                      :description="t('content.emptyListItems')"
-                    />
-                  </div>
-                </article>
-              </div>
-            </el-tab-pane>
-          </el-tabs>
-        </section>
-
-        <section v-if="isTourForm" class="tour-composer">
-          <div class="composer-header">
-            <div>
-              <h3>{{ t('content.tourDaysTitle') }}</h3>
-              <p>{{ t('content.tourDaysSubtitle') }}</p>
-            </div>
-            <el-button type="primary" plain @click="addTourDay">
-              {{ t('content.addTourDay') }}
-            </el-button>
-          </div>
-
-          <article
-            v-for="(day, dayIndex) in form.tourDays"
-            :key="day.id || `new-day-${dayIndex}`"
-            class="tour-day-card"
-          >
-            <div class="tour-day-card__head">
-              <strong>{{ t('content.tourDay', { number: dayIndex + 1 }) }}</strong>
-              <el-button type="danger" plain size="small" @click="removeTourDay(dayIndex)">
-                {{ t('common.delete') }}
-              </el-button>
-            </div>
-
-            <div class="tour-day-base">
-              <el-form-item :label="t('content.dayNumber')">
-                <el-input-number v-model="day.dayNumber" :min="1" />
-              </el-form-item>
-              <el-form-item :label="t('content.overnightAt')">
-                <el-input v-model="day.overnightAt" :placeholder="t('content.overnightPlaceholder')" />
-              </el-form-item>
-              <el-form-item :label="t('content.dayImage')">
-                <el-select
-                  v-model="day.image"
-                  filterable
-                  clearable
-                  :placeholder="t('common.selectMedia')"
-                >
-                  <el-option
-                    v-for="asset in mediaOptions"
-                    :key="asset.id"
-                    :label="asset.title"
-                    :value="asset.image || ''"
-                  />
-                </el-select>
-              </el-form-item>
-            </div>
-
-            <el-tabs class="tour-day-tabs">
-              <el-tab-pane
-                v-for="locale in locales"
-                :key="`${day.id || dayIndex}-${locale.code}`"
-                :label="locale.label"
-              >
-                <div class="tour-day-translation-grid">
-                  <el-form-item :label="t('content.dayTitle')">
-                    <el-input v-model="day.translations[locale.code].title" />
-                  </el-form-item>
-                  <el-form-item :label="t('content.dayShortTitle')">
-                    <el-input v-model="day.translations[locale.code].shortTitle" />
-                  </el-form-item>
-                </div>
-                <el-form-item :label="t('content.dayDescription')">
-                  <el-input
-                    v-model="day.translations[locale.code].description"
-                    type="textarea"
-                    :rows="5"
-                  />
-                </el-form-item>
-              </el-tab-pane>
-            </el-tabs>
-          </article>
-
-          <el-empty v-if="!form.tourDays.length" :description="t('content.emptyTourDays')" />
-        </section>
-
         <el-tabs v-model="activeLocale">
           <el-tab-pane
             v-for="locale in locales"
@@ -2798,6 +2660,144 @@ watch(
             </el-form-item>
           </el-tab-pane>
         </el-tabs>
+
+        <section v-if="isTourForm" class="tour-composer">
+          <div class="composer-header">
+            <div>
+              <h3>{{ t('content.tourListsTitle') }}</h3>
+              <p>{{ t('content.tourListsSubtitle') }}</p>
+            </div>
+          </div>
+
+          <el-tabs class="composer-tabs">
+            <el-tab-pane
+              v-for="locale in locales"
+              :key="`tour-lists-${locale.code}`"
+              :label="locale.label"
+            >
+              <div class="tour-list-grid">
+                <article
+                  v-for="fieldKey in ['included', 'excluded']"
+                  :key="`${locale.code}-${fieldKey}`"
+                  class="tour-list-card"
+                >
+                  <div class="tour-list-card__head">
+                    <strong>{{ t(`content.fields.${fieldKey}`) }}</strong>
+                    <el-button
+                      type="primary"
+                      plain
+                      size="small"
+                      @click="addStringListItem(locale.code, fieldKey)"
+                    >
+                      {{ t('content.addListItem') }}
+                    </el-button>
+                  </div>
+
+                  <div class="tour-list-items">
+                    <div
+                      v-for="(item, itemIndex) in getStringList(locale.code, fieldKey)"
+                      :key="`${locale.code}-${fieldKey}-${itemIndex}`"
+                      class="tour-list-item"
+                    >
+                      <el-input
+                        :model-value="item"
+                        :placeholder="t('content.listItemPlaceholder')"
+                        @update:model-value="(value: string) => updateStringListItem(locale.code, fieldKey, itemIndex, value)"
+                      />
+                      <el-button
+                        type="danger"
+                        plain
+                        size="small"
+                        @click="removeStringListItem(locale.code, fieldKey, itemIndex)"
+                      >
+                        {{ t('common.delete') }}
+                      </el-button>
+                    </div>
+                    <el-empty
+                      v-if="!getStringList(locale.code, fieldKey).length"
+                      :description="t('content.emptyListItems')"
+                    />
+                  </div>
+                </article>
+              </div>
+            </el-tab-pane>
+          </el-tabs>
+        </section>
+
+        <section v-if="isTourForm" class="tour-composer">
+          <div class="composer-header">
+            <div>
+              <h3>{{ t('content.tourDaysTitle') }}</h3>
+              <p>{{ t('content.tourDaysSubtitle') }}</p>
+            </div>
+            <el-button type="primary" plain @click="addTourDay">
+              {{ t('content.addTourDay') }}
+            </el-button>
+          </div>
+
+          <article
+            v-for="(day, dayIndex) in form.tourDays"
+            :key="day.id || `new-day-${dayIndex}`"
+            class="tour-day-card"
+          >
+            <div class="tour-day-card__head">
+              <strong>{{ t('content.tourDay', { number: dayIndex + 1 }) }}</strong>
+              <el-button type="danger" plain size="small" @click="removeTourDay(dayIndex)">
+                {{ t('common.delete') }}
+              </el-button>
+            </div>
+
+            <div class="tour-day-base">
+              <el-form-item :label="t('content.dayNumber')">
+                <el-input-number v-model="day.dayNumber" :min="1" />
+              </el-form-item>
+              <el-form-item :label="t('content.overnightAt')">
+                <el-input v-model="day.overnightAt" :placeholder="t('content.overnightPlaceholder')" />
+              </el-form-item>
+              <el-form-item :label="t('content.dayImage')">
+                <el-select
+                  v-model="day.image"
+                  filterable
+                  clearable
+                  :placeholder="t('common.selectMedia')"
+                >
+                  <el-option
+                    v-for="asset in mediaOptions"
+                    :key="asset.id"
+                    :label="asset.title"
+                    :value="asset.image || ''"
+                  />
+                </el-select>
+              </el-form-item>
+            </div>
+
+            <el-tabs class="tour-day-tabs">
+              <el-tab-pane
+                v-for="locale in locales"
+                :key="`${day.id || dayIndex}-${locale.code}`"
+                :label="locale.label"
+              >
+                <div class="tour-day-translation-grid">
+                  <el-form-item :label="t('content.dayTitle')">
+                    <el-input v-model="day.translations[locale.code].title" />
+                  </el-form-item>
+                  <el-form-item :label="t('content.dayShortTitle')">
+                    <el-input v-model="day.translations[locale.code].shortTitle" />
+                  </el-form-item>
+                </div>
+                <el-form-item :label="t('content.dayDescription')">
+                  <el-input
+                    v-model="day.translations[locale.code].description"
+                    type="textarea"
+                    :rows="5"
+                  />
+                </el-form-item>
+              </el-tab-pane>
+            </el-tabs>
+          </article>
+
+          <el-empty v-if="!form.tourDays.length" :description="t('content.emptyTourDays')" />
+        </section>
 
         <div class="drawer-actions">
           <el-button @click="drawerOpen = false">{{ t('common.cancel') }}</el-button>
