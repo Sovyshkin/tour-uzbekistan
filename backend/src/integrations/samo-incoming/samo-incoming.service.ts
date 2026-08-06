@@ -125,6 +125,7 @@ type SamoHotelPricePacket = {
   nights: number;
   price: number;
   currency?: string;
+  htplaceMatchesOccupancy: boolean;
   raw: Record<string, string>;
 };
 
@@ -165,7 +166,7 @@ export class SamoIncomingService {
 
     try {
       const partnerToken = await this.getPartnerToken(config);
-      const pricePacket = await this.resolveHotelPricePacket(config, partnerToken);
+      const pricePacket = await this.resolveHotelPricePacket(config, partnerToken, payload);
       config = this.applyHotelPricePacket(config, pricePacket);
       target = this.buildTargetMetadata(config);
       const initXml = await this.initReservation(config, payload, partnerToken);
@@ -402,6 +403,7 @@ export class SamoIncomingService {
   private async resolveHotelPricePacket(
     config: SamoIncomingConfig,
     partnerToken: string,
+    payload: SamoClaimPayload,
   ): Promise<SamoHotelPricePacket | null> {
     if (!config.endpoint || !config.hotelCode) {
       return null;
@@ -435,7 +437,7 @@ export class SamoIncomingService {
         return null;
       }
 
-      return this.pickMinimalHotelPricePacket(this.parseXmlItems(raw));
+      return this.pickMinimalHotelPricePacket(this.parseXmlItems(raw), payload);
     } finally {
       clearTimeout(timeout);
     }
@@ -452,13 +454,15 @@ export class SamoIncomingService {
     return {
       ...config,
       roomCode: packet.roomCode,
-      htplaceCode: packet.htplaceCode,
+      htplaceCode: packet.htplaceMatchesOccupancy ? packet.htplaceCode : config.htplaceCode,
       mealCode: packet.mealCode,
       nights: packet.nights,
     };
   }
 
-  private pickMinimalHotelPricePacket(items: Record<string, string>[]) {
+  private pickMinimalHotelPricePacket(items: Record<string, string>[], payload: SamoClaimPayload) {
+    const expectedAdults = Math.max(1, payload.groupSize ?? 1);
+    const expectedChildren = 0;
     const prices = items
       .filter((item) => item._type?.toLowerCase() === 'hprice')
       .filter((item) => item.status?.trim().toUpperCase() !== 'D')
@@ -483,12 +487,58 @@ export class SamoIncomingService {
           nights: Number.isFinite(nights) && nights > 0 ? nights : 1,
           price,
           currency: item.currency,
+          htplaceMatchesOccupancy: this.matchesHtplaceOccupancy(item, expectedAdults, expectedChildren),
           raw: item,
         };
       })
       .filter((item): item is SamoHotelPricePacket => Boolean(item));
 
-    return prices.sort((a, b) => a.price - b.price)[0] ?? null;
+    const matchingPrices = prices.filter((item) => item.htplaceMatchesOccupancy);
+    return (matchingPrices.length ? matchingPrices : prices).sort((a, b) => a.price - b.price)[0] ?? null;
+  }
+
+  private matchesHtplaceOccupancy(item: Record<string, string>, adults: number, children: number) {
+    const adultFields = ['adult', 'adults', 'adultcnt', 'adultcount', 'paxadult', 'adl'];
+    const childFields = ['child', 'children', 'childcnt', 'childcount', 'paxchild', 'chd'];
+    const explicitAdults = this.readFirstNumericField(item, adultFields);
+    const explicitChildren = this.readFirstNumericField(item, childFields);
+
+    if (explicitAdults !== null || explicitChildren !== null) {
+      return (explicitAdults ?? adults) === adults && (explicitChildren ?? children) === children;
+    }
+
+    const text = [
+      item.htplacename,
+      item.htplace_name,
+      item.place,
+      item.placename,
+      item.name,
+      item.lname,
+      item.longname,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    if (!text) {
+      return false;
+    }
+
+    const containsChildren = /\b(chd|child|children|kid|kids|реб|дет)/i.test(text);
+    const adultMatch = text.match(/(\d+)\s*(adl|adult|adults|взр)/i);
+    return !containsChildren && Number(adultMatch?.[1]) === adults;
+  }
+
+  private readFirstNumericField(item: Record<string, string>, keys: string[]) {
+    for (const key of keys) {
+      const value = item[key] ?? item[key.toUpperCase()] ?? item[key.toLowerCase()];
+      const number = Number(String(value ?? '').replace(',', '.'));
+      if (Number.isFinite(number)) {
+        return number;
+      }
+    }
+
+    return null;
   }
 
   private async getPartnerToken(config: SamoIncomingConfig) {
@@ -668,7 +718,7 @@ export class SamoIncomingService {
   <Tourists>
 ${tourists.map((tourist) => tourist.xml).join('\n')}
   </Tourists>
-  <Payer Name="${this.escapeXml(`${payload.person.lastName} ${payload.person.firstName}`)}" Phone="" EMail="" Address="" PassportSerie="${this.escapeXml(payload.person.documentSeries ?? '')}" PassportNo="${this.escapeXml(payload.person.documentNumber ?? '')}"${payerIssueDate} IssuePlace=""/>
+  <Payer Name="${this.escapeXml(payload.person.firstName)}" Surname="${this.escapeXml(payload.person.lastName)}" LName="${this.escapeXml(payload.person.lastName)}" Phone="" EMail="" Address="" PassportSerie="${this.escapeXml(payload.person.documentSeries ?? '')}" PassportNo="${this.escapeXml(payload.person.documentNumber ?? '')}"${payerIssueDate} IssuePlace=""/>
   <Rooms>
     <Room RoomID="0" Hotel="${this.escapeXml(config.hotelCode ?? '')}" Hotel_Name="${this.escapeXml(config.hotelName)}" Date="${this.formatSamoDate(dateBeg)}" Duration="${duration}" Room="${this.escapeXml(config.roomCode)}" Room_Name="${this.escapeXml(config.roomName)}" Htplace="${this.escapeXml(config.htplaceCode)}" Htplace_Name="${this.escapeXml(config.htplaceName)}" Meal="${this.escapeXml(config.mealCode)}" Meal_Name="${this.escapeXml(config.mealName)}" confirm="0" Price="${price}" Currency="${this.escapeXml(currency)}" rcount="1">
       <Members>
@@ -691,9 +741,8 @@ ${members}
     return Array.from({ length: count }, (_, index) => {
       const isMainPerson = index === 0;
       const id = index;
-      const name = isMainPerson
-        ? `${payload.person.lastName}/${payload.person.firstName}`.toUpperCase()
-        : `GUEST/${index + 1}`;
+      const firstName = isMainPerson ? payload.person.firstName.toUpperCase() : `GUEST ${index + 1}`;
+      const lastName = isMainPerson ? payload.person.lastName.toUpperCase() : 'TOURIST';
       const gender = this.mapHuman(payload.person.sex);
       const born = payload.person.birthDate ?? new Date(Date.UTC(1970, 0, 1));
       const passportSerie = isMainPerson ? payload.person.documentSeries ?? '' : '';
@@ -701,7 +750,7 @@ ${members}
 
       return {
         id,
-        xml: `    <Tourist ID="${id}" Name="${this.escapeXml(name)}" Gender="${gender}" BornDate="${this.formatSamoPlainDate(born)}" PassportSerie="${this.escapeXml(passportSerie)}" PassportNo="${this.escapeXml(passportNo)}"/>`,
+        xml: `    <Tourist ID="${id}" Name="${this.escapeXml(firstName)}" Surname="${this.escapeXml(lastName)}" LName="${this.escapeXml(lastName)}" Gender="${gender}" BornDate="${this.formatSamoPlainDate(born)}" PassportSerie="${this.escapeXml(passportSerie)}" PassportNo="${this.escapeXml(passportNo)}"/>`,
       };
     });
   }
