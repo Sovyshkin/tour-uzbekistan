@@ -382,7 +382,15 @@ export class AdminIncomingSearchService {
       }
     }
 
-    return [...salts].map((salt) => this.encryptPasswordDigest(password, salt, aesKey));
+    const digests = new Set<string>();
+    const keys = this.getAesKeyCandidates(aesKey);
+    for (const salt of salts) {
+      for (const key of keys) {
+        digests.add(this.encryptPasswordDigest(password, salt, key));
+      }
+    }
+
+    return [...digests];
   }
 
   private getDateSaltValues(date: Date) {
@@ -433,12 +441,30 @@ export class AdminIncomingSearchService {
     };
   }
 
-  private encryptPasswordDigest(password: string, salt: string, aesKey: string) {
-    const key = Buffer.from(aesKey, 'hex');
-    if (key.length !== 16 && key.length !== 24 && key.length !== 32) {
+  private getAesKeyCandidates(aesKey: string) {
+    const keys: Buffer[] = [];
+    const normalizedHex = aesKey.trim();
+    if (/^[a-f0-9]+$/i.test(normalizedHex) && normalizedHex.length % 2 === 0) {
+      keys.push(Buffer.from(normalizedHex, 'hex'));
+    }
+
+    keys.push(Buffer.from(aesKey, 'utf8'));
+
+    const uniqueKeys = new Map<string, Buffer>();
+    for (const key of keys) {
+      if ([16, 24, 32].includes(key.length)) {
+        uniqueKeys.set(key.toString('hex'), key);
+      }
+    }
+
+    if (!uniqueKeys.size) {
       throw new BadRequestException('SAMO XMLGate AES key must be 16, 24 or 32 bytes hex');
     }
 
+    return [...uniqueKeys.values()];
+  }
+
+  private encryptPasswordDigest(password: string, salt: string, key: Buffer) {
     const cipher = createCipheriv(`aes-${key.length * 8}-cbc`, key, Buffer.alloc(16));
     return Buffer.concat([
       cipher.update(Buffer.from(`${password}${salt}`, 'utf8')),
