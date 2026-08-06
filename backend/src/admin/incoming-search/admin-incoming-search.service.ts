@@ -111,9 +111,6 @@ export class AdminIncomingSearchService {
             sourceAttribute: price.sourceAttribute,
           }
         : null,
-      priceMissingReason: price
-        ? undefined
-        : 'SAMO XMLGate hotel reference does not contain a recognizable price attribute for this hotel',
       reference: {
         url: reference.url,
         status: reference.status,

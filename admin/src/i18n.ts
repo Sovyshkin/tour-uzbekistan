@@ -409,6 +409,7 @@ const messages = {
       incomingHotelSyncFailed: 'Не удалось подтянуть технический отель из SAMO',
       incomingHotelPriceSynced: 'Название и цена технического отеля подтянуты из SAMO',
       incomingHotelPriceMissing: 'Отель найден, но цена не пришла из SAMO',
+      incomingHotelSyncedWithoutPrice: 'Технический отель подтянут из SAMO. Цена в справочнике отелей не передается, текущая цена оставлена без изменений.',
       chooseCountry: 'Выберите страну',
       locales: {
         ru: 'Русский',
@@ -900,6 +901,7 @@ const messages = {
       incomingHotelSyncFailed: 'Failed to sync technical hotel from SAMO',
       incomingHotelPriceSynced: 'Technical hotel name and price were synced from SAMO',
       incomingHotelPriceMissing: 'Hotel was found, but SAMO did not return a price',
+      incomingHotelSyncedWithoutPrice: 'Technical hotel was synced from SAMO. The hotel reference does not include price, so the current price was kept unchanged.',
       chooseCountry: 'Select country',
       locales: {
         ru: 'Russian',

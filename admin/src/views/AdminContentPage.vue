@@ -1220,7 +1220,7 @@ const syncIncomingHotel = async () => {
       form.currency = data.price.currency || form.currency || 'USD';
       ElMessage.success(t('content.incomingHotelPriceSynced'));
     } else {
-      ElMessage.warning(data.priceMissingReason || t('content.incomingHotelPriceMissing'));
+      ElMessage.info(t('content.incomingHotelSyncedWithoutPrice'));
     }
   } catch (error: any) {
     ElMessage.error(getApiErrorMessage(error, t('content.incomingHotelSyncFailed')));
