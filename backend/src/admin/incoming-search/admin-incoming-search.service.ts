@@ -314,8 +314,6 @@ export class AdminIncomingSearchService {
 
     const url = new URL(config.endpoint);
     url.searchParams.set('samo_action', 'auth');
-    url.searchParams.set('form', config.form);
-    url.searchParams.set('AES KEY', config.aesKey);
 
     let lastResponsePreview = 'empty response';
     const digests = this.buildPasswordDigestCandidates(config.password, config.aesKey);
@@ -325,7 +323,6 @@ export class AdminIncomingSearchService {
       const body = new URLSearchParams();
       body.set('login', config.user);
       body.set('passwordDigest', passwordDigest);
-      body.set('form', config.form);
 
       try {
         const response = await fetch(url, {
@@ -370,6 +367,8 @@ export class AdminIncomingSearchService {
     const now = new Date();
     const dates = [
       now,
+      new Date(now.getTime() - 30_000),
+      new Date(now.getTime() + 30_000),
       new Date(now.getTime() - 60_000),
       new Date(now.getTime() + 60_000),
       new Date(now.getTime() - 5 * 60_000),
@@ -387,20 +386,51 @@ export class AdminIncomingSearchService {
   }
 
   private getDateSaltValues(date: Date) {
-    const iso = date.toISOString();
-    const dateOnly = iso.slice(0, 10);
-    const dateTime = iso.slice(0, 19);
-    const compactDate = dateOnly.replace(/-/g, '');
-    const compactDateTime = dateTime.replace(/\D/g, '');
+    const values = new Set<string>();
+    const offsetsMinutes = [0, 300, 180, 240, 360];
 
-    return [
-      dateTime,
-      iso,
-      dateOnly,
-      compactDate,
-      compactDateTime,
-      `${dateOnly} ${dateTime.slice(11)}`,
-    ];
+    for (const offsetMinutes of offsetsMinutes) {
+      const parts = this.getDateParts(date, offsetMinutes);
+      const dateOnly = `${parts.year}-${parts.month}-${parts.day}`;
+      const dateTime = `${dateOnly}T${parts.hour}:${parts.minute}:${parts.second}`;
+      const minuteDateTime = `${dateOnly}T${parts.hour}:${parts.minute}:00`;
+      const spaceDateTime = `${dateOnly} ${parts.hour}:${parts.minute}:${parts.second}`;
+      const spaceMinuteDateTime = `${dateOnly} ${parts.hour}:${parts.minute}:00`;
+      const compactDate = `${parts.year}${parts.month}${parts.day}`;
+      const compactDateTime = `${compactDate}${parts.hour}${parts.minute}${parts.second}`;
+      const compactMinuteDateTime = `${compactDate}${parts.hour}${parts.minute}00`;
+      const dottedDate = `${parts.day}.${parts.month}.${parts.year}`;
+
+      [
+        dateTime,
+        minuteDateTime,
+        spaceDateTime,
+        spaceMinuteDateTime,
+        dateOnly,
+        compactDate,
+        compactDateTime,
+        compactMinuteDateTime,
+        dottedDate,
+      ].forEach((value) => values.add(value));
+    }
+
+    values.add(date.toISOString());
+
+    return [...values];
+  }
+
+  private getDateParts(date: Date, offsetMinutes: number) {
+    const shifted = new Date(date.getTime() + offsetMinutes * 60_000);
+    const pad = (value: number) => String(value).padStart(2, '0');
+
+    return {
+      year: String(shifted.getUTCFullYear()),
+      month: pad(shifted.getUTCMonth() + 1),
+      day: pad(shifted.getUTCDate()),
+      hour: pad(shifted.getUTCHours()),
+      minute: pad(shifted.getUTCMinutes()),
+      second: pad(shifted.getUTCSeconds()),
+    };
   }
 
   private encryptPasswordDigest(password: string, salt: string, aesKey: string) {
