@@ -112,6 +112,16 @@ type SamoIncomingConfig = {
   timeoutMs: number;
 };
 
+type SamoHotelPricePacket = {
+  roomCode: string;
+  htplaceCode: string;
+  mealCode: string;
+  nights: number;
+  price: number;
+  currency?: string;
+  raw: Record<string, string>;
+};
+
 @Injectable()
 export class SamoIncomingService {
   private readonly logger = new Logger(SamoIncomingService.name);
@@ -119,9 +129,9 @@ export class SamoIncomingService {
   constructor(private readonly configService: ConfigService) {}
 
   async sendBooking(payload: SamoClaimPayload): Promise<SamoIncomingResult> {
-    const config = this.getConfig(payload);
+    let config = this.getConfig(payload);
     const source = this.buildSourceMetadata(payload);
-    const target = this.buildTargetMetadata(config);
+    let target = this.buildTargetMetadata(config);
 
     if (!config.enabled) {
       return {
@@ -149,6 +159,9 @@ export class SamoIncomingService {
 
     try {
       const partnerToken = await this.getPartnerToken(config);
+      const pricePacket = await this.resolveHotelPricePacket(config, partnerToken);
+      config = this.applyHotelPricePacket(config, pricePacket);
+      target = this.buildTargetMetadata(config);
       const initXml = await this.initReservation(config, payload, partnerToken);
       requestXml = this.buildReservationXml(config, payload, initXml);
       const response = await this.sendXmlGateRequest(config, requestXml, partnerToken);
@@ -377,6 +390,98 @@ export class SamoIncomingService {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private async resolveHotelPricePacket(
+    config: SamoIncomingConfig,
+    partnerToken: string,
+  ): Promise<SamoHotelPricePacket | null> {
+    if (!config.endpoint || !config.hotelCode) {
+      return null;
+    }
+
+    const url = new URL(config.endpoint);
+    url.searchParams.set('samo_action', 'reference');
+    url.searchParams.set('form', config.form);
+    url.searchParams.set('type', 'hotelsalepr');
+    url.searchParams.set('laststamp', '0x0000000000000000');
+    url.searchParams.set('delstamp', '0x0000000000000000');
+    url.searchParams.set('hotel', config.hotelCode);
+    url.searchParams.set('partner_token', partnerToken);
+    if (config.aesKey) {
+      url.searchParams.set('AES KEY', config.aesKey);
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Accept: 'text/xml, application/xml, text/plain, */*',
+        },
+        signal: controller.signal,
+      });
+      const raw = await response.text();
+
+      if (!response.ok || /<Error\b/i.test(raw)) {
+        return null;
+      }
+
+      return this.pickMinimalHotelPricePacket(this.parseXmlItems(raw));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private applyHotelPricePacket(
+    config: SamoIncomingConfig,
+    packet: SamoHotelPricePacket | null,
+  ): SamoIncomingConfig {
+    if (!packet) {
+      return config;
+    }
+
+    return {
+      ...config,
+      roomCode: packet.roomCode,
+      htplaceCode: packet.htplaceCode,
+      mealCode: packet.mealCode,
+      nights: packet.nights,
+    };
+  }
+
+  private pickMinimalHotelPricePacket(items: Record<string, string>[]) {
+    const prices = items
+      .filter((item) => item._type?.toLowerCase() === 'hprice')
+      .filter((item) => item.status?.trim().toUpperCase() !== 'D')
+      .map<SamoHotelPricePacket | null>((item) => {
+        const price = Number(String(item.price ?? '').replace(/\s/g, '').replace(',', '.'));
+        const nights = Number(item.nights ?? item.nightsfrom ?? 1);
+
+        if (
+          !Number.isFinite(price) ||
+          price <= 0 ||
+          !item.room ||
+          !item.htplace ||
+          !item.meal
+        ) {
+          return null;
+        }
+
+        return {
+          roomCode: item.room,
+          htplaceCode: item.htplace,
+          mealCode: item.meal,
+          nights: Number.isFinite(nights) && nights > 0 ? nights : 1,
+          price,
+          currency: item.currency,
+          raw: item,
+        };
+      })
+      .filter((item): item is SamoHotelPricePacket => Boolean(item));
+
+    return prices.sort((a, b) => a.price - b.price)[0] ?? null;
   }
 
   private async getPartnerToken(config: SamoIncomingConfig) {
@@ -697,6 +802,45 @@ ${members}
 
   private readXmlAttribute(tag: string, attribute: string) {
     return tag.match(new RegExp(`${attribute}="([^"]*)"`))?.[1] ?? null;
+  }
+
+  private parseXmlItems(raw: string) {
+    const items: Record<string, string>[] = [];
+    const tagMatcher = /<([a-zA-Z][\w:-]*)\s+([^<>]*?)\/>/g;
+
+    for (const match of raw.matchAll(tagMatcher)) {
+      const [, tagName, attributes] = match;
+      if (tagName.toLowerCase() === 'response') {
+        continue;
+      }
+
+      items.push({
+        _type: tagName,
+        ...this.parseXmlAttributes(attributes),
+      });
+    }
+
+    return items;
+  }
+
+  private parseXmlAttributes(value: string) {
+    const attributes: Record<string, string> = {};
+    const matcher = /([\w:-]+)\s*=\s*"([^"]*)"/g;
+
+    for (const match of value.matchAll(matcher)) {
+      attributes[match[1]] = this.decodeXml(match[2]);
+    }
+
+    return attributes;
+  }
+
+  private decodeXml(value: string) {
+    return value
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
   }
 
   private extractReservationXml(response: string) {
