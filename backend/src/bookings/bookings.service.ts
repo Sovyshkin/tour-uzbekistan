@@ -387,6 +387,8 @@ export class BookingsService {
       tour: {
         title: snapshot.title,
         durationDays: tour.durationDays,
+        price: snapshot.price,
+        currency: snapshot.currency,
         transport: snapshot.transport,
         hotels: snapshot.hotels,
         includedServices: snapshot.includedServices,

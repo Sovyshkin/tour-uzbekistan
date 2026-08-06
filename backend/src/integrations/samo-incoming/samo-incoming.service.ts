@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createCipheriv, createHash } from 'crypto';
 
 type SamoClaimPerson = {
   firstName: string;
@@ -13,6 +14,8 @@ type SamoClaimPerson = {
 type SamoClaimTour = {
   title: string;
   durationDays: number;
+  price?: string | null;
+  currency?: string | null;
   transport?: string | null;
   hotels?: string | null;
   includedServices: string[];
@@ -47,6 +50,8 @@ type SamoIncomingTargetMetadata = {
   hotelName: string;
   roomCode: string;
   roomName: string;
+  htplaceCode: string;
+  htplaceName: string;
   mealCode: string;
   mealName: string;
 };
@@ -89,6 +94,7 @@ type SamoIncomingConfig = {
   form: string;
   action: string;
   method: string;
+  type: string;
   payloadParam: string;
   user?: string;
   password?: string;
@@ -98,6 +104,8 @@ type SamoIncomingConfig = {
   hotelName: string;
   roomCode: string;
   roomName: string;
+  htplaceCode: string;
+  htplaceName: string;
   mealCode: string;
   mealName: string;
   timeoutMs: number;
@@ -136,7 +144,7 @@ export class SamoIncomingService {
     }
 
     const claimNumber = this.buildClaimNumber(payload.bookingNumber, payload.createdAt);
-    const requestXml = this.buildClaimlist(config, payload, claimNumber);
+    const requestXml = this.buildReservationXml(config, payload);
 
     try {
       const response = await this.sendXmlGateRequest(config, requestXml);
@@ -166,6 +174,15 @@ export class SamoIncomingService {
   }
 
   private getConfig(payload?: SamoClaimPayload): SamoIncomingConfig {
+    const rawBookAction = this.getFirstConfig(
+      'SAMO_XMLGATE_BOOK_ACTION',
+      'SAMO_INCOMING_XMLGATE_ACTION',
+    );
+    const rawPayloadParam = this.getFirstConfig(
+      'SAMO_XMLGATE_BOOK_PAYLOAD_PARAM',
+      'SAMO_INCOMING_XMLGATE_PAYLOAD_PARAM',
+    );
+
     return {
       enabled: this.isEnabled('SAMO_INCOMING_ENABLED', 'SAMO_ENABLED'),
       endpoint: this.getFirstConfig(
@@ -177,19 +194,21 @@ export class SamoIncomingService {
       form:
         this.getFirstConfig('SAMO_XMLGATE_FORM', 'SAMO_INCOMING_FORM') ??
         'http://samo.travel',
-      action:
-        this.getFirstConfig('SAMO_XMLGATE_BOOK_ACTION', 'SAMO_INCOMING_XMLGATE_ACTION') ??
-        'claimlist',
+      action: rawBookAction === 'claimlist' ? 'reference' : rawBookAction ?? 'reference',
       method:
         this.getFirstConfig('SAMO_XMLGATE_BOOK_METHOD', 'SAMO_INCOMING_XMLGATE_METHOD') ??
         'POST',
+      type:
+        this.getFirstConfig('SAMO_XMLGATE_BOOK_TYPE', 'SAMO_INCOMING_XMLGATE_TYPE') ??
+        'bron',
       payloadParam:
-        this.getFirstConfig(
-          'SAMO_XMLGATE_BOOK_PAYLOAD_PARAM',
-          'SAMO_INCOMING_XMLGATE_PAYLOAD_PARAM',
-        ) ?? 'claimlist',
-      user: this.getFirstConfig('SAMO_INCOMING_USER', 'SAMO_USERNAME'),
-      password: this.getFirstConfig('SAMO_INCOMING_PASSWORD', 'SAMO_PASSWORD'),
+        rawPayloadParam === 'claimlist' ? 'claim' : rawPayloadParam ?? 'claim',
+      user: this.getFirstConfig('SAMO_XMLGATE_USER', 'SAMO_INCOMING_USER', 'SAMO_USERNAME'),
+      password: this.getFirstConfig(
+        'SAMO_XMLGATE_PASSWORD',
+        'SAMO_INCOMING_PASSWORD',
+        'SAMO_PASSWORD',
+      ),
       aesKey: this.getFirstConfig('SAMO_XMLGATE_AES_KEY', 'SAMO_AES_KEY'),
       tourId: undefined,
       hotelCode:
@@ -203,6 +222,10 @@ export class SamoIncomingService {
       roomName:
         this.configService.get<string>('SAMO_INCOMING_ROOM_NAME') ??
         'Standard room',
+      htplaceCode: this.configService.get<string>('SAMO_INCOMING_HTPLACE_CODE') ?? '1',
+      htplaceName:
+        this.configService.get<string>('SAMO_INCOMING_HTPLACE_NAME') ??
+        '1 Adult',
       mealCode: this.configService.get<string>('SAMO_INCOMING_MEAL_CODE') ?? '1',
       mealName: this.configService.get<string>('SAMO_INCOMING_MEAL_NAME') ?? 'RO',
       timeoutMs: Number(
@@ -230,21 +253,26 @@ export class SamoIncomingService {
     return [
       ['SAMO_XMLGATE_ENDPOINT', config.endpoint],
       ['SAMO_XMLGATE_AES_KEY', config.aesKey],
+      ['SAMO_XMLGATE_USER', config.user],
+      ['SAMO_XMLGATE_PASSWORD', config.password],
       ['SAMO_INCOMING_HOTEL_CODE', config.hotelCode],
     ]
       .filter(([, value]) => !value)
       .map(([name]) => name);
   }
 
-  private async sendXmlGateRequest(config: SamoIncomingConfig, claimlist: string) {
+  private async sendXmlGateRequest(config: SamoIncomingConfig, reservationXml: string) {
     if (!config.endpoint) {
       throw new Error('SAMO_XMLGATE_ENDPOINT is empty');
     }
 
+    const partnerToken = await this.getPartnerToken(config);
     const method = config.method.toUpperCase() === 'GET' ? 'GET' : 'POST';
     const url = new URL(config.endpoint);
     url.searchParams.set('samo_action', config.action);
     url.searchParams.set('form', config.form);
+    url.searchParams.set('type', config.type);
+    url.searchParams.set('partner_token', partnerToken);
     if (config.aesKey) {
       url.searchParams.set('AES KEY', config.aesKey);
     }
@@ -252,15 +280,8 @@ export class SamoIncomingService {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
     const body = new URLSearchParams();
-    body.set(config.payloadParam, claimlist);
-
-    if (config.user) {
-      body.set('user', config.user);
-    }
-
-    if (config.password) {
-      body.set('password', config.password);
-    }
+    body.set('form', config.form);
+    body.set(config.payloadParam, reservationXml);
 
     if (method === 'GET') {
       for (const [key, value] of body.entries()) {
@@ -290,54 +311,206 @@ export class SamoIncomingService {
     }
   }
 
-  private buildClaimlist(
-    config: SamoIncomingConfig,
-    payload: SamoClaimPayload,
-    claimNumber: number,
-  ) {
-    const adults = Math.max(1, payload.groupSize ?? 1);
-    const dateBeg = payload.travelDate ?? payload.createdAt;
-    const dateEnd = this.addDays(dateBeg, Math.max(1, payload.tour.durationDays));
-    const hotelInc = claimNumber + 1;
-    const people = this.buildPeople(payload, adults);
-    const links = people
-      .map(
-        (person) =>
-          `<hotellink inc="${person.inc + 100000}" hotel_inc="${hotelInc}" people_inc="${person.inc}" common="${hotelInc}" />`,
-      )
-      .join('\n');
+  private async getPartnerToken(config: SamoIncomingConfig) {
+    if (!config.endpoint || !config.user || !config.password || !config.aesKey) {
+      throw new Error('SAMO XMLGate auth config is incomplete');
+    }
 
-    return `<claimlist>
-  <claim number="${claimNumber}" action="E" id="${this.escapeXml(payload.bookingNumber)}" cdate="${this.formatSamoDate(payload.createdAt)}" datebeg="${this.formatSamoDate(dateBeg)}" dateend="${this.formatSamoDate(dateEnd)}">
-    <note>${this.escapeXml(this.buildNote(payload))}</note>
-    <peoples>
-${people.map((person) => person.xml).join('\n')}
-    </peoples>
-    <hotels>
-      <hotel inc="${hotelInc}" hcode="${this.escapeXml(config.hotelCode ?? '')}" hname="${this.escapeXml(config.hotelName)}" room="${this.escapeXml(config.roomCode)}" rname="${this.escapeXml(config.roomName)}" htplace="${adults}-0" pname="${adults} PAX" meal="${this.escapeXml(config.mealCode)}" mname="${this.escapeXml(config.mealName)}" checkin="${this.formatSamoDate(dateBeg)}" checkout="${this.formatSamoDate(dateEnd)}" rcount="1" index="0" addinfant="0" netcurrency="0" />
-    </hotels>
-    <hotellinks>
-${links}
-    </hotellinks>
-  </claim>
-</claimlist>`;
+    const url = new URL(config.endpoint);
+    url.searchParams.set('samo_action', 'auth');
+    let lastResponse = '';
+
+    for (const passwordDigest of this.buildPasswordDigestCandidates(config.password, config.aesKey)) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+      const body = new URLSearchParams();
+      body.set('login', config.user);
+      body.set('passwordDigest', passwordDigest);
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+            Accept: 'text/xml, application/xml, text/plain, */*',
+          },
+          body,
+          signal: controller.signal,
+        });
+        const raw = await response.text();
+        lastResponse = raw;
+
+        if (!response.ok) {
+          throw new Error(`SAMO XMLGate auth failed: HTTP ${response.status}`);
+        }
+
+        const token = raw.match(/partner_token="([^"]+)"/i)?.[1];
+        if (token) {
+          return token;
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    throw new Error(
+      `SAMO XMLGate auth response does not contain partner_token: ${lastResponse.replace(/\s+/g, ' ').trim().slice(0, 500)}`,
+    );
   }
 
-  private buildPeople(payload: SamoClaimPayload, count: number) {
+  private buildPasswordDigestCandidates(password: string, aesKey: string) {
+    const now = new Date();
+    const dates = [
+      now,
+      new Date(now.getTime() - 30_000),
+      new Date(now.getTime() + 30_000),
+      new Date(now.getTime() - 60_000),
+      new Date(now.getTime() + 60_000),
+      new Date(now.getTime() - 5 * 60_000),
+      new Date(now.getTime() + 5 * 60_000),
+    ];
+    const salts = new Set<string>();
+
+    for (const date of dates) {
+      for (const value of this.getDateSaltValues(date)) {
+        salts.add(createHash('md5').update(value).digest('hex'));
+      }
+    }
+
+    const digests = new Set<string>();
+    for (const salt of salts) {
+      for (const key of this.getAesKeyCandidates(aesKey)) {
+        digests.add(this.encryptPasswordDigest(password, salt, key));
+      }
+    }
+
+    return [...digests];
+  }
+
+  private getDateSaltValues(date: Date) {
+    const values = new Set<string>();
+    const offsetsMinutes = [0, 300, 180, 240, 360];
+
+    for (const offsetMinutes of offsetsMinutes) {
+      const parts = this.getDateParts(date, offsetMinutes);
+      const dateOnly = `${parts.year}-${parts.month}-${parts.day}`;
+      const dateTime = `${dateOnly}T${parts.hour}:${parts.minute}:${parts.second}`;
+      const minuteDateTime = `${dateOnly}T${parts.hour}:${parts.minute}:00`;
+      const compactDate = `${parts.year}${parts.month}${parts.day}`;
+
+      [
+        dateTime,
+        minuteDateTime,
+        `${dateOnly} ${parts.hour}:${parts.minute}:${parts.second}`,
+        `${dateOnly} ${parts.hour}:${parts.minute}:00`,
+        dateOnly,
+        compactDate,
+        `${compactDate}${parts.hour}${parts.minute}${parts.second}`,
+        `${compactDate}${parts.hour}${parts.minute}00`,
+        `${parts.day}.${parts.month}.${parts.year}`,
+      ].forEach((value) => values.add(value));
+    }
+
+    values.add(date.toISOString());
+
+    return [...values];
+  }
+
+  private getDateParts(date: Date, offsetMinutes: number) {
+    const shifted = new Date(date.getTime() + offsetMinutes * 60_000);
+    const pad = (value: number) => String(value).padStart(2, '0');
+
+    return {
+      year: String(shifted.getUTCFullYear()),
+      month: pad(shifted.getUTCMonth() + 1),
+      day: pad(shifted.getUTCDate()),
+      hour: pad(shifted.getUTCHours()),
+      minute: pad(shifted.getUTCMinutes()),
+      second: pad(shifted.getUTCSeconds()),
+    };
+  }
+
+  private getAesKeyCandidates(aesKey: string) {
+    const keys: Buffer[] = [];
+    const normalizedHex = aesKey.trim();
+    if (/^[a-f0-9]+$/i.test(normalizedHex) && normalizedHex.length % 2 === 0) {
+      keys.push(Buffer.from(normalizedHex, 'hex'));
+    }
+
+    keys.push(Buffer.from(aesKey, 'utf8'));
+
+    const uniqueKeys = new Map<string, Buffer>();
+    for (const key of keys) {
+      if ([16, 24, 32].includes(key.length)) {
+        uniqueKeys.set(key.toString('hex'), key);
+      }
+    }
+
+    if (!uniqueKeys.size) {
+      throw new Error('SAMO XMLGate AES key must be 16, 24 or 32 bytes');
+    }
+
+    return [...uniqueKeys.values()];
+  }
+
+  private encryptPasswordDigest(password: string, salt: string, key: Buffer) {
+    const cipher = createCipheriv(`aes-${key.length * 8}-cbc`, key, Buffer.alloc(16));
+    return Buffer.concat([
+      cipher.update(Buffer.from(`${password}${salt}`, 'utf8')),
+      cipher.final(),
+    ]).toString('base64');
+  }
+
+  private buildReservationXml(config: SamoIncomingConfig, payload: SamoClaimPayload) {
+    const adults = Math.max(1, payload.groupSize ?? 1);
+    const dateBeg = payload.travelDate ?? payload.createdAt;
+    const duration = Math.max(1, payload.tour.durationDays);
+    const price = this.normalizePrice(payload.tour.price);
+    const currency = payload.tour.currency ?? this.configService.get<string>('SAMO_XMLGATE_DEFAULT_CURRENCY') ?? 'USD';
+    const tourists = this.buildTourists(payload, adults);
+    const members = tourists
+      .map((tourist) => `        <Member TouristID="${tourist.id}"/>`)
+      .join('\n');
+    const note = this.escapeXml(this.buildNote(payload));
+
+    return `<Reservation>
+  <Tourists>
+${tourists.map((tourist) => tourist.xml).join('\n')}
+  </Tourists>
+  <Payer Name="${this.escapeXml(`${payload.person.lastName} ${payload.person.firstName}`)}" Phone="" EMail="" Address="" PassportSerie="${this.escapeXml(payload.person.documentSeries ?? '')}" PassportNo="${this.escapeXml(payload.person.documentNumber ?? '')}" IssueDate="1900-01-01T00:00:00" IssuePlace=""/>
+  <Rooms>
+    <Room RoomID="0" Hotel="${this.escapeXml(config.hotelCode ?? '')}" Hotel_Name="${this.escapeXml(config.hotelName)}" Date="${this.formatSamoDate(dateBeg)}" Duration="${duration}" Room="${this.escapeXml(config.roomCode)}" Room_Name="${this.escapeXml(config.roomName)}" Htplace="${this.escapeXml(config.htplaceCode)}" Htplace_Name="${this.escapeXml(config.htplaceName)}" Meal="${this.escapeXml(config.mealCode)}" Meal_Name="${this.escapeXml(config.mealName)}" confirm="0" Price="${price}" Currency="${this.escapeXml(currency)}" rcount="1">
+      <Members>
+${members}
+      </Members>
+    </Room>
+  </Rooms>
+  <Claims>
+    <Claim condition="ccOffer" status="Not confirmed" payStatus="Unpaid" peopleCount="${adults}" adult="${adults}" child="0" partnername="B2B Website Integration" BookingDate="${this.formatSamoDate(payload.createdAt)}" comment="${note}"/>
+  </Claims>
+  <Services/>
+  <VariantServices/>
+  <Moneys>
+    <Money TotalPrice="${price}" Currency="${this.escapeXml(currency)}"/>
+  </Moneys>
+</Reservation>`;
+  }
+
+  private buildTourists(payload: SamoClaimPayload, count: number) {
     return Array.from({ length: count }, (_, index) => {
       const isMainPerson = index === 0;
-      const inc = this.buildPeopleInc(payload.createdAt, index);
-      const lname = isMainPerson
+      const id = index;
+      const name = isMainPerson
         ? `${payload.person.lastName}/${payload.person.firstName}`.toUpperCase()
         : `GUEST/${index + 1}`;
-      const human = this.mapHuman(payload.person.sex);
+      const gender = this.mapHuman(payload.person.sex);
       const born = payload.person.birthDate ?? new Date('1970-01-01T00:00:00.000Z');
-      const pserie = isMainPerson ? payload.person.documentSeries ?? '' : '';
-      const pnumber = isMainPerson ? payload.person.documentNumber ?? '' : '';
+      const passportSerie = isMainPerson ? payload.person.documentSeries ?? '' : '';
+      const passportNo = isMainPerson ? payload.person.documentNumber ?? '' : '';
 
       return {
-        inc,
-        xml: `      <people inc="${inc}" lname="${this.escapeXml(lname)}" human="${human}" born="${this.formatSamoDate(born)}" pserie="${this.escapeXml(pserie)}" pnumber="${this.escapeXml(pnumber)}" index="${index}" />`,
+        id,
+        xml: `    <Tourist ID="${id}" Name="${this.escapeXml(name)}" Gender="${gender}" BornDate="${this.formatSamoDate(born)}" PassportSerie="${this.escapeXml(passportSerie)}" PassportNo="${this.escapeXml(passportNo)}"/>`,
       };
     });
   }
@@ -358,6 +531,11 @@ ${links}
     ].filter(Boolean);
 
     return lines.join(' | ').slice(0, 255);
+  }
+
+  private normalizePrice(value?: string | null) {
+    const amount = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'));
+    return Number.isFinite(amount) && amount > 0 ? amount.toFixed(4) : '0.0000';
   }
 
   private buildSourceNoteLines(payload: SamoClaimPayload) {
@@ -415,13 +593,15 @@ ${links}
       hotelName: config.hotelName,
       roomCode: config.roomCode,
       roomName: config.roomName,
+      htplaceCode: config.htplaceCode,
+      htplaceName: config.htplaceName,
       mealCode: config.mealCode,
       mealName: config.mealName,
     };
   }
 
   private parseResponse(response: string) {
-    const claimTag = response.match(/<claim\b[^>]*>/i)?.[0];
+    const claimTag = response.match(/<Claim\b[^>]*>/i)?.[0] ?? response.match(/<claim\b[^>]*>/i)?.[0];
     if (!claimTag) {
       return {
         message: 'SAMO response does not contain claim result',
@@ -429,11 +609,14 @@ ${links}
     }
 
     const result = Number(this.readXmlAttribute(claimTag, 'result'));
+    const operatorNumber = this.readXmlAttribute(claimTag, 'Operator_number');
     return {
       confirmStatus: this.readXmlAttribute(claimTag, 'confirm_status') ?? undefined,
       result: Number.isNaN(result) ? undefined : result,
       comment: this.readXmlAttribute(claimTag, 'comment') ?? undefined,
-      message: this.readXmlAttribute(claimTag, 'message') ?? undefined,
+      message:
+        this.readXmlAttribute(claimTag, 'message') ??
+        (operatorNumber ? `SAMO booking created: ${operatorNumber}` : undefined),
     };
   }
 
