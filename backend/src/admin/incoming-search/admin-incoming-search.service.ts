@@ -312,16 +312,21 @@ export class AdminIncomingSearchService {
       throw new BadRequestException('SAMO XMLGate auth config is incomplete');
     }
 
-    const salt = createHash('md5').update(new Date().toISOString()).digest('hex');
+    const salt = createHash('md5')
+      .update(new Date().toISOString().slice(0, 19))
+      .digest('hex');
     const passwordDigest = this.encryptPasswordDigest(config.password, salt, config.aesKey);
     const url = new URL(config.endpoint);
     url.searchParams.set('samo_action', 'auth');
+    url.searchParams.set('form', config.form);
+    url.searchParams.set('AES KEY', config.aesKey);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
     const body = new URLSearchParams();
     body.set('login', config.user);
     body.set('passwordDigest', passwordDigest);
+    body.set('form', config.form);
 
     try {
       const response = await fetch(url, {
@@ -342,7 +347,9 @@ export class AdminIncomingSearchService {
       const result = this.parseReferenceItems(raw).find((item) => item._type === 'Result');
       const token = result?.partner_token;
       if (!token) {
-        throw new BadRequestException('SAMO XMLGate auth response does not contain partner_token');
+        throw new BadRequestException(
+          `SAMO XMLGate auth response does not contain partner_token: ${this.getResponsePreview(raw)}`,
+        );
       }
 
       this.partnerTokenCache = {
@@ -406,6 +413,10 @@ export class AdminIncomingSearchService {
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&amp;/g, '&');
+  }
+
+  private getResponsePreview(raw: string) {
+    return raw.replace(/\s+/g, ' ').trim().slice(0, 500) || 'empty response';
   }
 
   private pickMinimalHotelPrice(items: Record<string, string>[]) {
