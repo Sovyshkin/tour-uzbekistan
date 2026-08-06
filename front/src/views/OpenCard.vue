@@ -120,6 +120,7 @@ const formData = ref({
   validUntil: '',
 });
 const formErrors = ref({});
+const bookingSubmitting = ref(false);
 const leadForm = ref({
   name: '',
   phone: '',
@@ -128,6 +129,7 @@ const leadForm = ref({
   message: '',
 });
 const leadErrors = ref({});
+const leadSubmitting = ref(false);
 
 const clearFieldError = (field) => {
   if (!formErrors.value[field]) {
@@ -195,6 +197,11 @@ const submitForm = async () => {
     return;
   }
 
+  if (bookingSubmitting.value) {
+    return;
+  }
+
+  bookingSubmitting.value = true;
   try {
     await createBooking({
       tourId: tour.value.id,
@@ -219,6 +226,8 @@ const submitForm = async () => {
     modalStep.value = 2;
   } catch (error) {
     notifyError(error.message || t('notifications.createBookingFailed'), t('notifications.bookingFailed'));
+  } finally {
+    bookingSubmitting.value = false;
   }
 };
 
@@ -234,6 +243,11 @@ const submitLeadRequest = async () => {
     return;
   }
 
+  if (leadSubmitting.value) {
+    return;
+  }
+
+  leadSubmitting.value = true;
   try {
     await submitLead({
       name: leadForm.value.name,
@@ -261,6 +275,8 @@ const submitLeadRequest = async () => {
     notifySuccess(t('notifications.messageSent'));
   } catch (error) {
     notifyError(error.message || t('notifications.sendMessageFailed'), t('notifications.messageNotSent'));
+  } finally {
+    leadSubmitting.value = false;
   }
 };
 
@@ -1231,8 +1247,9 @@ onUnmounted(() => {
                   </div>
                 </div>
 
-                <button type="submit" class="modal-submit">
-                  {{ t('openCard.modal_next') }}
+                <button type="submit" class="modal-submit" :class="{ 'is-loading': bookingSubmitting }" :disabled="bookingSubmitting">
+                  <span v-if="bookingSubmitting" class="button-spinner" aria-hidden="true"></span>
+                  {{ bookingSubmitting ? t('openCard.modal_sending') : t('openCard.modal_next') }}
                 </button>
               </form>
             </div>
@@ -1343,8 +1360,9 @@ onUnmounted(() => {
                 ></textarea>
               </div>
 
-              <button type="submit" class="modal-submit">
-                {{ t('openCard.lead_submit') }}
+              <button type="submit" class="modal-submit" :class="{ 'is-loading': leadSubmitting }" :disabled="leadSubmitting">
+                <span v-if="leadSubmitting" class="button-spinner" aria-hidden="true"></span>
+                {{ leadSubmitting ? t('openCard.lead_sending') : t('openCard.lead_submit') }}
               </button>
             </form>
           </div>
@@ -1872,10 +1890,38 @@ onUnmounted(() => {
   font-weight: 500;
   cursor: pointer;
   transition: background 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
 .modal-submit:hover {
   background: #eb02d3;
+}
+
+.modal-submit:disabled {
+  cursor: wait;
+  opacity: 0.8;
+}
+
+.modal-submit.is-loading {
+  pointer-events: none;
+}
+
+.button-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: button-spin 0.75s linear infinite;
+}
+
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Успех */

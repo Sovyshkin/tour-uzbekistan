@@ -10,6 +10,7 @@ const { t, locale } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const { error: notifyError } = useNotifications();
+const submitting = ref(false);
 
 const redirectToLogin = () => {
   router.replace({
@@ -66,6 +67,11 @@ const submitForm = async () => {
     return;
   }
 
+  if (submitting.value) {
+    return;
+  }
+
+  submitting.value = true;
   try {
     await createBooking({
       tourId: route.params.id,
@@ -89,6 +95,8 @@ const submitForm = async () => {
     modalStep.value = 2;
   } catch (error) {
     notifyError(error.message || t('notifications.createBookingFailed'), t('notifications.bookingFailed'));
+  } finally {
+    submitting.value = false;
   }
 };
 
@@ -206,7 +214,10 @@ onMounted(() => {
               </div>
             </div>
 
-            <button type="submit" class="form-submit">{{ t('openCard.modal_next') }}</button>
+            <button type="submit" class="form-submit" :class="{ 'is-loading': submitting }" :disabled="submitting">
+              <span v-if="submitting" class="button-spinner" aria-hidden="true"></span>
+              {{ submitting ? t('openCard.modal_sending') : t('openCard.modal_next') }}
+            </button>
           </form>
         </div>
       </div>
@@ -375,10 +386,38 @@ onMounted(() => {
   cursor: pointer;
   transition: background 0.2s;
   margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
 .form-submit:hover {
   background: #eb02d3;
+}
+
+.form-submit:disabled {
+  cursor: wait;
+  opacity: 0.8;
+}
+
+.form-submit.is-loading {
+  pointer-events: none;
+}
+
+.button-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: button-spin 0.75s linear infinite;
+}
+
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .modal-overlay {

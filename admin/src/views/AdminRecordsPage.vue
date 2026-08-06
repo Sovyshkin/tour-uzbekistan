@@ -183,8 +183,27 @@ const readIncoming = (row: AnyRecord) => {
   return incoming as Record<string, any>;
 };
 
+const incomingOperatorNumber = (incoming: Record<string, any> | null) => {
+  if (!incoming) {
+    return null;
+  }
+
+  const direct = incoming.operatorNumber || incoming.operator_number;
+  if (direct) {
+    return String(direct);
+  }
+
+  const messageMatch = String(incoming.message || incoming.comment || '').match(/SAMO booking created:\s*([^\s<]+)/i);
+  if (messageMatch?.[1]) {
+    return messageMatch[1];
+  }
+
+  return String(incoming.rawResponse || '').match(/Operator_number="([^"]+)"/i)?.[1] ?? null;
+};
+
 const incomingState = (row: AnyRecord) => {
   const incoming = readIncoming(row);
+  const operatorNumber = incomingOperatorNumber(incoming);
 
   if (!incoming) {
     return {
@@ -198,7 +217,9 @@ const incomingState = (row: AnyRecord) => {
     return {
       type: 'success' as const,
       label: t('records.incomingSent'),
-      description: incoming.message || incoming.comment || t('records.incomingSentHint'),
+      description: operatorNumber
+        ? t('records.incomingCreatedHint', { number: operatorNumber })
+        : incoming.message || incoming.comment || t('records.incomingSentHint'),
     };
   }
 
@@ -222,8 +243,10 @@ const incomingRows = (row: AnyRecord) => {
   if (!incoming) {
     return [];
   }
+  const operatorNumber = incomingOperatorNumber(incoming);
 
   return [
+    { label: t('records.incomingOperatorNumber'), value: operatorNumber },
     { label: t('records.incomingEnabled'), value: incoming.enabled === true ? t('common.yes') : t('common.no') },
     { label: t('records.incomingSentField'), value: incoming.sent === true ? t('common.yes') : t('common.no') },
     { label: t('records.incomingTargetHotelCode'), value: incoming.target?.hotelCode },
@@ -232,12 +255,20 @@ const incomingRows = (row: AnyRecord) => {
     { label: t('records.incomingTargetRoom'), value: [incoming.target?.roomCode, incoming.target?.roomName].filter(Boolean).join(' / ') },
     { label: t('records.incomingTargetMeal'), value: [incoming.target?.mealCode, incoming.target?.mealName].filter(Boolean).join(' / ') },
     { label: t('records.incomingClaim'), value: incoming.claimNumber },
+    { label: t('records.incomingCondition'), value: incoming.condition },
+    { label: t('records.incomingStatus'), value: incoming.status },
+    { label: t('records.incomingPayStatus'), value: incoming.payStatus },
     { label: t('records.incomingConfirmStatus'), value: incoming.confirmStatus },
     { label: t('records.incomingResult'), value: incoming.result },
     { label: t('records.incomingCheckedAt'), value: incoming.checkedAt ? formatDateTime(incoming.checkedAt) : null },
     { label: t('records.incomingReason'), value: incoming.skippedReason },
     { label: t('records.incomingMessage'), value: incoming.message || incoming.comment },
   ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+};
+
+const incomingCreatedMessage = (row: AnyRecord) => {
+  const operatorNumber = incomingOperatorNumber(readIncoming(row));
+  return operatorNumber ? t('records.incomingCreatedHint', { number: operatorNumber }) : null;
 };
 
 const recordType = computed<RecordType>(() => String(route.meta.recordType ?? 'users') as RecordType);
@@ -936,6 +967,9 @@ watch(
                     {{ incomingState(row).label }}
                   </el-tag>
                   <span>{{ incomingState(row).description }}</span>
+                </div>
+                <div v-if="incomingCreatedMessage(row)" class="incoming-success-note">
+                  {{ incomingCreatedMessage(row) }}
                 </div>
                 <dl v-if="incomingRows(row).length">
                   <div v-for="item in incomingRows(row)" :key="item.label">
@@ -1711,6 +1745,17 @@ watch(
 
 .incoming-status-row .el-tag {
   flex-shrink: 0;
+}
+
+.incoming-success-note {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #b7eb8f;
+  border-radius: 8px;
+  background: #f6ffed;
+  color: #237804;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .detail-tags {

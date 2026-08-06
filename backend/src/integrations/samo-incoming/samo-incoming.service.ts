@@ -80,6 +80,10 @@ export type SamoIncomingResult = {
   sent: boolean;
   skippedReason?: string;
   claimNumber?: number;
+  operatorNumber?: string;
+  condition?: string;
+  status?: string;
+  payStatus?: string;
   confirmStatus?: string;
   result?: number;
   comment?: string;
@@ -798,6 +802,10 @@ ${members}
     const result = Number(this.readXmlAttribute(claimTag, 'result'));
     const operatorNumber = this.readXmlAttribute(claimTag, 'Operator_number');
     return {
+      operatorNumber: operatorNumber ?? undefined,
+      condition: this.readXmlAttribute(claimTag, 'condition') ?? undefined,
+      status: this.readXmlAttribute(claimTag, 'status') ?? undefined,
+      payStatus: this.readXmlAttribute(claimTag, 'payStatus') ?? undefined,
       confirmStatus: this.readXmlAttribute(claimTag, 'confirm_status') ?? undefined,
       result: Number.isNaN(result) ? undefined : result,
       comment: this.readXmlAttribute(claimTag, 'comment') ?? undefined,
