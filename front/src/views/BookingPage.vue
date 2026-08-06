@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { createBooking, getApiLocale, isB2BAuthenticated } from '@/api';
@@ -23,11 +23,13 @@ const redirectToLogin = () => {
 };
 
 const modalStep = ref(null); // null - форма видна, 2,3 - модальные окна
+const minTravelDate = computed(() => new Date().toISOString().slice(0, 10));
 
 const formData = ref({
   sex: '',
   firstName: '',
   lastName: '',
+  travelDate: '',
   birthDate: '',
   phone: '',
   email: '',
@@ -70,6 +72,7 @@ const submitForm = async () => {
       locale: getApiLocale(locale.value),
       firstName: formData.value.firstName,
       lastName: formData.value.lastName,
+      travelDate: formData.value.travelDate,
       email: formData.value.email,
       phone: formData.value.phone || undefined,
       sex: formData.value.sex || undefined,
@@ -144,6 +147,12 @@ onMounted(() => {
               <label>{{ t('openCard.modal_lastname') }}</label>
               <input type="text" v-model="formData.lastName" :class="{ 'input-error': formErrors.lastName }" @input="clearFieldError('lastName')" required />
               <p v-if="formErrors.lastName" class="field-error">{{ formErrors.lastName }}</p>
+            </div>
+
+            <div class="form-group">
+              <label>{{ t('openCard.modal_travel_date') }}</label>
+              <input type="date" v-model="formData.travelDate" :min="minTravelDate" :class="{ 'input-error': formErrors.travelDate }" @input="clearFieldError('travelDate')" required />
+              <p v-if="formErrors.travelDate" class="field-error">{{ formErrors.travelDate }}</p>
             </div>
 
             <div class="form-row">

@@ -78,6 +78,7 @@ const isModalOpen = ref(false);
 const modalStep = ref(1); // 1 - форма, 2 - успех
 const isLeadModalOpen = ref(false);
 const leadStep = ref(1);
+const minTravelDate = computed(() => new Date().toISOString().slice(0, 10));
 
 const isMobileFilterOpen = ref(false);
 const openMobileFilter = () => {
@@ -107,6 +108,7 @@ const formData = ref({
   sex: '',
   firstName: '',
   lastName: '',
+  travelDate: '',
   birthDate: '',
   phone: '',
   email: '',
@@ -122,6 +124,7 @@ const leadForm = ref({
   name: '',
   phone: '',
   email: '',
+  travelDate: '',
   message: '',
 });
 const leadErrors = ref({});
@@ -198,6 +201,7 @@ const submitForm = async () => {
       locale: getApiLocale(locale.value),
       firstName: formData.value.firstName,
       lastName: formData.value.lastName,
+      travelDate: formData.value.travelDate,
       email: formData.value.email,
       phone: formData.value.phone || undefined,
       sex: formData.value.sex || undefined,
@@ -220,6 +224,9 @@ const submitForm = async () => {
 
 const submitLeadRequest = async () => {
   const validationErrors = validateContactFormFields(leadForm.value);
+  if (!leadForm.value.travelDate) {
+    validationErrors.travelDate = 'Select tour date';
+  }
   leadErrors.value = validationErrors;
 
   if (Object.keys(validationErrors).length) {
@@ -232,6 +239,7 @@ const submitLeadRequest = async () => {
       name: leadForm.value.name,
       email: leadForm.value.email,
       phone: leadForm.value.phone || undefined,
+      travelDate: leadForm.value.travelDate,
       message:
         leadForm.value.message ||
         `Tour request: ${tour.value.title}${tour.value.subtitle ? ` ${tour.value.subtitle}` : ''}`,
@@ -245,6 +253,7 @@ const submitLeadRequest = async () => {
       name: '',
       phone: '',
       email: '',
+      travelDate: '',
       message: '',
     };
     leadErrors.value = {};
@@ -1178,6 +1187,12 @@ onUnmounted(() => {
                 </div>
 
                 <div class="form-group">
+                  <label>{{ t('openCard.modal_travel_date') }}</label>
+                  <input type="date" v-model="formData.travelDate" :min="minTravelDate" :class="{ 'input-error': formErrors.travelDate }" @input="clearFieldError('travelDate')" required />
+                  <p v-if="formErrors.travelDate" class="field-error">{{ formErrors.travelDate }}</p>
+                </div>
+
+                <div class="form-group">
                   <label>{{ t('openCard.modal_email') }}</label>
                   <input type="email" v-model="formData.email" :class="{ 'input-error': formErrors.email }" @input="clearFieldError('email')" required />
                   <p v-if="formErrors.email" class="field-error">{{ formErrors.email }}</p>
@@ -1304,6 +1319,19 @@ onUnmounted(() => {
                   />
                   <p v-if="leadErrors.email" class="field-error">{{ leadErrors.email }}</p>
                 </div>
+              </div>
+
+              <div class="form-group">
+                <label>{{ t('openCard.lead_travel_date') }}</label>
+                <input
+                  type="date"
+                  v-model="leadForm.travelDate"
+                  :min="minTravelDate"
+                  :class="{ 'input-error': leadErrors.travelDate }"
+                  @input="clearLeadError('travelDate')"
+                  required
+                />
+                <p v-if="leadErrors.travelDate" class="field-error">{{ leadErrors.travelDate }}</p>
               </div>
 
               <div class="form-group">

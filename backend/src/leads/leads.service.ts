@@ -240,6 +240,7 @@ export class LeadsService {
       bookingId: lead.id,
       bookingNumber: `LD-${lead.createdAt.getTime()}`,
       createdAt: lead.createdAt,
+      travelDate: dto.travelDate ? new Date(dto.travelDate) : undefined,
       groupSize: 1,
       incomingTourId: lead.tour?.incomingTourId ?? null,
       incomingHotelCode: lead.tour?.incomingHotelCode ?? null,

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Locale } from '@prisma/client';
 import {
   IsEmail,
+  IsDateString,
   IsEnum,
   IsOptional,
   IsString,
@@ -49,6 +50,11 @@ export class CreateLeadDto {
   @IsOptional()
   @IsUUID()
   tourId?: string;
+
+  @ApiPropertyOptional({ example: '2026-08-15' })
+  @IsOptional()
+  @IsDateString()
+  travelDate?: string;
 
   @ApiPropertyOptional({ example: '5fd173c4-74ff-41cd-98ef-d3b93a38d211' })
   @IsOptional()
