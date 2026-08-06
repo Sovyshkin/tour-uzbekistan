@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createCipheriv, createHash } from 'crypto';
 
 import { AdminIncomingSearchDto } from './dto/admin-incoming-search.dto';
 
@@ -7,11 +8,20 @@ type XmlGateConfig = {
   endpoint?: string;
   form: string;
   aesKey?: string;
+  user?: string;
+  password?: string;
   timeoutMs: number;
+};
+
+type PartnerTokenCache = {
+  token: string;
+  expiresAt: number;
 };
 
 @Injectable()
 export class AdminIncomingSearchService {
+  private partnerTokenCache: PartnerTokenCache | null = null;
+
   constructor(private readonly configService: ConfigService) {}
 
   async search(dto: AdminIncomingSearchDto) {
@@ -88,8 +98,9 @@ export class AdminIncomingSearchService {
       };
     }
 
-    const price = this.extractPrice(hotel);
-    const currency = this.extractCurrency(hotel);
+    const priceReference = await this.requestHotelPrices(config, hotelCode);
+    const price = this.pickMinimalHotelPrice(priceReference.items);
+    const currency = price ? await this.resolveCurrencyAlias(config, price.currency) : null;
 
     return {
       ok: true,
@@ -107,10 +118,18 @@ export class AdminIncomingSearchService {
       price: price
         ? {
             amount: price.amount,
-            currency,
-            sourceAttribute: price.sourceAttribute,
+            currency: currency ?? price.currency,
+            sourceAttribute: 'hotelsalepr.price',
+            raw: price.raw,
           }
         : null,
+      priceReference: {
+        url: priceReference.url,
+        status: priceReference.status,
+        ok: priceReference.ok,
+        contentType: priceReference.contentType,
+        count: priceReference.items.length,
+      },
       reference: {
         url: reference.url,
         status: reference.status,
@@ -133,6 +152,12 @@ export class AdminIncomingSearchService {
         this.getFirstConfig('SAMO_XMLGATE_FORM', 'SAMO_INCOMING_FORM') ??
         'http://samo.travel',
       aesKey: this.getFirstConfig('SAMO_XMLGATE_AES_KEY', 'SAMO_AES_KEY'),
+      user: this.getFirstConfig('SAMO_XMLGATE_USER', 'SAMO_INCOMING_USER', 'SAMO_USERNAME'),
+      password: this.getFirstConfig(
+        'SAMO_XMLGATE_PASSWORD',
+        'SAMO_INCOMING_PASSWORD',
+        'SAMO_PASSWORD',
+      ),
       timeoutMs: Number(
         this.configService.get<string>('SAMO_XMLGATE_TIMEOUT_MS') ?? 15000,
       ),
@@ -165,6 +190,8 @@ export class AdminIncomingSearchService {
       form: config.form,
       timeoutMs: config.timeoutMs,
       hasAesKey: Boolean(config.aesKey),
+      hasUser: Boolean(config.user),
+      hasPassword: Boolean(config.password),
     };
   }
 
@@ -254,6 +281,94 @@ export class AdminIncomingSearchService {
     }
   }
 
+  private async requestHotelPrices(config: XmlGateConfig, hotelCode: string) {
+    const missing = [
+      ['SAMO_XMLGATE_USER', config.user],
+      ['SAMO_XMLGATE_PASSWORD', config.password],
+    ]
+      .filter(([, value]) => !value)
+      .map(([name]) => name);
+
+    if (missing.length) {
+      throw new BadRequestException(
+        `SAMO XMLGate price config is incomplete: ${missing.join(', ')}`,
+      );
+    }
+
+    const partnerToken = await this.getPartnerToken(config);
+    return this.request(config, {
+      ...this.buildReferenceParams(config, 'hotelsalepr'),
+      hotel: hotelCode,
+      partner_token: partnerToken,
+    });
+  }
+
+  private async getPartnerToken(config: XmlGateConfig) {
+    if (this.partnerTokenCache && this.partnerTokenCache.expiresAt > Date.now()) {
+      return this.partnerTokenCache.token;
+    }
+
+    if (!config.endpoint || !config.user || !config.password || !config.aesKey) {
+      throw new BadRequestException('SAMO XMLGate auth config is incomplete');
+    }
+
+    const salt = createHash('md5').update(new Date().toISOString()).digest('hex');
+    const passwordDigest = this.encryptPasswordDigest(config.password, salt, config.aesKey);
+    const url = new URL(config.endpoint);
+    url.searchParams.set('samo_action', 'auth');
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+    const body = new URLSearchParams();
+    body.set('login', config.user);
+    body.set('passwordDigest', passwordDigest);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+          Accept: 'text/xml, application/xml, text/plain, */*',
+        },
+        body,
+        signal: controller.signal,
+      });
+      const raw = await response.text();
+
+      if (!response.ok) {
+        throw new BadRequestException(`SAMO XMLGate auth failed: HTTP ${response.status}`);
+      }
+
+      const result = this.parseReferenceItems(raw).find((item) => item._type === 'Result');
+      const token = result?.partner_token;
+      if (!token) {
+        throw new BadRequestException('SAMO XMLGate auth response does not contain partner_token');
+      }
+
+      this.partnerTokenCache = {
+        token,
+        expiresAt: Date.now() + 45 * 60 * 1000,
+      };
+
+      return token;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private encryptPasswordDigest(password: string, salt: string, aesKey: string) {
+    const key = Buffer.from(aesKey, 'hex');
+    if (key.length !== 16 && key.length !== 24 && key.length !== 32) {
+      throw new BadRequestException('SAMO XMLGate AES key must be 16, 24 or 32 bytes hex');
+    }
+
+    const cipher = createCipheriv(`aes-${key.length * 8}-cbc`, key, Buffer.alloc(16));
+    return Buffer.concat([
+      cipher.update(Buffer.from(`${password}${salt}`, 'utf8')),
+      cipher.final(),
+    ]).toString('base64');
+  }
+
   private parseReferenceItems(raw: string) {
     const items: Record<string, string>[] = [];
     const tagMatcher = /<([a-zA-Z][\w:-]*)\s+([^<>]*?)\/>/g;
@@ -293,50 +408,44 @@ export class AdminIncomingSearchService {
       .replace(/&amp;/g, '&');
   }
 
-  private extractPrice(item: Record<string, string>) {
-    const priceKeys = [
-      'price',
-      'priceFrom',
-      'price_from',
-      'minprice',
-      'min_price',
-      'cost',
-      'amount',
-      'netprice',
-      'net_price',
-      'brutto',
-      'gross',
-    ];
+  private pickMinimalHotelPrice(items: Record<string, string>[]) {
+    type HotelPrice = { amount: number; currency?: string; raw: Record<string, string> };
 
-    for (const key of priceKeys) {
-      const raw = item[key] ?? item[key.toLowerCase()] ?? item[key.toUpperCase()];
-      if (!raw) {
-        continue;
-      }
+    const prices = items
+      .filter((item) => item._type === 'hprice' && item.status !== 'D')
+      .map<HotelPrice | null>((item) => {
+        const amount = Number(String(item.price ?? '').replace(/\s/g, '').replace(',', '.'));
+        return Number.isFinite(amount) && amount > 0
+          ? {
+              amount,
+              currency: item.currency,
+              raw: item,
+            }
+          : null;
+      })
+      .filter((item): item is HotelPrice => Boolean(item));
 
-      const normalized = raw.replace(/\s/g, '').replace(',', '.');
-      const amount = Number(normalized);
-      if (Number.isFinite(amount) && amount > 0) {
-        return {
-          amount,
-          sourceAttribute: key,
-        };
-      }
-    }
-
-    return null;
+    return prices.sort((a, b) => a.amount - b.amount)[0] ?? null;
   }
 
-  private extractCurrency(item: Record<string, string>) {
-    const currencyKeys = ['currency', 'cur', 'currencyCode', 'currency_code', 'netcurrency'];
-    for (const key of currencyKeys) {
-      const value = item[key] ?? item[key.toLowerCase()] ?? item[key.toUpperCase()];
-      if (value && !['0', '-2147483647'].includes(value)) {
-        return value;
-      }
+  private async resolveCurrencyAlias(config: XmlGateConfig, currencyId?: string) {
+    if (!currencyId || ['0', '-2147483647'].includes(currencyId)) {
+      return this.configService.get<string>('SAMO_XMLGATE_DEFAULT_CURRENCY') ?? 'USD';
     }
 
-    return this.configService.get<string>('SAMO_XMLGATE_DEFAULT_CURRENCY') ?? 'USD';
+    try {
+      const reference = await this.request(config, this.buildReferenceParams(config, 'currency'));
+      const currency = reference.items.find((item) => item.inc === currencyId);
+      return (
+        currency?.alias ??
+        currency?.name ??
+        currency?.lname ??
+        currency?.code ??
+        currencyId
+      );
+    } catch {
+      return currencyId;
+    }
   }
 
   private redactUrl(value: string) {
