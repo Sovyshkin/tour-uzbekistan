@@ -215,6 +215,7 @@ export class SamoIncomingService {
   private getMissingConfig(config: SamoIncomingConfig) {
     return [
       ['SAMO_XMLGATE_ENDPOINT', config.endpoint],
+      ['SAMO_XMLGATE_AES_KEY', config.aesKey],
       ['SAMO_INCOMING_HOTEL_CODE', config.hotelCode],
     ]
       .filter(([, value]) => !value)
@@ -230,6 +231,9 @@ export class SamoIncomingService {
     const url = new URL(config.endpoint);
     url.searchParams.set('samo_action', config.action);
     url.searchParams.set('form', config.form);
+    if (config.aesKey) {
+      url.searchParams.set('AES KEY', config.aesKey);
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);

@@ -83,7 +83,10 @@ export class AdminIncomingSearchService {
   }
 
   private getMissingConfig(config: XmlGateConfig) {
-    return [['SAMO_XMLGATE_ENDPOINT', config.endpoint]]
+    return [
+      ['SAMO_XMLGATE_ENDPOINT', config.endpoint],
+      ['SAMO_XMLGATE_AES_KEY', config.aesKey],
+    ]
       .filter(([, value]) => !value)
       .map(([name]) => name);
   }
@@ -152,6 +155,9 @@ export class AdminIncomingSearchService {
       if (value) {
         url.searchParams.set(key, value);
       }
+    }
+    if (config.aesKey) {
+      url.searchParams.set('AES KEY', config.aesKey);
     }
 
     const controller = new AbortController();
