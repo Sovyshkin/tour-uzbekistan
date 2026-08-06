@@ -872,16 +872,8 @@ ${members}
       : 'MR';
   }
 
-  private addDays(date: Date, days: number) {
-    return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
-  }
-
   private getIncomingCheckinDate(payload: SamoClaimPayload) {
-    const requested = this.getSamoDateParts(payload.travelDate ?? payload.createdAt);
-    const today = this.getSamoDateParts(new Date());
-    const requestedValue = this.getDateNumber(requested);
-    const todayValue = this.getDateNumber(today);
-    const selected = requestedValue < todayValue ? today : requested;
+    const selected = this.getSamoDateParts(payload.travelDate ?? payload.createdAt);
 
     return new Date(
       Date.UTC(
@@ -904,10 +896,6 @@ ${members}
       month: pad(shifted.getUTCMonth() + 1),
       day: pad(shifted.getUTCDate()),
     };
-  }
-
-  private getDateNumber(parts: { year: string; month: string; day: string }) {
-    return Number(`${parts.year}${parts.month}${parts.day}`);
   }
 
   private formatSamoDate(date: Date) {
