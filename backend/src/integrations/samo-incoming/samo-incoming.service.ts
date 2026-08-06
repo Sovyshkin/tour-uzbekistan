@@ -341,7 +341,8 @@ export class SamoIncomingService {
       throw new Error('SAMO_XMLGATE_ENDPOINT is empty');
     }
 
-    const checkin = this.formatSamoPacketDate(payload.travelDate ?? payload.createdAt);
+    const checkinDate = this.getIncomingCheckinDate(payload);
+    const checkin = this.formatSamoPacketDate(checkinDate);
     const packetId = [
       checkin,
       config.nights,
@@ -640,7 +641,7 @@ export class SamoIncomingService {
     initReservationXml: string,
   ) {
     const adults = Math.max(1, payload.groupSize ?? 1);
-    const dateBeg = payload.travelDate ?? payload.createdAt;
+    const dateBeg = this.getIncomingCheckinDate(payload);
     const duration = config.nights;
     const price = this.normalizePrice(payload.tour.price);
     const currency = payload.tour.currency ?? this.configService.get<string>('SAMO_XMLGATE_DEFAULT_CURRENCY') ?? 'USD';
@@ -873,6 +874,40 @@ ${members}
 
   private addDays(date: Date, days: number) {
     return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+  }
+
+  private getIncomingCheckinDate(payload: SamoClaimPayload) {
+    const requested = this.getSamoDateParts(payload.travelDate ?? payload.createdAt);
+    const today = this.getSamoDateParts(new Date());
+    const requestedValue = this.getDateNumber(requested);
+    const todayValue = this.getDateNumber(today);
+    const selected = requestedValue < todayValue ? today : requested;
+
+    return new Date(
+      Date.UTC(
+        Number(selected.year),
+        Number(selected.month) - 1,
+        Number(selected.day),
+        0,
+        0,
+        0,
+      ),
+    );
+  }
+
+  private getSamoDateParts(date: Date) {
+    const shifted = new Date(date.getTime() + 5 * 60 * 60 * 1000);
+    const pad = (value: number) => String(value).padStart(2, '0');
+
+    return {
+      year: String(shifted.getUTCFullYear()),
+      month: pad(shifted.getUTCMonth() + 1),
+      day: pad(shifted.getUTCDate()),
+    };
+  }
+
+  private getDateNumber(parts: { year: string; month: string; day: string }) {
+    return Number(`${parts.year}${parts.month}${parts.day}`);
   }
 
   private formatSamoDate(date: Date) {
