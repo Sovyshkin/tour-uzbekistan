@@ -108,6 +108,7 @@ type SamoIncomingConfig = {
   htplaceName: string;
   mealCode: string;
   mealName: string;
+  nights: number;
   timeoutMs: number;
 };
 
@@ -144,10 +145,13 @@ export class SamoIncomingService {
     }
 
     const claimNumber = this.buildClaimNumber(payload.bookingNumber, payload.createdAt);
-    const requestXml = this.buildReservationXml(config, payload);
+    let requestXml = '';
 
     try {
-      const response = await this.sendXmlGateRequest(config, requestXml);
+      const partnerToken = await this.getPartnerToken(config);
+      const initXml = await this.initReservation(config, payload, partnerToken);
+      requestXml = this.buildReservationXml(config, payload, initXml);
+      const response = await this.sendXmlGateRequest(config, requestXml, partnerToken);
       return {
         enabled: true,
         sent: true,
@@ -228,6 +232,7 @@ export class SamoIncomingService {
         '1 Adult',
       mealCode: this.configService.get<string>('SAMO_INCOMING_MEAL_CODE') ?? '1',
       mealName: this.configService.get<string>('SAMO_INCOMING_MEAL_NAME') ?? 'RO',
+      nights: Math.max(1, Number(this.configService.get<string>('SAMO_INCOMING_NIGHTS') ?? 1)),
       timeoutMs: Number(
         this.configService.get<string>('SAMO_INCOMING_TIMEOUT_MS') ?? 15000,
       ),
@@ -261,12 +266,15 @@ export class SamoIncomingService {
       .map(([name]) => name);
   }
 
-  private async sendXmlGateRequest(config: SamoIncomingConfig, reservationXml: string) {
+  private async sendXmlGateRequest(
+    config: SamoIncomingConfig,
+    reservationXml: string,
+    partnerToken: string,
+  ) {
     if (!config.endpoint) {
       throw new Error('SAMO_XMLGATE_ENDPOINT is empty');
     }
 
-    const partnerToken = await this.getPartnerToken(config);
     const method = config.method.toUpperCase() === 'GET' ? 'GET' : 'POST';
     const url = new URL(config.endpoint);
     url.searchParams.set('samo_action', config.action);
@@ -306,6 +314,66 @@ export class SamoIncomingService {
       }
 
       return text;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async initReservation(
+    config: SamoIncomingConfig,
+    payload: SamoClaimPayload,
+    partnerToken: string,
+  ) {
+    if (!config.endpoint) {
+      throw new Error('SAMO_XMLGATE_ENDPOINT is empty');
+    }
+
+    const checkin = this.formatSamoPacketDate(payload.travelDate ?? payload.createdAt);
+    const packetId = [
+      checkin,
+      config.nights,
+      config.hotelCode,
+      config.roomCode,
+      config.htplaceCode,
+      config.mealCode,
+    ].join('|');
+    const url = new URL(config.endpoint);
+    url.searchParams.set('samo_action', 'reference');
+    url.searchParams.set('form', config.form);
+    url.searchParams.set('type', 'init');
+    url.searchParams.set('partner_token', partnerToken);
+    url.searchParams.set('id', packetId);
+    if (config.aesKey) {
+      url.searchParams.set('AES KEY', config.aesKey);
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Accept: 'text/xml, application/xml, text/plain, */*',
+        },
+        signal: controller.signal,
+      });
+      const raw = await response.text();
+
+      if (!response.ok) {
+        throw new Error(`SAMO XMLGate init failed: HTTP ${response.status}: ${raw.slice(0, 500)}`);
+      }
+
+      if (/<Error\b/i.test(raw)) {
+        throw new Error(`SAMO XMLGate init failed: ${raw.replace(/\s+/g, ' ').trim().slice(0, 500)}`);
+      }
+
+      const reservation = this.extractReservationXml(raw);
+      const guid = this.readXmlAttribute(reservation.match(/<Claim\b[^>]*>/i)?.[0] ?? '', 'guid');
+      if (!guid) {
+        throw new Error(`SAMO XMLGate init response does not contain guid: ${raw.replace(/\s+/g, ' ').trim().slice(0, 500)}`);
+      }
+
+      return reservation;
     } finally {
       clearTimeout(timeout);
     }
@@ -461,12 +529,19 @@ export class SamoIncomingService {
     ]).toString('base64');
   }
 
-  private buildReservationXml(config: SamoIncomingConfig, payload: SamoClaimPayload) {
+  private buildReservationXml(
+    config: SamoIncomingConfig,
+    payload: SamoClaimPayload,
+    initReservationXml: string,
+  ) {
     const adults = Math.max(1, payload.groupSize ?? 1);
     const dateBeg = payload.travelDate ?? payload.createdAt;
-    const duration = Math.max(1, payload.tour.durationDays);
+    const duration = config.nights;
     const price = this.normalizePrice(payload.tour.price);
     const currency = payload.tour.currency ?? this.configService.get<string>('SAMO_XMLGATE_DEFAULT_CURRENCY') ?? 'USD';
+    const guid =
+      this.readXmlAttribute(initReservationXml.match(/<Claim\b[^>]*>/i)?.[0] ?? '', 'guid') ??
+      '';
     const tourists = this.buildTourists(payload, adults);
     const members = tourists
       .map((tourist) => `        <Member TouristID="${tourist.id}"/>`)
@@ -486,7 +561,7 @@ ${members}
     </Room>
   </Rooms>
   <Claims>
-    <Claim condition="ccOffer" status="Not confirmed" payStatus="Unpaid" peopleCount="${adults}" adult="${adults}" child="0" partnername="B2B Website Integration" BookingDate="${this.formatSamoDate(payload.createdAt)}" comment="${note}"/>
+    <Claim condition="ccOffer" status="Not confirmed" payStatus="Unpaid" peopleCount="${adults}" adult="${adults}" child="0" guid="${this.escapeXml(guid)}" partnername="B2B Website Integration" BookingDate="${this.formatSamoDate(payload.createdAt)}" Date="${this.formatSamoDate(dateBeg)}" Duration="${duration}" comment="${note}"/>
   </Claims>
   <Services/>
   <VariantServices/>
@@ -624,6 +699,17 @@ ${members}
     return tag.match(new RegExp(`${attribute}="([^"]*)"`))?.[1] ?? null;
   }
 
+  private extractReservationXml(response: string) {
+    const reservation = response.match(/<Reservation\b[\s\S]*<\/Reservation>/i)?.[0];
+    if (!reservation) {
+      throw new Error(
+        `SAMO XMLGate response does not contain Reservation XML: ${response.replace(/\s+/g, ' ').trim().slice(0, 500)}`,
+      );
+    }
+
+    return reservation;
+  }
+
   private buildClaimNumber(bookingNumber: string, createdAt: Date) {
     const numericPart = bookingNumber.replace(/\D/g, '').slice(-7);
     const fallback = String(createdAt.getTime()).slice(-7);
@@ -647,6 +733,10 @@ ${members}
 
   private formatSamoDate(date: Date) {
     return date.toISOString().slice(0, 19);
+  }
+
+  private formatSamoPacketDate(date: Date) {
+    return date.toISOString().slice(0, 10).replace(/-/g, '');
   }
 
   private escapeXml(value: string) {
