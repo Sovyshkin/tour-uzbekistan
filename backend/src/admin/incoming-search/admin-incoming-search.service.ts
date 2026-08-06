@@ -265,7 +265,7 @@ export class AdminIncomingSearchService {
         },
         signal: controller.signal,
       });
-      const raw = await response.text();
+        const raw = await response.text();
       const items = this.parseReferenceItems(raw);
 
       return {
@@ -312,55 +312,95 @@ export class AdminIncomingSearchService {
       throw new BadRequestException('SAMO XMLGate auth config is incomplete');
     }
 
-    const salt = createHash('md5')
-      .update(new Date().toISOString().slice(0, 19))
-      .digest('hex');
-    const passwordDigest = this.encryptPasswordDigest(config.password, salt, config.aesKey);
     const url = new URL(config.endpoint);
     url.searchParams.set('samo_action', 'auth');
     url.searchParams.set('form', config.form);
     url.searchParams.set('AES KEY', config.aesKey);
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
-    const body = new URLSearchParams();
-    body.set('login', config.user);
-    body.set('passwordDigest', passwordDigest);
-    body.set('form', config.form);
+    let lastResponsePreview = 'empty response';
+    const digests = this.buildPasswordDigestCandidates(config.password, config.aesKey);
+    for (const passwordDigest of digests) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+      const body = new URLSearchParams();
+      body.set('login', config.user);
+      body.set('passwordDigest', passwordDigest);
+      body.set('form', config.form);
 
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
-          Accept: 'text/xml, application/xml, text/plain, */*',
-        },
-        body,
-        signal: controller.signal,
-      });
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+            Accept: 'text/xml, application/xml, text/plain, */*',
+          },
+          body,
+          signal: controller.signal,
+        });
       const raw = await response.text();
+        lastResponsePreview = this.getResponsePreview(raw);
 
-      if (!response.ok) {
-        throw new BadRequestException(`SAMO XMLGate auth failed: HTTP ${response.status}`);
+        if (!response.ok) {
+          throw new BadRequestException(`SAMO XMLGate auth failed: HTTP ${response.status}`);
+        }
+
+        const result = this.parseReferenceItems(raw).find((item) => item._type === 'Result');
+        const token = result?.partner_token;
+        if (!token) {
+          continue;
+        }
+
+        this.partnerTokenCache = {
+          token,
+          expiresAt: Date.now() + 45 * 60 * 1000,
+        };
+
+        return token;
+      } finally {
+        clearTimeout(timeout);
       }
-
-      const result = this.parseReferenceItems(raw).find((item) => item._type === 'Result');
-      const token = result?.partner_token;
-      if (!token) {
-        throw new BadRequestException(
-          `SAMO XMLGate auth response does not contain partner_token: ${this.getResponsePreview(raw)}`,
-        );
-      }
-
-      this.partnerTokenCache = {
-        token,
-        expiresAt: Date.now() + 45 * 60 * 1000,
-      };
-
-      return token;
-    } finally {
-      clearTimeout(timeout);
     }
+
+    throw new BadRequestException(
+      `SAMO XMLGate auth response does not contain partner_token after ${digests.length} passwordDigest variants: ${lastResponsePreview}`,
+    );
+  }
+
+  private buildPasswordDigestCandidates(password: string, aesKey: string) {
+    const now = new Date();
+    const dates = [
+      now,
+      new Date(now.getTime() - 60_000),
+      new Date(now.getTime() + 60_000),
+      new Date(now.getTime() - 5 * 60_000),
+      new Date(now.getTime() + 5 * 60_000),
+    ];
+    const salts = new Set<string>();
+
+    for (const date of dates) {
+      for (const value of this.getDateSaltValues(date)) {
+        salts.add(createHash('md5').update(value).digest('hex'));
+      }
+    }
+
+    return [...salts].map((salt) => this.encryptPasswordDigest(password, salt, aesKey));
+  }
+
+  private getDateSaltValues(date: Date) {
+    const iso = date.toISOString();
+    const dateOnly = iso.slice(0, 10);
+    const dateTime = iso.slice(0, 19);
+    const compactDate = dateOnly.replace(/-/g, '');
+    const compactDateTime = dateTime.replace(/\D/g, '');
+
+    return [
+      dateTime,
+      iso,
+      dateOnly,
+      compactDate,
+      compactDateTime,
+      `${dateOnly} ${dateTime.slice(11)}`,
+    ];
   }
 
   private encryptPasswordDigest(password: string, salt: string, aesKey: string) {
