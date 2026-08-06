@@ -194,6 +194,9 @@ export class LeadsService {
             id: lead.tour.id,
             slug: lead.tour.slug,
             title: lead.tour.translations[0]?.title ?? null,
+            incomingTourId: lead.tour.incomingTourId ?? null,
+            incomingHotelCode: lead.tour.incomingHotelCode ?? null,
+            incomingHotelName: lead.tour.incomingHotelName ?? null,
           }
         : null,
       service: lead.service
@@ -238,6 +241,9 @@ export class LeadsService {
       bookingNumber: `LD-${lead.createdAt.getTime()}`,
       createdAt: lead.createdAt,
       groupSize: 1,
+      incomingTourId: lead.tour?.incomingTourId ?? null,
+      incomingHotelCode: lead.tour?.incomingHotelCode ?? null,
+      incomingHotelName: lead.tour?.incomingHotelName ?? null,
       source: {
         audience: lead.audience,
         pagePath: lead.sourcePagePath ?? dto.sourcePage ?? null,

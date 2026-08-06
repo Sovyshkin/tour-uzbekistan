@@ -346,6 +346,7 @@ const fallbackTypes: ContentType[] = [
 const activeType = ref<ContentType>('homeBanners');
 const loading = ref(false);
 const saving = ref(false);
+const incomingSyncing = ref(false);
 const archivingId = ref('');
 const bulkProcessing = ref(false);
 const selectedItems = ref<ContentRecord[]>([]);
@@ -1196,6 +1197,38 @@ const removeStringListItem = (localeCode: LocaleCode, fieldKey: string, index: n
   form.translations[localeCode][fieldKey] = items;
 };
 
+const syncIncomingHotel = async () => {
+  const hotelCode = form.incomingHotelCode?.trim();
+  if (!hotelCode) {
+    ElMessage.warning(t('content.incomingHotelCodeRequired'));
+    return;
+  }
+
+  incomingSyncing.value = true;
+  try {
+    const { data } = await http.get(`/admin/incoming-search/hotel/${encodeURIComponent(hotelCode)}`);
+
+    if (!data?.ok) {
+      ElMessage.warning(data?.message || data?.skippedReason || t('content.incomingHotelSyncFailed'));
+      return;
+    }
+
+    form.incomingHotelName = data.hotel?.name || data.hotel?.longName || form.incomingHotelName;
+
+    if (data.price?.amount) {
+      form.priceFrom = Number(data.price.amount);
+      form.currency = data.price.currency || form.currency || 'USD';
+      ElMessage.success(t('content.incomingHotelPriceSynced'));
+    } else {
+      ElMessage.warning(data.priceMissingReason || t('content.incomingHotelPriceMissing'));
+    }
+  } catch (error: any) {
+    ElMessage.error(getApiErrorMessage(error, t('content.incomingHotelSyncFailed')));
+  } finally {
+    incomingSyncing.value = false;
+  }
+};
+
 const reindexTourDays = () => {
   form.tourDays = form.tourDays.map((day, index) => ({
     ...day,
@@ -1525,7 +1558,6 @@ const saveContent = async () => {
       payload.priceFrom = form.priceFrom;
       payload.currency = form.currency;
       payload.type = form.tourType;
-      payload.incomingTourId = form.incomingTourId;
       payload.incomingHotelCode = form.incomingHotelCode;
       payload.incomingHotelName = form.incomingHotelName;
       payload.tourDays = form.tourDays.map((day, index) => ({
@@ -2190,16 +2222,18 @@ watch(
 
             <el-divider class="form-grid__divider">{{ t('content.incomingSettings') }}</el-divider>
 
-            <el-form-item :label="t('content.incomingTourId')">
-              <el-input v-model="form.incomingTourId" placeholder="SAMO tour id" />
-            </el-form-item>
-
             <el-form-item :label="t('content.incomingHotelCode')">
-              <el-input v-model="form.incomingHotelCode" placeholder="Hotel code" />
+              <el-input v-model="form.incomingHotelCode" placeholder="Hotel ID">
+                <template #append>
+                  <el-button :loading="incomingSyncing" @click="syncIncomingHotel">
+                    {{ t('content.syncIncomingHotel') }}
+                  </el-button>
+                </template>
+              </el-input>
             </el-form-item>
 
             <el-form-item :label="t('content.incomingHotelName')">
-              <el-input v-model="form.incomingHotelName" placeholder="Hotel name" />
+              <el-input v-model="form.incomingHotelName" placeholder="Technical hotel name" />
             </el-form-item>
           </template>
         </div>

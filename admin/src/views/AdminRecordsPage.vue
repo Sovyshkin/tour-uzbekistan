@@ -226,6 +226,11 @@ const incomingRows = (row: AnyRecord) => {
   return [
     { label: t('records.incomingEnabled'), value: incoming.enabled === true ? t('common.yes') : t('common.no') },
     { label: t('records.incomingSentField'), value: incoming.sent === true ? t('common.yes') : t('common.no') },
+    { label: t('records.incomingTargetHotelCode'), value: incoming.target?.hotelCode },
+    { label: t('records.incomingTargetHotelName'), value: incoming.target?.hotelName },
+    { label: t('records.incomingTargetTourId'), value: incoming.target?.tourId },
+    { label: t('records.incomingTargetRoom'), value: [incoming.target?.roomCode, incoming.target?.roomName].filter(Boolean).join(' / ') },
+    { label: t('records.incomingTargetMeal'), value: [incoming.target?.mealCode, incoming.target?.mealName].filter(Boolean).join(' / ') },
     { label: t('records.incomingClaim'), value: incoming.claimNumber },
     { label: t('records.incomingConfirmStatus'), value: incoming.confirmStatus },
     { label: t('records.incomingResult'), value: incoming.result },

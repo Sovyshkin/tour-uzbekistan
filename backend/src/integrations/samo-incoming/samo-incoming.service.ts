@@ -41,6 +41,16 @@ type SamoIncomingSourceMetadata = {
   entityTitle: string | null;
 };
 
+type SamoIncomingTargetMetadata = {
+  tourId: string | null;
+  hotelCode: string | null;
+  hotelName: string;
+  roomCode: string;
+  roomName: string;
+  mealCode: string;
+  mealName: string;
+};
+
 export type SamoClaimPayload = {
   bookingId: string;
   bookingNumber: string;
@@ -70,6 +80,7 @@ export type SamoIncomingResult = {
   rawResponse?: string;
   requestXml?: string;
   source?: SamoIncomingSourceMetadata;
+  target?: SamoIncomingTargetMetadata;
 };
 
 type SamoIncomingConfig = {
@@ -101,6 +112,7 @@ export class SamoIncomingService {
   async sendBooking(payload: SamoClaimPayload): Promise<SamoIncomingResult> {
     const config = this.getConfig(payload);
     const source = this.buildSourceMetadata(payload);
+    const target = this.buildTargetMetadata(config);
 
     if (!config.enabled) {
       return {
@@ -108,6 +120,7 @@ export class SamoIncomingService {
         sent: false,
         skippedReason: 'SAMO Incoming integration is disabled',
         source,
+        target,
       };
     }
 
@@ -118,6 +131,7 @@ export class SamoIncomingService {
         sent: false,
         skippedReason: `SAMO Incoming config is incomplete: ${missing.join(', ')}`,
         source,
+        target,
       };
     }
 
@@ -133,6 +147,7 @@ export class SamoIncomingService {
         requestXml,
         rawResponse: response,
         source,
+        target,
         ...this.parseResponse(response),
       };
     } catch (error) {
@@ -145,6 +160,7 @@ export class SamoIncomingService {
         requestXml,
         message,
         source,
+        target,
       };
     }
   }
@@ -175,9 +191,7 @@ export class SamoIncomingService {
       user: this.getFirstConfig('SAMO_INCOMING_USER', 'SAMO_USERNAME'),
       password: this.getFirstConfig('SAMO_INCOMING_PASSWORD', 'SAMO_PASSWORD'),
       aesKey: this.getFirstConfig('SAMO_XMLGATE_AES_KEY', 'SAMO_AES_KEY'),
-      tourId:
-        payload?.incomingTourId ??
-        this.configService.get<string>('SAMO_INCOMING_TOUR_ID'),
+      tourId: undefined,
       hotelCode:
         payload?.incomingHotelCode ??
         this.configService.get<string>('SAMO_INCOMING_HOTEL_CODE'),
@@ -286,9 +300,6 @@ export class SamoIncomingService {
     const dateEnd = this.addDays(dateBeg, Math.max(1, payload.tour.durationDays));
     const hotelInc = claimNumber + 1;
     const people = this.buildPeople(payload, adults);
-    const tourAttribute = config.tourId
-      ? ` tour="${this.escapeXml(config.tourId)}"`
-      : '';
     const links = people
       .map(
         (person) =>
@@ -297,7 +308,7 @@ export class SamoIncomingService {
       .join('\n');
 
     return `<claimlist>
-  <claim number="${claimNumber}" action="E" id="${this.escapeXml(payload.bookingNumber)}" cdate="${this.formatSamoDate(payload.createdAt)}"${tourAttribute} datebeg="${this.formatSamoDate(dateBeg)}" dateend="${this.formatSamoDate(dateEnd)}">
+  <claim number="${claimNumber}" action="E" id="${this.escapeXml(payload.bookingNumber)}" cdate="${this.formatSamoDate(payload.createdAt)}" datebeg="${this.formatSamoDate(dateBeg)}" dateend="${this.formatSamoDate(dateEnd)}">
     <note>${this.escapeXml(this.buildNote(payload))}</note>
     <peoples>
 ${people.map((person) => person.xml).join('\n')}
@@ -394,6 +405,18 @@ ${links}
       entityId: payload.linkedEntity?.id ?? null,
       entitySlug: payload.linkedEntity?.slug ?? null,
       entityTitle: payload.linkedEntity?.title ?? null,
+    };
+  }
+
+  private buildTargetMetadata(config: SamoIncomingConfig): SamoIncomingTargetMetadata {
+    return {
+      tourId: config.tourId ?? null,
+      hotelCode: config.hotelCode ?? null,
+      hotelName: config.hotelName,
+      roomCode: config.roomCode,
+      roomName: config.roomName,
+      mealCode: config.mealCode,
+      mealName: config.mealName,
     };
   }
 

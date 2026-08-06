@@ -32,6 +32,7 @@ const getApiUrl = (path = '') => {
 };
 
 const AUTH_STORAGE_KEY = 'tour_uzbekistan_auth';
+let authRedirectInProgress = false;
 
 function buildUrl(path, query) {
   const url = getApiUrl(path);
@@ -82,6 +83,26 @@ function clearStoredAuth() {
   window.dispatchEvent(new CustomEvent('tour-auth-changed'));
 }
 
+function redirectToAuth(reason = 'session-expired') {
+  if (typeof window === 'undefined' || authRedirectInProgress) {
+    return;
+  }
+
+  authRedirectInProgress = true;
+  clearStoredAuth();
+
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const url = new URL('/', window.location.origin);
+  url.searchParams.set('auth', 'login');
+  url.searchParams.set('reason', reason);
+
+  if (currentPath && currentPath !== '/') {
+    url.searchParams.set('redirect', currentPath);
+  }
+
+  window.location.assign(url.toString());
+}
+
 function readJwtPayload(token) {
   if (!token || typeof atob !== 'function') {
     return null;
@@ -125,7 +146,10 @@ async function request(path, options = {}, retry = true) {
     options.withAuth !== false &&
     isAccessTokenExpired(auth.accessToken)
   ) {
-    auth = await refreshTokens(auth.refreshToken).catch(() => auth);
+    auth = await refreshTokens(auth.refreshToken).catch((error) => {
+      redirectToAuth();
+      throw error;
+    });
   }
 
   const headers = {
@@ -148,21 +172,32 @@ async function request(path, options = {}, retry = true) {
     if (refreshed?.accessToken) {
       return request(path, options, false);
     }
+
+    redirectToAuth();
+  } else if (response.status === 401 && auth?.accessToken && options.withAuth !== false) {
+    redirectToAuth();
   }
 
   return parseResponse(response);
 }
 
 export async function refreshTokens(refreshToken) {
-  const payload = await request(
-    '/auth/refresh',
-    {
-      method: 'POST',
-      body: JSON.stringify({ refreshToken }),
-      withAuth: false,
-    },
-    false,
-  );
+  let payload;
+
+  try {
+    payload = await request(
+      '/auth/refresh',
+      {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+        withAuth: false,
+      },
+      false,
+    );
+  } catch (error) {
+    redirectToAuth();
+    throw error;
+  }
 
   setStoredAuth(payload);
   return payload;

@@ -30,4 +30,11 @@ export class AdminIncomingSearchController {
   reference(@Param('type') type: string, @Query('extraParams') extraParams?: string) {
     return this.incomingSearchService.reference(type, extraParams);
   }
+
+  @Get('hotel/:hotelCode')
+  @ApiOperation({ summary: 'Resolve replicated technical hotel and price from SAMO XMLGate' })
+  @ApiOkResponse({ description: 'SAMO XMLGate hotel resolve result' })
+  hotel(@Param('hotelCode') hotelCode: string) {
+    return this.incomingSearchService.resolveHotel(hotelCode);
+  }
 }

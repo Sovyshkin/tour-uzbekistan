@@ -53,6 +53,77 @@ export class AdminIncomingSearchService {
     };
   }
 
+  async resolveHotel(hotelCodeValue: string) {
+    const hotelCode = hotelCodeValue?.trim();
+    if (!hotelCode) {
+      throw new BadRequestException('hotelCode is required');
+    }
+
+    const config = this.getConfig();
+    const missing = this.getMissingConfig(config);
+    if (missing.length) {
+      return {
+        ok: false,
+        skippedReason: `SAMO XMLGate config is incomplete: ${missing.join(', ')}`,
+        config: this.getSafeConfig(config),
+      };
+    }
+
+    const params = this.buildReferenceParams(config, 'hotel');
+    const reference = await this.request(config, params);
+    const hotel = reference.items.find((item) => item.inc === hotelCode);
+
+    if (!hotel) {
+      return {
+        ok: false,
+        message: `Hotel ${hotelCode} was not found in SAMO XMLGate hotel reference`,
+        config: this.getSafeConfig(config),
+        reference: {
+          url: reference.url,
+          status: reference.status,
+          ok: reference.ok,
+          contentType: reference.contentType,
+          count: reference.items.length,
+        },
+      };
+    }
+
+    const price = this.extractPrice(hotel);
+    const currency = this.extractCurrency(hotel);
+
+    return {
+      ok: true,
+      config: this.getSafeConfig(config),
+      hotel: {
+        code: hotel.inc,
+        name: hotel.name || hotel.lname || null,
+        longName: hotel.lname || hotel.name || null,
+        status: hotel.status || null,
+        star: hotel.star || null,
+        town: hotel.town || null,
+        stamp: hotel.stamp || null,
+        raw: hotel,
+      },
+      price: price
+        ? {
+            amount: price.amount,
+            currency,
+            sourceAttribute: price.sourceAttribute,
+          }
+        : null,
+      priceMissingReason: price
+        ? undefined
+        : 'SAMO XMLGate hotel reference does not contain a recognizable price attribute for this hotel',
+      reference: {
+        url: reference.url,
+        status: reference.status,
+        ok: reference.ok,
+        contentType: reference.contentType,
+        count: reference.items.length,
+      },
+    };
+  }
+
   private getConfig(): XmlGateConfig {
     return {
       endpoint: this.getFirstConfig(
@@ -225,7 +296,53 @@ export class AdminIncomingSearchService {
       .replace(/&amp;/g, '&');
   }
 
+  private extractPrice(item: Record<string, string>) {
+    const priceKeys = [
+      'price',
+      'priceFrom',
+      'price_from',
+      'minprice',
+      'min_price',
+      'cost',
+      'amount',
+      'netprice',
+      'net_price',
+      'brutto',
+      'gross',
+    ];
+
+    for (const key of priceKeys) {
+      const raw = item[key] ?? item[key.toLowerCase()] ?? item[key.toUpperCase()];
+      if (!raw) {
+        continue;
+      }
+
+      const normalized = raw.replace(/\s/g, '').replace(',', '.');
+      const amount = Number(normalized);
+      if (Number.isFinite(amount) && amount > 0) {
+        return {
+          amount,
+          sourceAttribute: key,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private extractCurrency(item: Record<string, string>) {
+    const currencyKeys = ['currency', 'cur', 'currencyCode', 'currency_code', 'netcurrency'];
+    for (const key of currencyKeys) {
+      const value = item[key] ?? item[key.toLowerCase()] ?? item[key.toUpperCase()];
+      if (value && !['0', '-2147483647'].includes(value)) {
+        return value;
+      }
+    }
+
+    return this.configService.get<string>('SAMO_XMLGATE_DEFAULT_CURRENCY') ?? 'USD';
+  }
+
   private redactUrl(value: string) {
-    return value.replace(/([?&](?:password|pass|pwd|token|partner_token)=)[^&]*/gi, '$1***');
+    return value.replace(/([?&](?:password|pass|pwd|token|partner_token|AES%20KEY|AES\+KEY)=)[^&]*/gi, '$1***');
   }
 }
