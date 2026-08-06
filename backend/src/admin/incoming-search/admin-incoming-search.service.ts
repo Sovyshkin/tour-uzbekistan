@@ -129,6 +129,10 @@ export class AdminIncomingSearchService {
         ok: priceReference.ok,
         contentType: priceReference.contentType,
         count: priceReference.items.length,
+        activePriceCount: priceReference.items.filter((item) => this.isActiveHotelPrice(item)).length,
+        firstItem: priceReference.items[0] ?? null,
+        selectedPriceItem: price?.raw ?? null,
+        rawPreview: priceReference.raw.slice(0, 2000),
       },
       reference: {
         url: reference.url,
@@ -265,7 +269,7 @@ export class AdminIncomingSearchService {
         },
         signal: controller.signal,
       });
-        const raw = await response.text();
+      const raw = await response.text();
       const items = this.parseReferenceItems(raw);
 
       return {
@@ -334,7 +338,7 @@ export class AdminIncomingSearchService {
           body,
           signal: controller.signal,
         });
-      const raw = await response.text();
+        const raw = await response.text();
         lastResponsePreview = this.getResponsePreview(raw);
 
         if (!response.ok) {
@@ -493,7 +497,7 @@ export class AdminIncomingSearchService {
 
   private parseAttributes(value: string) {
     const attributes: Record<string, string> = {};
-    const matcher = /([\w:-]+)="([^"]*)"/g;
+    const matcher = /([\w:-]+)\s*=\s*"([^"]*)"/g;
 
     for (const match of value.matchAll(matcher)) {
       attributes[match[1]] = this.decodeXml(match[2]);
@@ -519,7 +523,7 @@ export class AdminIncomingSearchService {
     type HotelPrice = { amount: number; currency?: string; raw: Record<string, string> };
 
     const prices = items
-      .filter((item) => item._type === 'hprice' && item.status !== 'D')
+      .filter((item) => this.isActiveHotelPrice(item))
       .map<HotelPrice | null>((item) => {
         const amount = Number(String(item.price ?? '').replace(/\s/g, '').replace(',', '.'));
         return Number.isFinite(amount) && amount > 0
@@ -533,6 +537,10 @@ export class AdminIncomingSearchService {
       .filter((item): item is HotelPrice => Boolean(item));
 
     return prices.sort((a, b) => a.amount - b.amount)[0] ?? null;
+  }
+
+  private isActiveHotelPrice(item: Record<string, string>) {
+    return item._type?.toLowerCase() === 'hprice' && item.status?.trim().toUpperCase() !== 'D';
   }
 
   private async resolveCurrencyAlias(config: XmlGateConfig, currencyId?: string) {
