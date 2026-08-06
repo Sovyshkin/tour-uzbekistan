@@ -9,6 +9,8 @@ type SamoClaimPerson = {
   birthDate?: Date | null;
   documentSeries?: string | null;
   documentNumber?: string | null;
+  documentIssuedAt?: Date | null;
+  documentValidUntil?: Date | null;
 };
 
 type SamoClaimTour = {
@@ -653,12 +655,16 @@ export class SamoIncomingService {
       .map((tourist) => `        <Member TouristID="${tourist.id}"/>`)
       .join('\n');
     const note = this.escapeXml(this.buildNote(payload));
+    const payerIssueDate = this.buildOptionalDateAttribute(
+      'IssueDate',
+      payload.person.documentIssuedAt,
+    );
 
     return `<Reservation>
   <Tourists>
 ${tourists.map((tourist) => tourist.xml).join('\n')}
   </Tourists>
-  <Payer Name="${this.escapeXml(`${payload.person.lastName} ${payload.person.firstName}`)}" Phone="" EMail="" Address="" PassportSerie="${this.escapeXml(payload.person.documentSeries ?? '')}" PassportNo="${this.escapeXml(payload.person.documentNumber ?? '')}" IssueDate="1900-01-01T00:00:00" IssuePlace=""/>
+  <Payer Name="${this.escapeXml(`${payload.person.lastName} ${payload.person.firstName}`)}" Phone="" EMail="" Address="" PassportSerie="${this.escapeXml(payload.person.documentSeries ?? '')}" PassportNo="${this.escapeXml(payload.person.documentNumber ?? '')}"${payerIssueDate} IssuePlace=""/>
   <Rooms>
     <Room RoomID="0" Hotel="${this.escapeXml(config.hotelCode ?? '')}" Hotel_Name="${this.escapeXml(config.hotelName)}" Date="${this.formatSamoDate(dateBeg)}" Duration="${duration}" Room="${this.escapeXml(config.roomCode)}" Room_Name="${this.escapeXml(config.roomName)}" Htplace="${this.escapeXml(config.htplaceCode)}" Htplace_Name="${this.escapeXml(config.htplaceName)}" Meal="${this.escapeXml(config.mealCode)}" Meal_Name="${this.escapeXml(config.mealName)}" confirm="0" Price="${price}" Currency="${this.escapeXml(currency)}" rcount="1">
       <Members>
@@ -685,13 +691,13 @@ ${members}
         ? `${payload.person.lastName}/${payload.person.firstName}`.toUpperCase()
         : `GUEST/${index + 1}`;
       const gender = this.mapHuman(payload.person.sex);
-      const born = payload.person.birthDate ?? new Date('1970-01-01T00:00:00.000Z');
+      const born = payload.person.birthDate ?? new Date(Date.UTC(1970, 0, 1));
       const passportSerie = isMainPerson ? payload.person.documentSeries ?? '' : '';
       const passportNo = isMainPerson ? payload.person.documentNumber ?? '' : '';
 
       return {
         id,
-        xml: `    <Tourist ID="${id}" Name="${this.escapeXml(name)}" Gender="${gender}" BornDate="${this.formatSamoDate(born)}" PassportSerie="${this.escapeXml(passportSerie)}" PassportNo="${this.escapeXml(passportNo)}"/>`,
+        xml: `    <Tourist ID="${id}" Name="${this.escapeXml(name)}" Gender="${gender}" BornDate="${this.formatSamoPlainDate(born)}" PassportSerie="${this.escapeXml(passportSerie)}" PassportNo="${this.escapeXml(passportNo)}"/>`,
       };
     });
   }
@@ -900,6 +906,18 @@ ${members}
 
   private formatSamoDate(date: Date) {
     return date.toISOString().slice(0, 19);
+  }
+
+  private formatSamoPlainDate(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  private buildOptionalDateAttribute(name: string, value?: Date | null) {
+    if (!value || Number.isNaN(value.getTime())) {
+      return '';
+    }
+
+    return ` ${name}="${this.formatSamoPlainDate(value)}"`;
   }
 
   private formatSamoPacketDate(date: Date) {

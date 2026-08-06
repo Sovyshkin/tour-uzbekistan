@@ -383,6 +383,8 @@ export class BookingsService {
         birthDate: booking.birthDate,
         documentSeries: booking.documentSeries,
         documentNumber: booking.documentNumber,
+        documentIssuedAt: booking.documentIssuedAt,
+        documentValidUntil: booking.documentValidUntil,
       },
       tour: {
         title: snapshot.title,
