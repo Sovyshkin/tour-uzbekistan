@@ -78,6 +78,8 @@ export function validateBookingFormFields(form) {
     firstName: isBlank(form.firstName) ? 'Enter first name' : '',
     lastName: isBlank(form.lastName) ? 'Enter last name' : '',
     travelDate: isBlank(form.travelDate) ? 'Select tour date' : '',
+    adultCount: Number(form.adultCount) < 1 ? 'Enter number of adults' : '',
+    childCount: Number(form.childCount) < 0 ? 'Enter number of children' : '',
     phone: isBlank(form.phone)
       ? 'Enter phone number'
       : !isValidPhone(form.phone)

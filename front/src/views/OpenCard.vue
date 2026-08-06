@@ -109,6 +109,8 @@ const formData = ref({
   firstName: '',
   lastName: '',
   travelDate: '',
+  adultCount: 1,
+  childCount: 0,
   birthDate: '',
   phone: '',
   email: '',
@@ -209,6 +211,8 @@ const submitForm = async () => {
       firstName: formData.value.firstName,
       lastName: formData.value.lastName,
       travelDate: formData.value.travelDate,
+      adultCount: Number(formData.value.adultCount) || 1,
+      childCount: Number(formData.value.childCount) || 0,
       email: formData.value.email,
       phone: formData.value.phone || undefined,
       sex: formData.value.sex || undefined,
@@ -220,7 +224,7 @@ const submitForm = async () => {
       documentIssuedAt: formData.value.issuedDate || undefined,
       documentValidUntil: formData.value.validUntil || undefined,
       sourcePage: route.fullPath,
-      groupSize: people.value || undefined,
+      groupSize: (Number(formData.value.adultCount) || 1) + (Number(formData.value.childCount) || 0),
     });
     formErrors.value = {};
     modalStep.value = 2;
@@ -1206,6 +1210,19 @@ onUnmounted(() => {
                   <label>{{ t('openCard.modal_travel_date') }}</label>
                   <input type="date" v-model="formData.travelDate" :min="minTravelDate" :class="{ 'input-error': formErrors.travelDate }" @input="clearFieldError('travelDate')" required />
                   <p v-if="formErrors.travelDate" class="field-error">{{ formErrors.travelDate }}</p>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>{{ t('openCard.modal_adults') }}</label>
+                    <input type="number" v-model.number="formData.adultCount" min="1" step="1" :class="{ 'input-error': formErrors.adultCount }" @input="clearFieldError('adultCount')" required />
+                    <p v-if="formErrors.adultCount" class="field-error">{{ formErrors.adultCount }}</p>
+                  </div>
+                  <div class="form-group">
+                    <label>{{ t('openCard.modal_children') }}</label>
+                    <input type="number" v-model.number="formData.childCount" min="0" step="1" :class="{ 'input-error': formErrors.childCount }" @input="clearFieldError('childCount')" required />
+                    <p v-if="formErrors.childCount" class="field-error">{{ formErrors.childCount }}</p>
+                  </div>
                 </div>
 
                 <div class="form-group">

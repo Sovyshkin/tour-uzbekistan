@@ -1,0 +1,2 @@
+ALTER TABLE "Booking" ADD COLUMN "adultCount" INTEGER;
+ALTER TABLE "Booking" ADD COLUMN "childCount" INTEGER;

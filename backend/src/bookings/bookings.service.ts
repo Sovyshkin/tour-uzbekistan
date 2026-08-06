@@ -89,6 +89,10 @@ export class BookingsService {
       includedServices: this.readStringArray(translation?.included),
     };
 
+    const adultCount = dto.adultCount ?? Math.max(1, dto.groupSize ?? 1);
+    const childCount = dto.childCount ?? 0;
+    const groupSize = adultCount + childCount;
+
     const booking = await this.prisma.booking.create({
       data: {
         bookingNumber: this.generateBookingNumber(),
@@ -115,7 +119,9 @@ export class BookingsService {
           ? new Date(dto.documentValidUntil)
           : undefined,
         travelDate: dto.travelDate ? new Date(dto.travelDate) : undefined,
-        groupSize: dto.groupSize,
+        adultCount,
+        childCount,
+        groupSize,
         hotelName: dto.hotelName,
         totalPrice: tour.priceFrom ?? undefined,
         currency: tour.currency ?? undefined,
@@ -258,6 +264,10 @@ export class BookingsService {
       lastName: booking.lastName,
       email: booking.email,
       phone: booking.phone ?? null,
+      travelDate: booking.travelDate?.toISOString() ?? null,
+      adultCount: booking.adultCount ?? null,
+      childCount: booking.childCount ?? null,
+      groupSize: booking.groupSize ?? null,
       sourcePage: booking.sourcePagePath ?? null,
       specialRequests: booking.translations[0]?.specialRequests ?? null,
       integration: this.readIntegration(booking.metadata),
@@ -313,6 +323,8 @@ export class BookingsService {
         locale: booking.locale,
         sourcePage: booking.sourcePagePath ?? null,
         travelDate: booking.travelDate?.toISOString() ?? null,
+        adultCount: booking.adultCount ?? null,
+        childCount: booking.childCount ?? null,
         groupSize: booking.groupSize ?? null,
       },
       customer: {
@@ -359,6 +371,8 @@ export class BookingsService {
       bookingNumber: booking.bookingNumber,
       createdAt: booking.createdAt,
       travelDate: booking.travelDate,
+      adultCount: booking.adultCount,
+      childCount: booking.childCount,
       groupSize: booking.groupSize,
       hotelName: booking.hotelName,
       incomingTourId: tour.incomingTourId,

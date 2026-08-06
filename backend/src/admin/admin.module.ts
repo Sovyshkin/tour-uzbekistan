@@ -13,6 +13,8 @@ import { AdminDashboardController } from './dashboard/admin-dashboard.controller
 import { AdminDashboardService } from './dashboard/admin-dashboard.service';
 import { AdminIncomingSearchController } from './incoming-search/admin-incoming-search.controller';
 import { AdminIncomingSearchService } from './incoming-search/admin-incoming-search.service';
+import { AdminIncomingMappingsController } from './incoming-mappings/admin-incoming-mappings.controller';
+import { AdminIncomingMappingsService } from './incoming-mappings/admin-incoming-mappings.service';
 import { AdminMediaController } from './media/admin-media.controller';
 import { AdminMediaService } from './media/admin-media.service';
 import { AdminRecordsController } from './records/admin-records.controller';
@@ -25,6 +27,7 @@ import { AdminRecordsService } from './records/admin-records.service';
     AdminAuditController,
     AdminContentController,
     AdminDashboardController,
+    AdminIncomingMappingsController,
     AdminIncomingSearchController,
     AdminMediaController,
     AdminRecordsController,
@@ -34,6 +37,7 @@ import { AdminRecordsService } from './records/admin-records.service';
     AdminAuditService,
     AdminContentService,
     AdminDashboardService,
+    AdminIncomingMappingsService,
     AdminIncomingSearchService,
     AdminMediaService,
     AdminRecordsService,

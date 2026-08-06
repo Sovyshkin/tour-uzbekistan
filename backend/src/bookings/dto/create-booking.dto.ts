@@ -98,6 +98,18 @@ export class CreateBookingDto {
   @Min(1)
   groupSize?: number;
 
+  @ApiPropertyOptional({ example: 1, minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  adultCount?: number;
+
+  @ApiPropertyOptional({ example: 0, minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  childCount?: number;
+
   @ApiPropertyOptional({ example: 'Silk Road Hotel' })
   @IsOptional()
   @IsString()

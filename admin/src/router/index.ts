@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth';
 import AdminLayout from '@/layouts/AdminLayout.vue';
 import AdminContentPage from '@/views/AdminContentPage.vue';
 import AdminAuditLogsPage from '@/views/AdminAuditLogsPage.vue';
+import AdminIncomingMappingsPage from '@/views/AdminIncomingMappingsPage.vue';
 import AdminIncomingSearchPage from '@/views/AdminIncomingSearchPage.vue';
 import AdminRecordsPage from '@/views/AdminRecordsPage.vue';
 import DashboardPage from '@/views/DashboardPage.vue';
@@ -127,6 +128,14 @@ const router = createRouter({
           component: AdminIncomingSearchPage,
           meta: {
             titleKey: 'nav.incomingSearch',
+          },
+        },
+        {
+          path: 'incoming-mappings',
+          name: 'incoming-mappings',
+          component: AdminIncomingMappingsPage,
+          meta: {
+            titleKey: 'nav.incomingMappings',
           },
         },
         {

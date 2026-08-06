@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createCipheriv, createHash } from 'crypto';
 
+import { PrismaService } from '../../prisma/prisma.service';
+
 type SamoClaimPerson = {
   firstName: string;
   lastName: string;
@@ -64,6 +66,8 @@ export type SamoClaimPayload = {
   createdAt: Date;
   travelDate?: Date | null;
   groupSize?: number | null;
+  adultCount?: number | null;
+  childCount?: number | null;
   hotelName?: string | null;
   incomingTourId?: string | null;
   incomingHotelCode?: string | null;
@@ -133,7 +137,10 @@ type SamoHotelPricePacket = {
 export class SamoIncomingService {
   private readonly logger = new Logger(SamoIncomingService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async sendBooking(payload: SamoClaimPayload): Promise<SamoIncomingResult> {
     let config = this.getConfig(payload);
@@ -165,9 +172,12 @@ export class SamoIncomingService {
     let requestXml = '';
 
     try {
+      config = await this.applyAdminMappings(config, payload);
+      target = this.buildTargetMetadata(config);
       const partnerToken = await this.getPartnerToken(config);
       const pricePacket = await this.resolveHotelPricePacket(config, partnerToken, payload);
       config = this.applyHotelPricePacket(config, pricePacket);
+      config = await this.applyAdminMappings(config, payload);
       target = this.buildTargetMetadata(config);
       const initXml = await this.initReservation(config, payload, partnerToken);
       requestXml = this.buildReservationXml(config, payload, initXml);
@@ -257,6 +267,60 @@ export class SamoIncomingService {
         this.configService.get<string>('SAMO_INCOMING_TIMEOUT_MS') ?? 15000,
       ),
     };
+  }
+
+  private async applyAdminMappings(
+    config: SamoIncomingConfig,
+    payload: SamoClaimPayload,
+  ): Promise<SamoIncomingConfig> {
+    const adults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
+    const children = Math.max(0, payload.childCount ?? 0);
+    const [roomMapping, placementMapping] = await Promise.all([
+      this.findRoomMapping(config.roomName),
+      this.findPlacementMapping(adults, children),
+    ]);
+
+    return {
+      ...config,
+      roomCode: roomMapping?.samoCode ?? config.roomCode,
+      roomName: roomMapping?.samoName ?? config.roomName,
+      htplaceCode: placementMapping?.samoCode ?? config.htplaceCode,
+      htplaceName: placementMapping?.samoName ?? config.htplaceName,
+    };
+  }
+
+  private async findRoomMapping(roomName: string) {
+    const normalized = this.normalizeMappingKey(roomName);
+    const withoutRoomSuffix = normalized.replace(/\s+room$/i, '');
+    const keys = Array.from(new Set([normalized, withoutRoomSuffix].filter(Boolean)));
+    return this.prisma.incomingMapping.findFirst({
+      where: {
+        type: 'room',
+        isActive: true,
+        OR: [
+          { cmsKey: { in: keys } },
+          { cmsLabel: { equals: roomName, mode: 'insensitive' } },
+          { samoName: { equals: roomName, mode: 'insensitive' } },
+        ],
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  private async findPlacementMapping(adultCount: number, childCount: number) {
+    return this.prisma.incomingMapping.findFirst({
+      where: {
+        type: 'placement',
+        isActive: true,
+        adultCount,
+        childCount,
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  private normalizeMappingKey(value: string) {
+    return value.trim().toLowerCase().replace(/\s+/g, ' ');
   }
 
   private getFirstConfig(...keys: string[]) {
@@ -461,8 +525,8 @@ export class SamoIncomingService {
   }
 
   private pickMinimalHotelPricePacket(items: Record<string, string>[], payload: SamoClaimPayload) {
-    const expectedAdults = Math.max(1, payload.groupSize ?? 1);
-    const expectedChildren = 0;
+    const expectedAdults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
+    const expectedChildren = Math.max(0, payload.childCount ?? 0);
     const prices = items
       .filter((item) => item._type?.toLowerCase() === 'hprice')
       .filter((item) => item.status?.trim().toUpperCase() !== 'D')
@@ -532,6 +596,9 @@ export class SamoIncomingService {
   private readFirstNumericField(item: Record<string, string>, keys: string[]) {
     for (const key of keys) {
       const value = item[key] ?? item[key.toUpperCase()] ?? item[key.toLowerCase()];
+      if (value === undefined || value === null || String(value).trim() === '') {
+        continue;
+      }
       const number = Number(String(value ?? '').replace(',', '.'));
       if (Number.isFinite(number)) {
         return number;
@@ -696,7 +763,9 @@ export class SamoIncomingService {
     payload: SamoClaimPayload,
     initReservationXml: string,
   ) {
-    const adults = Math.max(1, payload.groupSize ?? 1);
+    const adults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
+    const children = Math.max(0, payload.childCount ?? 0);
+    const peopleCount = adults + children;
     const dateBeg = this.getIncomingCheckinDate(payload);
     const duration = config.nights;
     const price = this.normalizePrice(payload.tour.price);
@@ -704,7 +773,7 @@ export class SamoIncomingService {
     const guid =
       this.readXmlAttribute(initReservationXml.match(/<Claim\b[^>]*>/i)?.[0] ?? '', 'guid') ??
       '';
-    const tourists = this.buildTourists(payload, adults);
+    const tourists = this.buildTourists(payload, peopleCount, adults);
     const members = tourists
       .map((tourist) => `        <Member TouristID="${tourist.id}"/>`)
       .join('\n');
@@ -727,7 +796,7 @@ ${members}
     </Room>
   </Rooms>
   <Claims>
-    <Claim condition="ccOffer" status="Not confirmed" payStatus="Unpaid" peopleCount="${adults}" adult="${adults}" child="0" guid="${this.escapeXml(guid)}" partnername="B2B Website Integration" BookingDate="${this.formatSamoDate(payload.createdAt)}" Date="${this.formatSamoDate(dateBeg)}" Duration="${duration}" comment="${note}"/>
+    <Claim condition="ccOffer" status="Not confirmed" payStatus="Unpaid" peopleCount="${peopleCount}" adult="${adults}" child="${children}" guid="${this.escapeXml(guid)}" partnername="B2B Website Integration" BookingDate="${this.formatSamoDate(payload.createdAt)}" Date="${this.formatSamoDate(dateBeg)}" Duration="${duration}" comment="${note}"/>
   </Claims>
   <Services/>
   <VariantServices/>
@@ -737,14 +806,21 @@ ${members}
 </Reservation>`;
   }
 
-  private buildTourists(payload: SamoClaimPayload, count: number) {
+  private buildTourists(payload: SamoClaimPayload, count: number, adultCount: number) {
     return Array.from({ length: count }, (_, index) => {
       const isMainPerson = index === 0;
       const id = index;
-      const firstName = isMainPerson ? payload.person.firstName.toUpperCase() : `GUEST ${index + 1}`;
+      const isAdult = index < adultCount;
+      const firstName = isMainPerson
+        ? payload.person.firstName.toUpperCase()
+        : isAdult
+          ? `ADULT ${index + 1}`
+          : `CHILD ${index - adultCount + 1}`;
       const lastName = isMainPerson ? payload.person.lastName.toUpperCase() : 'TOURIST';
       const gender = this.mapHuman(payload.person.sex);
-      const born = payload.person.birthDate ?? new Date(Date.UTC(1970, 0, 1));
+      const born = isAdult
+        ? payload.person.birthDate ?? new Date(Date.UTC(1970, 0, 1))
+        : new Date(Date.UTC(2016, 0, 1));
       const passportSerie = isMainPerson ? payload.person.documentSeries ?? '' : '';
       const passportNo = isMainPerson ? payload.person.documentNumber ?? '' : '';
 
@@ -756,8 +832,12 @@ ${members}
   }
 
   private buildNote(payload: SamoClaimPayload) {
+    const adults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
+    const children = Math.max(0, payload.childCount ?? 0);
+    const peopleCount = adults + children;
     const lines = [
       `Local booking: ${payload.bookingNumber}`,
+      `Travelers: ${peopleCount} total, ${adults} adult(s), ${children} child(ren)`,
       ...this.buildSourceNoteLines(payload),
       `Tour: ${payload.tour.title}`,
       payload.tour.transport ? `Transport: ${payload.tour.transport}` : undefined,
