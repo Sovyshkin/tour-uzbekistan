@@ -138,7 +138,6 @@ loadMappings();
   <div class="incoming-mappings-page">
     <section class="incoming-toolbar">
       <div>
-        <h2>{{ t('nav.incomingMappings') }}</h2>
         <p>{{ t('incomingMappings.description') }}</p>
       </div>
       <el-button type="primary" @click="openCreateDialog">
@@ -237,11 +236,6 @@ loadMappings();
   justify-content: space-between;
   gap: 16px;
   align-items: flex-start;
-}
-
-.incoming-toolbar h2 {
-  margin: 0 0 8px;
-  font-size: 28px;
 }
 
 .incoming-toolbar p {
