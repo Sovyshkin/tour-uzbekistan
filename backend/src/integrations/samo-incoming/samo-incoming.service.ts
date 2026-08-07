@@ -777,11 +777,11 @@ export class SamoIncomingService {
     const members = tourists
       .map((tourist) => `        <Member TouristID="${tourist.id}"/>`)
       .join('\n');
-    const note = this.escapeXml(this.buildNote(payload));
     const payerIssueDate = this.buildOptionalDateAttribute(
       'IssueDate',
       payload.person.documentIssuedAt,
     );
+    const notesXml = this.buildNotesXml(payload);
 
     return `<Reservation>
   <Tourists>
@@ -796,70 +796,40 @@ ${members}
     </Room>
   </Rooms>
   <Claims>
-    <Claim condition="ccOffer" status="Not confirmed" payStatus="Unpaid" peopleCount="${peopleCount}" adult="${adults}" child="${children}" guid="${this.escapeXml(guid)}" partnername="B2B Website Integration" BookingDate="${this.formatSamoDate(payload.createdAt)}" Date="${this.formatSamoDate(dateBeg)}" Duration="${duration}" comment="${note}"/>
+    <Claim condition="ccOffer" status="Not confirmed" payStatus="Unpaid" peopleCount="${peopleCount}" adult="${adults}" child="${children}" guid="${this.escapeXml(guid)}" partnername="B2B Website Integration" BookingDate="${this.formatSamoDate(payload.createdAt)}" Date="${this.formatSamoDate(dateBeg)}" Duration="${duration}"/>
   </Claims>
   <Services/>
   <VariantServices/>
   <Moneys>
     <Money TotalPrice="${price}" Currency="${this.escapeXml(currency)}"/>
   </Moneys>
+${notesXml}
 </Reservation>`;
   }
 
-  private buildTourists(payload: SamoClaimPayload, count: number, adultCount: number) {
-    return Array.from({ length: count }, (_, index) => {
-      const isMainPerson = index === 0;
-      const id = index;
-      const isAdult = index < adultCount;
-      const firstName = isMainPerson
-        ? payload.person.firstName.toUpperCase()
-        : isAdult
-          ? `ADULT ${index + 1}`
-          : `CHILD ${index - adultCount + 1}`;
-      const lastName = isMainPerson ? payload.person.lastName.toUpperCase() : 'TOURIST';
-      const gender = this.mapHuman(payload.person.sex);
-      const born = isAdult
-        ? payload.person.birthDate ?? new Date(Date.UTC(1970, 0, 1))
-        : new Date(Date.UTC(2016, 0, 1));
-      const passportSerie = isMainPerson ? payload.person.documentSeries ?? '' : '';
-      const passportNo = isMainPerson ? payload.person.documentNumber ?? '' : '';
+  private buildNotesXml(payload: SamoClaimPayload): string {
+    const notes = this.buildNoteLines(payload);
 
-      return {
-        id,
-        xml: `    <Tourist ID="${id}" Name="${this.escapeXml(firstName)}" Surname="${this.escapeXml(lastName)}" LName="${this.escapeXml(lastName)}" Gender="${gender}" BornDate="${this.formatSamoPlainDate(born)}" PassportSerie="${this.escapeXml(passportSerie)}" PassportNo="${this.escapeXml(passportNo)}"/>`,
-      };
-    });
+    if (notes.length === 0) {
+      return '  <Notes/>';
+    }
+
+    const noteElements = notes
+      .map((line) => `    <Note note="${this.escapeXml(line)}"/>`)
+      .join('\n');
+
+    return `  <Notes>\n${noteElements}\n  </Notes>`;
   }
 
-  private buildNote(payload: SamoClaimPayload) {
+  private buildNoteLines(payload: SamoClaimPayload): string[] {
     const adults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
     const children = Math.max(0, payload.childCount ?? 0);
     const peopleCount = adults + children;
-    const lines = [
-      `Local booking: ${payload.bookingNumber}`,
-      `Travelers: ${peopleCount} total, ${adults} adult(s), ${children} child(ren)`,
-      ...this.buildSourceNoteLines(payload),
-      `Tour: ${payload.tour.title}`,
-      payload.tour.transport ? `Transport: ${payload.tour.transport}` : undefined,
-      payload.tour.hotels ? `Hotels: ${payload.tour.hotels}` : undefined,
-      payload.hotelName ? `Requested hotel: ${payload.hotelName}` : undefined,
-      payload.tour.includedServices.length > 0
-        ? `Included services: ${payload.tour.includedServices.join(', ')}`
-        : undefined,
-      payload.specialRequests ? `Partner note: ${payload.specialRequests}` : undefined,
-      'Created under replicated hotel. Manager will complete services manually.',
-    ].filter(Boolean);
 
-    return lines.join(' | ').slice(0, 255);
-  }
-
-  private normalizePrice(value?: string | null) {
-    const amount = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'));
-    return Number.isFinite(amount) && amount > 0 ? amount.toFixed(4) : '0.0000';
-  }
-
-  private buildSourceNoteLines(payload: SamoClaimPayload) {
     const lines: string[] = [];
+
+    lines.push(`Local booking: ${payload.bookingNumber}`);
+    lines.push(`Travelers: ${peopleCount} total, ${adults} adult(s), ${children} child(ren)`);
 
     if (payload.source?.audience) {
       lines.push(`Audience: ${payload.source.audience}`);
@@ -891,7 +861,61 @@ ${members}
       );
     }
 
+    lines.push(`Tour: ${payload.tour.title}`);
+
+    if (payload.tour.transport) {
+      lines.push(`Transport: ${payload.tour.transport}`);
+    }
+
+    if (payload.tour.hotels) {
+      lines.push(`Hotels: ${payload.tour.hotels}`);
+    }
+
+    if (payload.hotelName) {
+      lines.push(`Requested hotel: ${payload.hotelName}`);
+    }
+
+    if (payload.tour.includedServices.length > 0) {
+      lines.push(`Included services: ${payload.tour.includedServices.join(', ')}`);
+    }
+
+    if (payload.specialRequests) {
+      lines.push(`Partner note: ${payload.specialRequests}`);
+    }
+
+    lines.push('Created under replicated hotel. Manager will complete services manually.');
+
     return lines;
+  }
+
+  private buildTourists(payload: SamoClaimPayload, count: number, adultCount: number) {
+    return Array.from({ length: count }, (_, index) => {
+      const isMainPerson = index === 0;
+      const id = index;
+      const isAdult = index < adultCount;
+      const firstName = isMainPerson
+        ? payload.person.firstName.toUpperCase()
+        : isAdult
+          ? `ADULT ${index + 1}`
+          : `CHILD ${index - adultCount + 1}`;
+      const lastName = isMainPerson ? payload.person.lastName.toUpperCase() : 'TOURIST';
+      const gender = this.mapHuman(payload.person.sex);
+      const born = isAdult
+        ? payload.person.birthDate ?? new Date(Date.UTC(1970, 0, 1))
+        : new Date(Date.UTC(2016, 0, 1));
+      const passportSerie = isMainPerson ? payload.person.documentSeries ?? '' : '';
+      const passportNo = isMainPerson ? payload.person.documentNumber ?? '' : '';
+
+      return {
+        id,
+        xml: `    <Tourist ID="${id}" Name="${this.escapeXml(firstName)}" Surname="${this.escapeXml(lastName)}" LName="${this.escapeXml(lastName)}" Gender="${gender}" BornDate="${this.formatSamoPlainDate(born)}" PassportSerie="${this.escapeXml(passportSerie)}" PassportNo="${this.escapeXml(passportNo)}"/>`,
+      };
+    });
+  }
+
+  private normalizePrice(value?: string | null) {
+    const amount = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'));
+    return Number.isFinite(amount) && amount > 0 ? amount.toFixed(4) : '0.0000';
   }
 
   private buildSourceMetadata(payload: SamoClaimPayload) {
