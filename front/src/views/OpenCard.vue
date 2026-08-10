@@ -833,7 +833,7 @@ onUnmounted(() => {
                   class="w-full flex items-center justify-between text-left cursor-pointer"
                 >
                   <h2
-                    class="text-[16px] sm:text-[20px] lg:text-[22px] font-medium"
+                    class="text-[16px] sm:text-[20px] lg:text-[24px] xl:text-[26px] font-medium"
                   >
                     {{ day.title }}
                   </h2>
