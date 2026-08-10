@@ -808,84 +808,43 @@ ${notesXml}
   }
 
   private buildNotesXml(payload: SamoClaimPayload): string {
-    const notes = this.buildNoteLines(payload);
+    const note = this.buildNoteText(payload);
 
-    if (notes.length === 0) {
+    if (!note) {
       return '  <Notes/>';
     }
 
-    const noteElements = notes
-      .map((line) => `    <Note note="${this.escapeXml(line)}"/>`)
-      .join('\n');
-
-    return `  <Notes>\n${noteElements}\n  </Notes>`;
+    return `  <Notes>\n    <Note note="${this.escapeXml(note)}"/>\n  </Notes>`;
   }
 
-  private buildNoteLines(payload: SamoClaimPayload): string[] {
+  private buildNoteText(payload: SamoClaimPayload): string {
     const adults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
     const children = Math.max(0, payload.childCount ?? 0);
     const peopleCount = adults + children;
 
-    const lines: string[] = [];
+    const parts: string[] = [];
 
-    lines.push(`Local booking: ${payload.bookingNumber}`);
-    lines.push(`Travelers: ${peopleCount} total, ${adults} adult(s), ${children} child(ren)`);
+    parts.push(`Booking: ${payload.bookingNumber}`);
+    parts.push(`Tour: ${payload.tour.title}`);
+    parts.push(`Travelers: ${peopleCount} total, ${adults} adult(s), ${children} child(ren)`);
 
-    if (payload.source?.audience) {
-      lines.push(`Audience: ${payload.source.audience}`);
-    }
-
-    if (payload.source?.pageTitle || payload.source?.pagePath) {
-      lines.push(
+    if (payload.source?.pagePath) {
+      parts.push(
         `Source page: ${[payload.source.pageTitle, payload.source.pagePath]
           .filter(Boolean)
           .join(' - ')}`,
       );
     }
 
-    if (
-      payload.linkedEntity?.type ||
-      payload.linkedEntity?.title ||
-      payload.linkedEntity?.slug ||
-      payload.linkedEntity?.id
-    ) {
-      lines.push(
-        `Source item: ${[
-          payload.linkedEntity.type,
-          payload.linkedEntity.title,
-          payload.linkedEntity.slug,
-          payload.linkedEntity.id,
-        ]
-          .filter(Boolean)
-          .join(' - ')}`,
-      );
-    }
-
-    lines.push(`Tour: ${payload.tour.title}`);
-
-    if (payload.tour.transport) {
-      lines.push(`Transport: ${payload.tour.transport}`);
-    }
-
-    if (payload.tour.hotels) {
-      lines.push(`Hotels: ${payload.tour.hotels}`);
-    }
-
-    if (payload.hotelName) {
-      lines.push(`Requested hotel: ${payload.hotelName}`);
-    }
-
     if (payload.tour.includedServices.length > 0) {
-      lines.push(`Included services: ${payload.tour.includedServices.join(', ')}`);
+      parts.push(`Included: ${payload.tour.includedServices.join(', ')}`);
     }
 
     if (payload.specialRequests) {
-      lines.push(`Partner note: ${payload.specialRequests}`);
+      parts.push(`Comment: ${payload.specialRequests}`);
     }
 
-    lines.push('Created under replicated hotel. Manager will complete services manually.');
-
-    return lines;
+    return parts.join(' | ');
   }
 
   private buildTourists(payload: SamoClaimPayload, count: number, adultCount: number) {

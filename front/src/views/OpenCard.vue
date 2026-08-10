@@ -833,7 +833,7 @@ onUnmounted(() => {
                   class="w-full flex items-center justify-between text-left cursor-pointer"
                 >
                   <h2
-                    class="text-[16px] sm:text-[20px] lg:text-[24px] xl:text-[26px] font-medium"
+                    class="tour-program-day-title font-medium"
                   >
                     {{ day.title }}
                   </h2>
@@ -1613,6 +1613,11 @@ onUnmounted(() => {
 
 .tour-program-item:last-child {
   border-bottom: 0;
+}
+
+.tour-program-day-title {
+  font-size: clamp(16px, 2vw, 26px);
+  line-height: 1.12;
 }
 
 .tour-included-card {
