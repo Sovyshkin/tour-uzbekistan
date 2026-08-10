@@ -72,14 +72,27 @@ export function validateRegisterFormFields(form) {
   });
 }
 
-export function validateBookingFormFields(form) {
+export function validateBookingFormFields(form, limits = {}) {
+  const adultCount = Number(form.adultCount);
+  const childCount = Number(form.childCount);
+
   return compactErrors({
     sex: isBlank(form.sex) ? 'Enter gender' : '',
     firstName: isBlank(form.firstName) ? 'Enter first name' : '',
     lastName: isBlank(form.lastName) ? 'Enter last name' : '',
     travelDate: isBlank(form.travelDate) ? 'Select tour date' : '',
-    adultCount: Number(form.adultCount) < 1 ? 'Enter number of adults' : '',
-    childCount: Number(form.childCount) < 0 ? 'Enter number of children' : '',
+    adultCount:
+      adultCount < (limits.minAdults ?? 1)
+        ? 'Enter number of adults'
+        : limits.maxAdults !== undefined && adultCount > limits.maxAdults
+          ? `Adults cannot be more than ${limits.maxAdults}`
+          : '',
+    childCount:
+      childCount < (limits.minChildren ?? 0)
+        ? 'Enter number of children'
+        : limits.maxChildren !== undefined && childCount > limits.maxChildren
+          ? `Children cannot be more than ${limits.maxChildren}`
+          : '',
     phone: isBlank(form.phone)
       ? 'Enter phone number'
       : !isValidPhone(form.phone)

@@ -27,6 +27,10 @@ type AdminContentRecord = {
   durationNights?: number;
   minGroupSize?: number | null;
   maxGroupSize?: number | null;
+  minAdultCount?: number | null;
+  maxAdultCount?: number | null;
+  minChildCount?: number | null;
+  maxChildCount?: number | null;
   comfortLevel?: number | null;
   priceFrom?: string | null;
   currency?: string | null;
@@ -1770,6 +1774,10 @@ export class AdminContentService {
         sortOrder: dto.sortOrder ?? 0,
         minGroupSize: dto.minGroupSize,
         maxGroupSize: dto.maxGroupSize,
+        minAdultCount: dto.minAdultCount,
+        maxAdultCount: dto.maxAdultCount,
+        minChildCount: dto.minChildCount,
+        maxChildCount: dto.maxChildCount,
         comfortLevel: dto.comfortLevel,
         priceFrom: dto.priceFrom,
         currency: dto.currency ?? 'USD',
@@ -2129,6 +2137,10 @@ export class AdminContentService {
       durationNights: record.durationNights,
       minGroupSize: record.minGroupSize,
       maxGroupSize: record.maxGroupSize,
+      minAdultCount: record.minAdultCount,
+      maxAdultCount: record.maxAdultCount,
+      minChildCount: record.minChildCount,
+      maxChildCount: record.maxChildCount,
       comfortLevel: record.comfortLevel,
       priceFrom: record.priceFrom?.toString() ?? null,
       currency: record.currency,
@@ -2325,6 +2337,10 @@ export class AdminContentService {
         ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
         ...(dto.minGroupSize !== undefined ? { minGroupSize: dto.minGroupSize } : {}),
         ...(dto.maxGroupSize !== undefined ? { maxGroupSize: dto.maxGroupSize } : {}),
+        ...(dto.minAdultCount !== undefined ? { minAdultCount: dto.minAdultCount } : {}),
+        ...(dto.maxAdultCount !== undefined ? { maxAdultCount: dto.maxAdultCount } : {}),
+        ...(dto.minChildCount !== undefined ? { minChildCount: dto.minChildCount } : {}),
+        ...(dto.maxChildCount !== undefined ? { maxChildCount: dto.maxChildCount } : {}),
         ...(dto.comfortLevel !== undefined ? { comfortLevel: dto.comfortLevel } : {}),
         ...(dto.priceFrom !== undefined ? { priceFrom: dto.priceFrom } : {}),
         ...(dto.currency !== undefined ? { currency: dto.currency } : {}),

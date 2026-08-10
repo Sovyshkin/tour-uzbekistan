@@ -255,6 +255,8 @@ export class LeadsService {
       person: {
         firstName: firstName || lead.name,
         lastName: lastNameParts.join(' ') || 'Tourist',
+        email: lead.email,
+        phone: lead.phone,
       },
       tour: {
         title: tourTitle,
@@ -342,6 +344,7 @@ export class LeadsService {
     const { requestXml: _requestXml, ...safeResult } = result;
     return {
       ...safeResult,
+      requestXml: result.requestXml?.slice(0, 5000),
       rawResponse: result.rawResponse?.slice(0, 2000),
       checkedAt: new Date().toISOString(),
     };

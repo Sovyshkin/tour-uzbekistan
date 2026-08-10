@@ -58,6 +58,18 @@ export class TourDetailDto {
   @ApiProperty({ required: false, nullable: true })
   maxGroupSize!: number | null;
 
+  @ApiProperty({ required: false, nullable: true })
+  minAdultCount!: number | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  maxAdultCount!: number | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  minChildCount!: number | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  maxChildCount!: number | null;
+
   @ApiPropertyOptional()
   priceFrom?: string;
 

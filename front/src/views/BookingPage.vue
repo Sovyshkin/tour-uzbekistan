@@ -2,9 +2,10 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { createBooking, getApiLocale, isB2BAuthenticated } from '@/api';
+import { createBooking, getApiLocale, getTour, isB2BAuthenticated } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateBookingFormFields } from '@/utils/formValidation';
+import { getCountryNameOptions } from '@/utils/countryOptions';
 
 const { t, locale } = useI18n();
 const router = useRouter();
@@ -25,6 +26,16 @@ const redirectToLogin = () => {
 
 const modalStep = ref(null); // null - форма видна, 2,3 - модальные окна
 const minTravelDate = computed(() => new Date().toISOString().slice(0, 10));
+const tourLimits = ref({
+  minAdultCount: null,
+  maxAdultCount: null,
+  minChildCount: null,
+  maxChildCount: null,
+});
+const minAdults = computed(() => tourLimits.value.minAdultCount || 1);
+const maxAdults = computed(() => tourLimits.value.maxAdultCount || 20);
+const minChildren = computed(() => tourLimits.value.minChildCount ?? 0);
+const maxChildren = computed(() => tourLimits.value.maxChildCount ?? 20);
 
 const formData = ref({
   sex: '',
@@ -44,6 +55,14 @@ const formData = ref({
   validUntil: '',
 });
 const formErrors = ref({});
+const sexOptions = ['CHD', 'MR', 'MRS'];
+const documentTypeOptions = [
+  'Заграничный паспорт',
+  'Иной документ',
+  'Паспорт',
+  'ID Карта',
+];
+const nationalityOptions = computed(() => getCountryNameOptions(locale.value));
 
 const clearFieldError = (field) => {
   if (!formErrors.value[field]) {
@@ -61,7 +80,12 @@ const submitForm = async () => {
     return;
   }
 
-  const validationErrors = validateBookingFormFields(formData.value);
+  const validationErrors = validateBookingFormFields(formData.value, {
+    minAdults: minAdults.value,
+    maxAdults: maxAdults.value,
+    minChildren: minChildren.value,
+    maxChildren: maxChildren.value,
+  });
   formErrors.value = validationErrors;
 
   if (Object.keys(validationErrors).length) {
@@ -120,10 +144,29 @@ const openModal = (step) => {
   document.body.style.overflow = 'hidden';
 };
 
+const loadTourLimits = async () => {
+  try {
+    const tour = await getTour(route.params.id, getApiLocale(locale.value));
+    tourLimits.value = {
+      minAdultCount: tour.minAdultCount ?? null,
+      maxAdultCount: tour.maxAdultCount ?? null,
+      minChildCount: tour.minChildCount ?? null,
+      maxChildCount: tour.maxChildCount ?? null,
+    };
+    formData.value.adultCount = minAdults.value;
+    formData.value.childCount = minChildren.value;
+  } catch (error) {
+    notifyError(error.message || t('notifications.loadTourFailed'), t('notifications.tourUnavailable'));
+  }
+};
+
 onMounted(() => {
   if (!isB2BAuthenticated()) {
     redirectToLogin();
+    return;
   }
+
+  loadTourLimits();
 });
 </script>
 
@@ -145,7 +188,12 @@ onMounted(() => {
           <form @submit.prevent="submitForm" class="booking-form">
             <div class="form-group">
               <label>{{ t('openCard.modal_sex') }}</label>
-              <input type="text" v-model="formData.sex" :class="{ 'input-error': formErrors.sex }" @input="clearFieldError('sex')" required />
+              <select v-model="formData.sex" :class="{ 'input-error': formErrors.sex }" @change="clearFieldError('sex')" required>
+                <option value="" disabled>{{ t('openCard.modal_sex') }}</option>
+                <option v-for="option in sexOptions" :key="option" :value="option">
+                  {{ option }}
+                </option>
+              </select>
               <p v-if="formErrors.sex" class="field-error">{{ formErrors.sex }}</p>
             </div>
 
@@ -170,12 +218,12 @@ onMounted(() => {
             <div class="form-row">
               <div class="form-group">
                 <label>{{ t('openCard.modal_adults') }}</label>
-                <input type="number" v-model.number="formData.adultCount" min="1" step="1" :class="{ 'input-error': formErrors.adultCount }" @input="clearFieldError('adultCount')" required />
+                <input type="number" v-model.number="formData.adultCount" :min="minAdults" :max="maxAdults" step="1" :class="{ 'input-error': formErrors.adultCount }" @input="clearFieldError('adultCount')" required />
                 <p v-if="formErrors.adultCount" class="field-error">{{ formErrors.adultCount }}</p>
               </div>
               <div class="form-group">
                 <label>{{ t('openCard.modal_children') }}</label>
-                <input type="number" v-model.number="formData.childCount" min="0" step="1" :class="{ 'input-error': formErrors.childCount }" @input="clearFieldError('childCount')" required />
+                <input type="number" v-model.number="formData.childCount" :min="minChildren" :max="maxChildren" step="1" :class="{ 'input-error': formErrors.childCount }" @input="clearFieldError('childCount')" required />
                 <p v-if="formErrors.childCount" class="field-error">{{ formErrors.childCount }}</p>
               </div>
             </div>
@@ -201,11 +249,27 @@ onMounted(() => {
             <div class="form-row">
               <div class="form-group">
                 <label>{{ t('openCard.modal_doc_type') }}</label>
-                <input type="text" v-model="formData.idCard" />
+                <select v-model="formData.idCard">
+                  <option value="" disabled>{{ t('openCard.modal_doc_type') }}</option>
+                  <option v-for="option in documentTypeOptions" :key="option" :value="option">
+                    {{ option }}
+                  </option>
+                </select>
               </div>
               <div class="form-group">
                 <label>{{ t('openCard.modal_nationality') }}</label>
-                <input type="text" v-model="formData.nationality" />
+                <input
+                  v-model="formData.nationality"
+                  type="text"
+                  list="booking-page-nationality-options"
+                />
+                <datalist id="booking-page-nationality-options">
+                  <option
+                    v-for="country in nationalityOptions"
+                    :key="country"
+                    :value="country"
+                  />
+                </datalist>
               </div>
             </div>
 
@@ -366,7 +430,8 @@ onMounted(() => {
   top: 5px;
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
   padding: 20px 12px 10px 12px;
   border: 1px solid #000;
   border-radius: 15px;
@@ -376,7 +441,8 @@ onMounted(() => {
   width: 100%;
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-group select:focus {
   outline: none;
   border-color: #285aff;
 }

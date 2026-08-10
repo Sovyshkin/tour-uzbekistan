@@ -193,6 +193,30 @@ export class AdminContentUpdateDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  minAdultCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  maxAdultCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  minChildCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  maxChildCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   comfortLevel?: number;
 
   @ApiPropertyOptional()

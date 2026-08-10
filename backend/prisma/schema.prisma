@@ -213,6 +213,10 @@ model Tour {
   durationNights    Int
   minGroupSize      Int?
   maxGroupSize      Int?
+  minAdultCount     Int?
+  maxAdultCount     Int?
+  minChildCount     Int?
+  maxChildCount     Int?
   comfortLevel      Int?
   priceFrom         Decimal?          @db.Decimal(10, 2)
   currency          String?           @default("USD")

@@ -17,6 +17,7 @@ import {
 } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateBookingFormFields, validateContactFormFields } from '@/utils/formValidation';
+import { getCountryNameOptions } from '@/utils/countryOptions';
 const { t, locale } = useI18n();
 const { error: notifyError, success: notifySuccess } = useNotifications();
 
@@ -47,6 +48,10 @@ const tour = ref({
   country: null,
   minGroupSize: null,
   maxGroupSize: null,
+  minAdultCount: null,
+  maxAdultCount: null,
+  minChildCount: null,
+  maxChildCount: null,
   priceFrom: null,
   currency: null,
 });
@@ -74,6 +79,10 @@ const when = ref('');
 const adultCount = ref(2);
 const childCount = ref(0);
 const totalPeople = computed(() => adultCount.value + childCount.value);
+const minAdults = computed(() => tour.value.minAdultCount || 1);
+const maxAdults = computed(() => tour.value.maxAdultCount || 20);
+const minChildren = computed(() => tour.value.minChildCount ?? 0);
+const maxChildren = computed(() => tour.value.maxChildCount ?? 20);
 const duration = ref(7);
 
 const isModalOpen = ref(false);
@@ -124,6 +133,14 @@ const formData = ref({
   validUntil: '',
 });
 const formErrors = ref({});
+const sexOptions = ['CHD', 'MR', 'MRS'];
+const documentTypeOptions = [
+  'Заграничный паспорт',
+  'Иной документ',
+  'Паспорт',
+  'ID Карта',
+];
+const nationalityOptions = computed(() => getCountryNameOptions(locale.value));
 const bookingSubmitting = ref(false);
 const leadForm = ref({
   name: '',
@@ -195,7 +212,12 @@ const submitForm = async () => {
     return;
   }
 
-  const validationErrors = validateBookingFormFields(formData.value);
+  const validationErrors = validateBookingFormFields(formData.value, {
+    minAdults: minAdults.value,
+    maxAdults: maxAdults.value,
+    minChildren: minChildren.value,
+    maxChildren: maxChildren.value,
+  });
   formErrors.value = validationErrors;
 
   if (Object.keys(validationErrors).length) {
@@ -443,9 +465,15 @@ const loadTour = async () => {
       country: data.country,
       minGroupSize: data.minGroupSize || null,
       maxGroupSize: data.maxGroupSize || null,
+      minAdultCount: data.minAdultCount || null,
+      maxAdultCount: data.maxAdultCount || null,
+      minChildCount: data.minChildCount ?? null,
+      maxChildCount: data.maxChildCount ?? null,
       priceFrom: data.priceFrom || null,
       currency: data.currency || null,
     };
+    adultCount.value = minAdults.value;
+    childCount.value = minChildren.value;
     days.value = (data.program || []).map((day, index) => ({
       id: day.id,
       title: day.title,
@@ -536,16 +564,16 @@ onUnmounted(() => {
             v-model="adultCount"
             :placeholder="t('openCard.search_adults')"
             type="counter"
-            :min="1"
-            :max="20"
+            :min="minAdults"
+            :max="maxAdults"
             :unit="t('openCard.search_adults_unit')"
           />
           <CustomSelect
             v-model="childCount"
             :placeholder="t('openCard.search_children')"
             type="counter"
-            :min="0"
-            :max="20"
+            :min="minChildren"
+            :max="maxChildren"
             :unit="t('openCard.search_children_unit')"
           />
           <CustomSelect
@@ -1190,7 +1218,12 @@ onUnmounted(() => {
               <form @submit.prevent="submitForm" class="modal-form">
                 <div class="form-group">
                   <label>{{ t('openCard.modal_sex') }}</label>
-                  <input type="text" v-model="formData.sex" :class="{ 'input-error': formErrors.sex }" @input="clearFieldError('sex')" required />
+                  <select v-model="formData.sex" :class="{ 'input-error': formErrors.sex }" @change="clearFieldError('sex')" required>
+                    <option value="" disabled>{{ t('openCard.modal_sex') }}</option>
+                    <option v-for="option in sexOptions" :key="option" :value="option">
+                      {{ option }}
+                    </option>
+                  </select>
                   <p v-if="formErrors.sex" class="field-error">{{ formErrors.sex }}</p>
                 </div>
 
@@ -1227,12 +1260,12 @@ onUnmounted(() => {
                 <div class="form-row">
                   <div class="form-group">
                     <label>{{ t('openCard.modal_adults') }}</label>
-                    <input type="number" v-model.number="formData.adultCount" min="1" step="1" :class="{ 'input-error': formErrors.adultCount }" @input="clearFieldError('adultCount')" required />
+                    <input type="number" v-model.number="formData.adultCount" :min="minAdults" :max="maxAdults" step="1" :class="{ 'input-error': formErrors.adultCount }" @input="clearFieldError('adultCount')" required />
                     <p v-if="formErrors.adultCount" class="field-error">{{ formErrors.adultCount }}</p>
                   </div>
                   <div class="form-group">
                     <label>{{ t('openCard.modal_children') }}</label>
-                    <input type="number" v-model.number="formData.childCount" min="0" step="1" :class="{ 'input-error': formErrors.childCount }" @input="clearFieldError('childCount')" required />
+                    <input type="number" v-model.number="formData.childCount" :min="minChildren" :max="maxChildren" step="1" :class="{ 'input-error': formErrors.childCount }" @input="clearFieldError('childCount')" required />
                     <p v-if="formErrors.childCount" class="field-error">{{ formErrors.childCount }}</p>
                   </div>
                 </div>
@@ -1246,11 +1279,27 @@ onUnmounted(() => {
                 <div class="form-row">
                   <div class="form-group">
                     <label>{{ t('openCard.modal_doc_type') }}</label>
-                    <input type="text" v-model="formData.idCard" />
+                    <select v-model="formData.idCard">
+                      <option value="" disabled>{{ t('openCard.modal_doc_type') }}</option>
+                      <option v-for="option in documentTypeOptions" :key="option" :value="option">
+                        {{ option }}
+                      </option>
+                    </select>
                   </div>
                   <div class="form-group">
                     <label>{{ t('openCard.modal_nationality') }}</label>
-                    <input type="text" v-model="formData.nationality" />
+                    <input
+                      v-model="formData.nationality"
+                      type="text"
+                      list="booking-nationality-options"
+                    />
+                    <datalist id="booking-nationality-options">
+                      <option
+                        v-for="country in nationalityOptions"
+                        :key="country"
+                        :value="country"
+                      />
+                    </datalist>
                   </div>
                 </div>
 
@@ -1876,7 +1925,8 @@ onUnmounted(() => {
   top: 5px;
 }
 
-.form-group input {
+.form-group input,
+.form-group select {
   padding: 20px 12px 10px 12px;
   border: 1px solid #000;
   border-radius: 15px;
@@ -1898,6 +1948,7 @@ onUnmounted(() => {
 }
 
 .form-group input:focus,
+.form-group select:focus,
 .form-group textarea:focus {
   outline: none;
   border-color: #285aff;

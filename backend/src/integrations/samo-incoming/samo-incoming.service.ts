@@ -7,8 +7,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 type SamoClaimPerson = {
   firstName: string;
   lastName: string;
+  email?: string | null;
+  phone?: string | null;
   sex?: string | null;
   birthDate?: Date | null;
+  nationality?: string | null;
   documentSeries?: string | null;
   documentNumber?: string | null;
   documentIssuedAt?: Date | null;
@@ -787,7 +790,7 @@ export class SamoIncomingService {
   <Tourists>
 ${tourists.map((tourist) => tourist.xml).join('\n')}
   </Tourists>
-  <Payer Name="${this.escapeXml(payload.person.firstName)}" Surname="${this.escapeXml(payload.person.lastName)}" LName="${this.escapeXml(payload.person.lastName)}" Phone="" EMail="" Address="" PassportSerie="${this.escapeXml(payload.person.documentSeries ?? '')}" PassportNo="${this.escapeXml(payload.person.documentNumber ?? '')}"${payerIssueDate} IssuePlace=""/>
+  <Payer Name="${this.escapeXml(`${payload.person.lastName} ${payload.person.firstName}`.trim().toUpperCase())}" Phone="${this.escapeXml(payload.person.phone ?? '')}" EMail="${this.escapeXml(payload.person.email ?? '')}" Address="" PassportSerie="${this.escapeXml(payload.person.documentSeries ?? '')}" PassportNo="${this.escapeXml(payload.person.documentNumber ?? '')}"${payerIssueDate} IssuePlace=""/>
   <Rooms>
     <Room RoomID="0" Hotel="${this.escapeXml(config.hotelCode ?? '')}" Hotel_Name="${this.escapeXml(config.hotelName)}" Date="${this.formatSamoDate(dateBeg)}" Duration="${duration}" Room="${this.escapeXml(config.roomCode)}" Room_Name="${this.escapeXml(config.roomName)}" Htplace="${this.escapeXml(config.htplaceCode)}" Htplace_Name="${this.escapeXml(config.htplaceName)}" Meal="${this.escapeXml(config.mealCode)}" Meal_Name="${this.escapeXml(config.mealName)}" confirm="0" Price="${price}" Currency="${this.escapeXml(currency)}" rcount="1">
       <Members>
@@ -858,6 +861,7 @@ ${notesXml}
           ? `ADULT ${index + 1}`
           : `CHILD ${index - adultCount + 1}`;
       const lastName = isMainPerson ? payload.person.lastName.toUpperCase() : 'TOURIST';
+      const fullName = `${lastName} ${firstName}`.trim();
       const gender = this.mapHuman(payload.person.sex);
       const born = isAdult
         ? payload.person.birthDate ?? new Date(Date.UTC(1970, 0, 1))
@@ -867,7 +871,7 @@ ${notesXml}
 
       return {
         id,
-        xml: `    <Tourist ID="${id}" Name="${this.escapeXml(firstName)}" Surname="${this.escapeXml(lastName)}" LName="${this.escapeXml(lastName)}" Gender="${gender}" BornDate="${this.formatSamoPlainDate(born)}" PassportSerie="${this.escapeXml(passportSerie)}" PassportNo="${this.escapeXml(passportNo)}"/>`,
+        xml: `    <Tourist ID="${id}" Name="${this.escapeXml(fullName)}" Gender="${gender}" BornDate="${this.formatSamoPlainDate(born)}" PassportSerie="${this.escapeXml(passportSerie)}" PassportNo="${this.escapeXml(passportNo)}"/>`,
       };
     });
   }
@@ -992,8 +996,18 @@ ${notesXml}
   }
 
   private mapHuman(sex?: string | null) {
-    const normalized = sex?.toLowerCase();
-    return normalized === 'female' || normalized === 'f' || normalized === 'mrs'
+    const normalized = sex?.trim().toLowerCase();
+    if (normalized === 'chd') {
+      return 'CHD';
+    }
+
+    return normalized === 'female' ||
+      normalized === 'f' ||
+      normalized === 'mrs' ||
+      normalized === 'ms' ||
+      normalized === 'ж' ||
+      normalized === 'жен' ||
+      normalized === 'женщина'
       ? 'MRS'
       : 'MR';
   }

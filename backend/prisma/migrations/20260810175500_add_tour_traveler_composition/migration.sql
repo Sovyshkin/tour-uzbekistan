@@ -1,0 +1,5 @@
+ALTER TABLE "Tour"
+ADD COLUMN "minAdultCount" INTEGER,
+ADD COLUMN "maxAdultCount" INTEGER,
+ADD COLUMN "minChildCount" INTEGER,
+ADD COLUMN "maxChildCount" INTEGER;

@@ -37,6 +37,10 @@ type ContentRecord = {
   durationNights?: number;
   minGroupSize?: number | null;
   maxGroupSize?: number | null;
+  minAdultCount?: number | null;
+  maxAdultCount?: number | null;
+  minChildCount?: number | null;
+  maxChildCount?: number | null;
   comfortLevel?: number | null;
   priceFrom?: string | null;
   currency?: string | null;
@@ -387,6 +391,10 @@ const form = reactive<{
   durationNights?: number;
   minGroupSize?: number;
   maxGroupSize?: number;
+  minAdultCount?: number;
+  maxAdultCount?: number;
+  minChildCount?: number;
+  maxChildCount?: number;
   comfortLevel?: number;
   priceFrom?: number;
   currency?: string;
@@ -414,6 +422,10 @@ const form = reactive<{
   durationNights: undefined,
   minGroupSize: undefined,
   maxGroupSize: undefined,
+  minAdultCount: undefined,
+  maxAdultCount: undefined,
+  minChildCount: undefined,
+  maxChildCount: undefined,
   comfortLevel: undefined,
   priceFrom: undefined,
   currency: undefined,
@@ -488,6 +500,10 @@ const resetForm = () => {
   form.durationNights = undefined;
   form.minGroupSize = undefined;
   form.maxGroupSize = undefined;
+  form.minAdultCount = undefined;
+  form.maxAdultCount = undefined;
+  form.minChildCount = undefined;
+  form.maxChildCount = undefined;
   form.comfortLevel = undefined;
   form.priceFrom = undefined;
   form.currency = undefined;
@@ -1400,6 +1416,10 @@ const openEditor = async (record: ContentRecord) => {
   form.durationNights = record.durationNights;
   form.minGroupSize = record.minGroupSize ?? undefined;
   form.maxGroupSize = record.maxGroupSize ?? undefined;
+  form.minAdultCount = record.minAdultCount ?? record.minGroupSize ?? undefined;
+  form.maxAdultCount = record.maxAdultCount ?? record.maxGroupSize ?? undefined;
+  form.minChildCount = record.minChildCount ?? 0;
+  form.maxChildCount = record.maxChildCount ?? 0;
   form.comfortLevel = record.comfortLevel ?? undefined;
   form.priceFrom = record.priceFrom ? Number(record.priceFrom) : undefined;
   form.currency = record.currency ?? undefined;
@@ -1489,6 +1509,10 @@ const openCreate = async () => {
       form.durationNights = 0;
       form.minGroupSize = 1;
       form.maxGroupSize = 2;
+      form.minAdultCount = 1;
+      form.maxAdultCount = 2;
+      form.minChildCount = 0;
+      form.maxChildCount = 0;
       form.comfortLevel = 4;
       form.priceFrom = undefined;
       form.currency = 'USD';
@@ -1552,8 +1576,12 @@ const saveContent = async () => {
       payload.countryId = form.countryId;
       payload.durationDays = form.durationDays;
       payload.durationNights = form.durationNights;
-      payload.minGroupSize = form.minGroupSize;
-      payload.maxGroupSize = form.maxGroupSize;
+      payload.minGroupSize = (form.minAdultCount ?? 0) + (form.minChildCount ?? 0);
+      payload.maxGroupSize = (form.maxAdultCount ?? 0) + (form.maxChildCount ?? 0);
+      payload.minAdultCount = form.minAdultCount;
+      payload.maxAdultCount = form.maxAdultCount;
+      payload.minChildCount = form.minChildCount;
+      payload.maxChildCount = form.maxChildCount;
       payload.comfortLevel = form.comfortLevel;
       payload.priceFrom = form.priceFrom;
       payload.currency = form.currency;
@@ -2200,12 +2228,22 @@ watch(
               <el-input-number v-model="form.durationNights" :min="0" />
             </el-form-item>
 
-            <el-form-item :label="t('content.minTourists')">
-              <el-input-number v-model="form.minGroupSize" :min="1" />
+            <el-divider class="form-grid__divider">{{ t('content.travelersSettings') }}</el-divider>
+
+            <el-form-item :label="t('content.minAdults')">
+              <el-input-number v-model="form.minAdultCount" :min="1" />
             </el-form-item>
 
-            <el-form-item :label="t('content.maxTourists')">
-              <el-input-number v-model="form.maxGroupSize" :min="1" />
+            <el-form-item :label="t('content.maxAdults')">
+              <el-input-number v-model="form.maxAdultCount" :min="1" />
+            </el-form-item>
+
+            <el-form-item :label="t('content.minChildren')">
+              <el-input-number v-model="form.minChildCount" :min="0" />
+            </el-form-item>
+
+            <el-form-item :label="t('content.maxChildren')">
+              <el-input-number v-model="form.maxChildCount" :min="0" />
             </el-form-item>
 
             <el-form-item :label="t('content.comfort')">

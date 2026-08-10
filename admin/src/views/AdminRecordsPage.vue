@@ -977,6 +977,10 @@ watch(
                     <dd>{{ displayValue(item.value) }}</dd>
                   </div>
                 </dl>
+                <div v-if="readIncoming(row)?.requestXml" class="detail-message">
+                  <span>{{ t('records.incomingRequestXml') }}</span>
+                  <p>{{ readIncoming(row)?.requestXml }}</p>
+                </div>
                 <div v-if="readIncoming(row)?.rawResponse" class="detail-message">
                   <span>{{ t('records.incomingRawResponse') }}</span>
                   <p>{{ readIncoming(row)?.rawResponse }}</p>

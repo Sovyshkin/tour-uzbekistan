@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -92,6 +93,7 @@ export class BookingsService {
     const adultCount = dto.adultCount ?? Math.max(1, dto.groupSize ?? 1);
     const childCount = dto.childCount ?? 0;
     const groupSize = adultCount + childCount;
+    this.validateTravelerCounts(adultCount, childCount, tour);
 
     const booking = await this.prisma.booking.create({
       data: {
@@ -393,8 +395,11 @@ export class BookingsService {
       person: {
         firstName: booking.firstName,
         lastName: booking.lastName,
+        email: booking.email,
+        phone: booking.phone,
         sex: booking.sex,
         birthDate: booking.birthDate,
+        nationality: booking.nationality,
         documentSeries: booking.documentSeries,
         documentNumber: booking.documentNumber,
         documentIssuedAt: booking.documentIssuedAt,
@@ -412,10 +417,38 @@ export class BookingsService {
     };
   }
 
+  private validateTravelerCounts(
+    adultCount: number,
+    childCount: number,
+    tour: {
+      minAdultCount: number | null;
+      maxAdultCount: number | null;
+      minChildCount: number | null;
+      maxChildCount: number | null;
+    },
+  ) {
+    if (tour.minAdultCount !== null && adultCount < tour.minAdultCount) {
+      throw new BadRequestException(`Adults cannot be less than ${tour.minAdultCount}`);
+    }
+
+    if (tour.maxAdultCount !== null && adultCount > tour.maxAdultCount) {
+      throw new BadRequestException(`Adults cannot be more than ${tour.maxAdultCount}`);
+    }
+
+    if (tour.minChildCount !== null && childCount < tour.minChildCount) {
+      throw new BadRequestException(`Children cannot be less than ${tour.minChildCount}`);
+    }
+
+    if (tour.maxChildCount !== null && childCount > tour.maxChildCount) {
+      throw new BadRequestException(`Children cannot be more than ${tour.maxChildCount}`);
+    }
+  }
+
   private toSafeSamoMetadata(result: SamoIncomingResult) {
     const { requestXml: _requestXml, ...safeResult } = result;
     return {
       ...safeResult,
+      requestXml: result.requestXml?.slice(0, 5000),
       rawResponse: result.rawResponse?.slice(0, 2000),
       checkedAt: new Date().toISOString(),
     };
