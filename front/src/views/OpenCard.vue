@@ -71,7 +71,9 @@ const breadcrumbs = computed(() => {
 // ─── Поисковая панель (как на странице туров) ───
 const where = ref(null);
 const when = ref('');
-const people = ref(2);
+const adultCount = ref(2);
+const childCount = ref(0);
+const totalPeople = computed(() => adultCount.value + childCount.value);
 const duration = ref(7);
 
 const isModalOpen = ref(false);
@@ -160,6 +162,8 @@ const openModal = () => {
   }
 
   formErrors.value = {};
+  formData.value.adultCount = adultCount.value;
+  formData.value.childCount = childCount.value;
   isModalOpen.value = true;
   modalStep.value = 1;
   document.body.style.overflow = 'hidden';
@@ -428,10 +432,10 @@ const loadTour = async () => {
       tourists:
         data.minGroupSize && data.maxGroupSize
           ? `${data.minGroupSize}-${data.maxGroupSize}`
-          : data.minGroupSize
-            ? `${data.minGroupSize}+`
-            : people.value
-              ? `${people.value}`
+            : data.minGroupSize
+              ? `${data.minGroupSize}+`
+            : totalPeople.value
+              ? `${totalPeople.value}`
             : '',
       hotels: data.hotelsInfo || '',
       comfort: data.comfortLevel ? `${data.comfortLevel}` : '',
@@ -529,12 +533,20 @@ onUnmounted(() => {
             type="calendar"
           />
           <CustomSelect
-            v-model="people"
-            :placeholder="t('openCard.search_people')"
+            v-model="adultCount"
+            :placeholder="t('openCard.search_adults')"
             type="counter"
             :min="1"
             :max="20"
-            :unit="t('openCard.search_people_unit')"
+            :unit="t('openCard.search_adults_unit')"
+          />
+          <CustomSelect
+            v-model="childCount"
+            :placeholder="t('openCard.search_children')"
+            type="counter"
+            :min="0"
+            :max="20"
+            :unit="t('openCard.search_children_unit')"
           />
           <CustomSelect
             v-model="duration"
@@ -821,7 +833,7 @@ onUnmounted(() => {
                   class="w-full flex items-center justify-between text-left cursor-pointer"
                 >
                   <h2
-                    class="text-[18px] sm:text-[22px] lg:text-[26px] font-medium"
+                    class="text-[16px] sm:text-[20px] lg:text-[22px] font-medium"
                   >
                     {{ day.title }}
                   </h2>

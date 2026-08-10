@@ -153,7 +153,8 @@ const breadcrumbs = computed(() => [
 const filters = ref({
   where: '',
   when: '',
-  people: '',
+  adultCount: 2,
+  childCount: 0,
   duration: '',
 });
 
@@ -275,12 +276,22 @@ onMounted(() => {
         />
         <div class="flex gap-2 sm:gap-3">
           <CustomSelect
-            v-model="filters.people"
-            :placeholder="t('countryPage.search_people')"
+            v-model="filters.adultCount"
+            :placeholder="t('countryPage.search_adults')"
             type="counter"
             :min="1"
             :max="20"
-            :unit="t('countryPage.search_people_unit')"
+            :unit="t('countryPage.search_adults_unit')"
+            class="flex-1"
+            :border="false"
+          />
+          <CustomSelect
+            v-model="filters.childCount"
+            :placeholder="t('countryPage.search_children')"
+            type="counter"
+            :min="0"
+            :max="20"
+            :unit="t('countryPage.search_children_unit')"
             class="flex-1"
             :border="false"
           />
@@ -318,12 +329,20 @@ onMounted(() => {
           type="calendar"
         />
         <CustomSelect
-          v-model="filters.people"
-          :placeholder="t('countryPage.search_people_full')"
+          v-model="filters.adultCount"
+          :placeholder="t('countryPage.search_adults')"
           type="counter"
           :min="1"
           :max="20"
-          :unit="t('countryPage.search_people_unit')"
+          :unit="t('countryPage.search_adults_unit')"
+        />
+        <CustomSelect
+          v-model="filters.childCount"
+          :placeholder="t('countryPage.search_children')"
+          type="counter"
+          :min="0"
+          :max="20"
+          :unit="t('countryPage.search_children_unit')"
         />
         <CustomSelect
           v-model="filters.duration"

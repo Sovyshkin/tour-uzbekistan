@@ -31,7 +31,8 @@ const closeMobileFilter = () => {
 // ─── Поисковые значения ───
 const where = ref(null);
 const when = ref('');
-const people = ref(2);
+const adultCount = ref(2);
+const childCount = ref(0);
 const duration = ref(7);
 const searchText = ref('');
 const maxPrice = ref(null);
@@ -346,12 +347,22 @@ onUnmounted(() => {
             :border="false"
           />
           <CustomSelect
-            v-model="people"
-            :placeholder="t('toursPage.search_people')"
+            v-model="adultCount"
+            :placeholder="t('toursPage.search_adults')"
             type="counter"
             :min="1"
             :max="20"
-            :unit="t('toursPage.search_people_unit')"
+            :unit="t('toursPage.search_adults_unit')"
+            class="flex-1"
+            :border="false"
+          />
+          <CustomSelect
+            v-model="childCount"
+            :placeholder="t('toursPage.search_children')"
+            type="counter"
+            :min="0"
+            :max="20"
+            :unit="t('toursPage.search_children_unit')"
             class="flex-1"
             :border="false"
           />
@@ -387,12 +398,20 @@ onUnmounted(() => {
             type="calendar"
           />
           <CustomSelect
-            v-model="people"
-            :placeholder="t('toursPage.search_people_full')"
+            v-model="adultCount"
+            :placeholder="t('toursPage.search_adults')"
             type="counter"
             :min="1"
             :max="20"
-            :unit="t('toursPage.search_people_unit')"
+            :unit="t('toursPage.search_adults_unit')"
+          />
+          <CustomSelect
+            v-model="childCount"
+            :placeholder="t('toursPage.search_children')"
+            type="counter"
+            :min="0"
+            :max="20"
+            :unit="t('toursPage.search_children_unit')"
           />
           <CustomSelect
             v-model="duration"
