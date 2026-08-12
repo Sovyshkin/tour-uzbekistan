@@ -52,6 +52,7 @@ const tour = ref({
   maxAdultCount: null,
   minChildCount: null,
   maxChildCount: null,
+  incomingPlacements: [],
   priceFrom: null,
   currency: null,
 });
@@ -83,6 +84,36 @@ const minAdults = computed(() => tour.value.minAdultCount || 1);
 const maxAdults = computed(() => tour.value.maxAdultCount || 20);
 const minChildren = computed(() => tour.value.minChildCount ?? 0);
 const maxChildren = computed(() => tour.value.maxChildCount ?? 20);
+const hasIncomingPlacementForSelectedTravelers = computed(() => {
+  const placements = Array.isArray(tour.value.incomingPlacements)
+    ? tour.value.incomingPlacements
+    : [];
+
+  if (!isB2BUser.value) {
+    return false;
+  }
+
+  return placements.some(
+    (placement) =>
+      Number(placement.adultCount) === Number(adultCount.value) &&
+      Number(placement.childCount) === Number(childCount.value),
+  );
+});
+const hasIncomingPlacementForBookingForm = computed(() => {
+  const placements = Array.isArray(tour.value.incomingPlacements)
+    ? tour.value.incomingPlacements
+    : [];
+
+  if (!isB2BUser.value) {
+    return false;
+  }
+
+  return placements.some(
+    (placement) =>
+      Number(placement.adultCount) === Number(formData.value.adultCount) &&
+      Number(placement.childCount) === Number(formData.value.childCount),
+  );
+});
 const duration = ref(7);
 
 const isModalOpen = ref(false);
@@ -405,7 +436,7 @@ const notIncluded = ref([]);
 
 // ─── Другие даты ───
 const otherDates = computed(() =>
-  isB2BUser.value && tour.value.priceFrom
+  isB2BUser.value && tour.value.priceFrom && hasIncomingPlacementForSelectedTravelers.value
     ? [
         {
           date: '',
@@ -493,6 +524,7 @@ const loadTour = async () => {
       maxAdultCount: data.maxAdultCount || null,
       minChildCount: data.minChildCount ?? null,
       maxChildCount: data.maxChildCount ?? null,
+      incomingPlacements: data.incomingPlacements || [],
       priceFrom: data.priceFrom || null,
       currency: data.currency || null,
     };
@@ -1294,6 +1326,10 @@ onUnmounted(() => {
                   </div>
                 </div>
 
+                <p v-if="isB2BUser && !hasIncomingPlacementForBookingForm" class="manual-booking-note">
+                  Для выбранного состава туристов стоимость и подтверждение будут обработаны менеджером вручную.
+                </p>
+
                 <div class="form-group">
                   <label>{{ t('openCard.modal_email') }}</label>
                   <input type="email" v-model="formData.email" :class="{ 'input-error': formErrors.email }" @input="clearFieldError('email')" required />
@@ -2029,6 +2065,17 @@ onUnmounted(() => {
   margin: 2px 0 0 4px;
   font-size: 12px;
   color: #cc008f;
+}
+
+.manual-booking-note {
+  margin: -4px 0 0;
+  padding: 11px 14px;
+  border: 1px solid #ffe0a6;
+  border-radius: 12px;
+  background: #fff8ea;
+  color: #9a6413;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .modal-submit {

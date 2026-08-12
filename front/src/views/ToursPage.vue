@@ -191,22 +191,33 @@ const loadTours = async () => {
       search: searchText.value || undefined,
     });
 
-    const nextTours = (data.items || []).map((tour) => ({
-      id: tour.id,
-      slug: tour.slug,
-      title: tour.title,
-      route: tour.route,
-      image: resolveAssetUrl(tour.mainImage || tour.heroImage || tour.images?.[0]?.imageUrl) || '/assets/icons/card1.webp',
-      imageSettings: tour.mainImageSettings,
-      duration: {
-        day: tour.durationDays,
-        night: tour.durationNights,
-      },
-      country: tour.country,
-      comfort: tour.comfortLevel,
-      priceFrom: tour.priceFrom || null,
-      currency: tour.currency || null,
-    }));
+    const nextTours = (data.items || []).map((tour) => {
+      const hasLinkedPlacement = Array.isArray(tour.incomingPlacements)
+        ? tour.incomingPlacements.some(
+            (placement) =>
+              Number(placement.adultCount) === Number(adultCount.value) &&
+              Number(placement.childCount) === Number(childCount.value),
+          )
+        : false;
+
+      return {
+        id: tour.id,
+        slug: tour.slug,
+        title: tour.title,
+        route: tour.route,
+        image: resolveAssetUrl(tour.mainImage || tour.heroImage || tour.images?.[0]?.imageUrl) || '/assets/icons/card1.webp',
+        imageSettings: tour.mainImageSettings,
+        duration: {
+          day: tour.durationDays,
+          night: tour.durationNights,
+        },
+        country: tour.country,
+        comfort: tour.comfortLevel,
+        priceFrom: hasLinkedPlacement ? tour.priceFrom || null : null,
+        priceOnRequest: isPriceFilterAvailable.value && !hasLinkedPlacement,
+        currency: tour.currency || null,
+      };
+    });
 
     tours.value = nextTours;
     if (!isPriceFilterAvailable.value && nextTours.some((tour) => tour.priceFrom)) {

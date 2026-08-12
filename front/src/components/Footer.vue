@@ -3,9 +3,19 @@
     <!-- Верхняя часть -->
     <div class="mb-8 lg:mb-[25px]">
       <div
-        class="flex items-center justify-center gap-[10px] bg-[#F9FAFB] w-[100%] h-[70px]"
+        class="footer-logo-strip flex items-center justify-center gap-[10px] bg-[#F9FAFB] w-[100%] h-[70px]"
       >
+        <a
+          v-for="(logoLink, logoIndex) in footerLogoLinks"
+          :key="logoLink"
+          :href="logoLink"
+          class="footer-logo-link"
+          target="_blank"
+          rel="noopener noreferrer"
+          :aria-label="footerLogoLabels[logoIndex]"
+        >
         <svg
+          v-if="logoIndex === 0"
           xmlns="http://www.w3.org/2000/svg"
           width="172"
           height="30"
@@ -74,6 +84,7 @@
           </defs>
         </svg>
         <svg
+          v-else-if="logoIndex === 1"
           xmlns="http://www.w3.org/2000/svg"
           width="172"
           height="30"
@@ -148,6 +159,7 @@
           </defs>
         </svg>
         <svg
+          v-else-if="logoIndex === 2"
           xmlns="http://www.w3.org/2000/svg"
           width="172"
           height="30"
@@ -261,6 +273,7 @@
           </g>
         </svg>
         <svg
+          v-else-if="logoIndex === 3"
           xmlns="http://www.w3.org/2000/svg"
           width="172"
           height="30"
@@ -277,6 +290,7 @@
           />
         </svg>
         <svg
+          v-else-if="logoIndex === 4"
           xmlns="http://www.w3.org/2000/svg"
           width="172"
           height="30"
@@ -305,6 +319,7 @@
           />
         </svg>
         <svg
+          v-else
           xmlns="http://www.w3.org/2000/svg"
           width="172"
           height="17"
@@ -320,6 +335,7 @@
             fill="#919EAB"
           />
         </svg>
+        </a>
       </div>
     </div>
 
@@ -423,6 +439,22 @@ const { t, locale } = useI18n();
 const currentYear = computed(() => new Date().getFullYear());
 const footerCountries = ref([]);
 const footerSettings = ref({});
+const footerLogoLinks = [
+  'https://centrum-air.com/',
+  'https://centrum-logistics.com/',
+  'https://centrum-holding.com/',
+  'https://myfreighter.uz/en',
+  'https://uzlogistic.uz/',
+  'https://www.centrum-holidays.com/',
+];
+const footerLogoLabels = [
+  'Centrum Air',
+  'Centrum Logistics',
+  'Centrum Holding',
+  'My Freighter',
+  'UZ Logistic',
+  'Centrum Holidays',
+];
 
 const cmsValue = (key, fallback) => {
   const value = t(key);
@@ -581,9 +613,60 @@ li {
   background-color: #f3f4f6;
 }
 
+.footer-logo-strip {
+  overflow: hidden;
+}
+
+.footer-logo-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transition: opacity 0.2s ease;
+}
+
+.footer-logo-link:hover {
+  opacity: 0.72;
+}
+
+.footer-logo-strip svg {
+  flex: 0 0 auto;
+}
+
 @media (max-width: 1023px) {
   li {
     font-size: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .footer-logo-strip {
+    justify-content: flex-start;
+    gap: 22px;
+    height: 92px;
+    padding: 0 24px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .footer-logo-link {
+    width: 132px;
+    scroll-snap-align: center;
+  }
+
+  .footer-logo-strip svg {
+    width: 100%;
+    height: auto;
+    max-height: 34px;
+  }
+
+  .footer-logo-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .footer-logo-strip {
+    scrollbar-width: none;
   }
 }
 </style>

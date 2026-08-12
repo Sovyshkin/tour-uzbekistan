@@ -20,7 +20,7 @@ export class ToursService {
     const canViewPrices = await this.canViewPartnerPrices(viewer);
     const where = this.buildWhere(query, locale, canViewPrices);
 
-    const [total, tours] = await Promise.all([
+    const [total, tours, linkedPlacements] = await Promise.all([
       this.prisma.tour.count({ where }),
       this.prisma.tour.findMany({
         where,
@@ -29,10 +29,13 @@ export class ToursService {
         take: pageSize,
         include: this.buildInclude(),
       }),
+      this.getLinkedIncomingPlacements(canViewPrices),
     ]);
 
     return {
-      items: tours.map((tour) => this.mapTourSummary(tour, canViewPrices, locale)),
+      items: tours.map((tour) =>
+        this.mapTourSummary(tour, canViewPrices, locale, linkedPlacements),
+      ),
       meta: {
         page,
         pageSize,
@@ -60,7 +63,9 @@ export class ToursService {
       return null;
     }
 
-    return this.mapTourDetail(tour, canViewPrices, locale);
+    const linkedPlacements = await this.getLinkedIncomingPlacements(canViewPrices);
+
+    return this.mapTourDetail(tour, canViewPrices, locale, linkedPlacements);
   }
 
   private buildWhere(
@@ -188,6 +193,7 @@ export class ToursService {
     tour: Prisma.TourGetPayload<{ include: ReturnType<ToursService['buildInclude']> }>,
     isAuthorized: boolean,
     locale: Locale,
+    linkedPlacements: Array<{ adultCount: number; childCount: number; label: string }>,
   ) {
     const translation = pickTranslation(tour.translations, locale);
     const countryTranslation = pickTranslation(tour.country.translations, locale);
@@ -239,6 +245,7 @@ export class ToursService {
     if (isAuthorized && tour.priceFrom) {
       payload.priceFrom = tour.priceFrom.toString();
       payload.currency = tour.currency ?? null;
+      payload.incomingPlacements = linkedPlacements;
     }
 
     return payload;
@@ -248,6 +255,7 @@ export class ToursService {
     tour: Prisma.TourGetPayload<{ include: ReturnType<ToursService['buildInclude']> }>,
     isAuthorized: boolean,
     locale: Locale,
+    linkedPlacements: Array<{ adultCount: number; childCount: number; label: string }>,
   ) {
     const translation = pickTranslation(tour.translations, locale);
     const countryTranslation = pickTranslation(tour.country.translations, locale);
@@ -311,6 +319,7 @@ export class ToursService {
     if (isAuthorized && tour.priceFrom) {
       payload.priceFrom = tour.priceFrom.toString();
       payload.currency = tour.currency ?? null;
+      payload.incomingPlacements = linkedPlacements;
     }
 
     return payload;
@@ -342,5 +351,38 @@ export class ToursService {
     });
 
     return user?.status === UserStatus.ACTIVE && user.partner?.isActive === true;
+  }
+
+  private async getLinkedIncomingPlacements(isAuthorized: boolean) {
+    if (!isAuthorized) {
+      return [];
+    }
+
+    const placements = await this.prisma.incomingMapping.findMany({
+      where: {
+        type: 'placement',
+        isActive: true,
+        adultCount: { not: null },
+        childCount: { not: null },
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        adultCount: true,
+        childCount: true,
+        samoName: true,
+        cmsLabel: true,
+      },
+    });
+
+    return placements
+      .filter(
+        (placement): placement is typeof placement & { adultCount: number; childCount: number } =>
+          placement.adultCount !== null && placement.childCount !== null,
+      )
+      .map((placement) => ({
+        adultCount: placement.adultCount,
+        childCount: placement.childCount,
+        label: placement.samoName || placement.cmsLabel,
+      }));
   }
 }

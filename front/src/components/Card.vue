@@ -95,11 +95,17 @@ defineProps({
       </div>
 
       <div
-        v-if="tour.priceFrom"
+        v-if="tour.priceFrom || tour.priceOnRequest"
         class="description px-4 py-3 lg:px-[15px] lg:py-[10px] border-b border-b-[#d2d2d4]"
       >
-        <p class="text-[14px] sm:text-[16px] font-medium text-[#FF00E7]">
+        <p
+          v-if="tour.priceFrom"
+          class="text-[14px] sm:text-[16px] font-medium text-[#FF00E7]"
+        >
           {{ tour.priceFrom }}{{ tour.currency ? ` ${tour.currency}` : '' }}
+        </p>
+        <p v-else class="text-[13px] sm:text-[14px] font-medium text-[#9a6413]">
+          Стоимость по запросу
         </p>
       </div>
 
@@ -114,7 +120,7 @@ defineProps({
             })
           "
         >
-          {{ tour.priceFrom ? t('openCard.buy') : t('openCard.more_details') }}
+          {{ tour.priceFrom || tour.priceOnRequest ? t('openCard.buy') : t('openCard.more_details') }}
         </button>
       </div>
     </div>

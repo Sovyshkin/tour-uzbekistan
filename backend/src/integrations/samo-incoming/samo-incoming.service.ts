@@ -136,6 +136,18 @@ type SamoHotelPricePacket = {
   raw: Record<string, string>;
 };
 
+type IncomingMappingRecord = {
+  samoCode: string;
+  samoName: string;
+} | null;
+
+type AdminIncomingMappings = {
+  roomMapping: IncomingMappingRecord;
+  placementMapping: IncomingMappingRecord;
+  adults: number;
+  children: number;
+};
+
 @Injectable()
 export class SamoIncomingService {
   private readonly logger = new Logger(SamoIncomingService.name);
@@ -175,12 +187,30 @@ export class SamoIncomingService {
     let requestXml = '';
 
     try {
-      config = await this.applyAdminMappings(config, payload);
+      const mappings = await this.resolveAdminMappings(config, payload);
+      if (!mappings.placementMapping) {
+        return this.buildManualModeResult({
+          config,
+          source,
+          claimNumber,
+          message: `Incoming placement is not linked for ${mappings.adults} adult(s) and ${mappings.children} child(ren). Manual manager confirmation is required.`,
+        });
+      }
+
+      config = this.applyAdminMappings(config, mappings);
       target = this.buildTargetMetadata(config);
       const partnerToken = await this.getPartnerToken(config);
       const pricePacket = await this.resolveHotelPricePacket(config, partnerToken, payload);
+      if (!pricePacket) {
+        return this.buildManualModeResult({
+          config,
+          source,
+          claimNumber,
+          message: `Incoming price packet was not found for hotel ${config.hotelCode}, room ${config.roomName}, placement ${config.htplaceName}. Manual manager confirmation is required.`,
+        });
+      }
+
       config = this.applyHotelPricePacket(config, pricePacket);
-      config = await this.applyAdminMappings(config, payload);
       target = this.buildTargetMetadata(config);
       const initXml = await this.initReservation(config, payload, partnerToken);
       requestXml = this.buildReservationXml(config, payload, initXml);
@@ -208,6 +238,28 @@ export class SamoIncomingService {
         target,
       };
     }
+  }
+
+  private buildManualModeResult({
+    config,
+    source,
+    claimNumber,
+    message,
+  }: {
+    config: SamoIncomingConfig;
+    source: SamoIncomingSourceMetadata;
+    claimNumber: number;
+    message: string;
+  }): SamoIncomingResult {
+    return {
+      enabled: true,
+      sent: false,
+      skippedReason: message,
+      claimNumber,
+      message,
+      source,
+      target: this.buildTargetMetadata(config),
+    };
   }
 
   private getConfig(payload?: SamoClaimPayload): SamoIncomingConfig {
@@ -272,10 +324,10 @@ export class SamoIncomingService {
     };
   }
 
-  private async applyAdminMappings(
+  private async resolveAdminMappings(
     config: SamoIncomingConfig,
     payload: SamoClaimPayload,
-  ): Promise<SamoIncomingConfig> {
+  ): Promise<AdminIncomingMappings> {
     const adults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
     const children = Math.max(0, payload.childCount ?? 0);
     const [roomMapping, placementMapping] = await Promise.all([
@@ -284,11 +336,23 @@ export class SamoIncomingService {
     ]);
 
     return {
+      roomMapping,
+      placementMapping,
+      adults,
+      children,
+    };
+  }
+
+  private applyAdminMappings(
+    config: SamoIncomingConfig,
+    mappings: AdminIncomingMappings,
+  ): SamoIncomingConfig {
+    return {
       ...config,
-      roomCode: roomMapping?.samoCode ?? config.roomCode,
-      roomName: roomMapping?.samoName ?? config.roomName,
-      htplaceCode: placementMapping?.samoCode ?? config.htplaceCode,
-      htplaceName: placementMapping?.samoName ?? config.htplaceName,
+      roomCode: mappings.roomMapping?.samoCode ?? config.roomCode,
+      roomName: mappings.roomMapping?.samoName ?? config.roomName,
+      htplaceCode: mappings.placementMapping?.samoCode ?? config.htplaceCode,
+      htplaceName: mappings.placementMapping?.samoName ?? config.htplaceName,
     };
   }
 
@@ -504,7 +568,7 @@ export class SamoIncomingService {
         return null;
       }
 
-      return this.pickMinimalHotelPricePacket(this.parseXmlItems(raw), payload);
+      return this.pickMinimalHotelPricePacket(this.parseXmlItems(raw), payload, config);
     } finally {
       clearTimeout(timeout);
     }
@@ -521,13 +585,17 @@ export class SamoIncomingService {
     return {
       ...config,
       roomCode: packet.roomCode,
-      htplaceCode: packet.htplaceMatchesOccupancy ? packet.htplaceCode : config.htplaceCode,
+      htplaceCode: packet.htplaceCode,
       mealCode: packet.mealCode,
       nights: packet.nights,
     };
   }
 
-  private pickMinimalHotelPricePacket(items: Record<string, string>[], payload: SamoClaimPayload) {
+  private pickMinimalHotelPricePacket(
+    items: Record<string, string>[],
+    payload: SamoClaimPayload,
+    config: SamoIncomingConfig,
+  ) {
     const expectedAdults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
     const expectedChildren = Math.max(0, payload.childCount ?? 0);
     const prices = items
@@ -560,8 +628,11 @@ export class SamoIncomingService {
       })
       .filter((item): item is SamoHotelPricePacket => Boolean(item));
 
-    const matchingPrices = prices.filter((item) => item.htplaceMatchesOccupancy);
-    return (matchingPrices.length ? matchingPrices : prices).sort((a, b) => a.price - b.price)[0] ?? null;
+    return prices
+      .filter((item) => item.htplaceMatchesOccupancy)
+      .filter((item) => item.htplaceCode === config.htplaceCode)
+      .filter((item) => item.roomCode === config.roomCode)
+      .sort((a, b) => a.price - b.price)[0] ?? null;
   }
 
   private matchesHtplaceOccupancy(item: Record<string, string>, adults: number, children: number) {

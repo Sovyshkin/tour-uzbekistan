@@ -395,7 +395,7 @@ onBeforeUnmount(() => {
                 @click="changeLanguage(lang.code)"
                 class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex justify-between"
               >
-                {{ $t(`languages.${lang.code}`) }}
+                {{ lang.label }}
                 <span v-if="locale === lang.code" class="text-green-600"
                   >✓</span
                 >
@@ -495,7 +495,7 @@ onBeforeUnmount(() => {
                 @click="changeLanguage(lang.code)"
                 class="text-sm py-2 px-2 hover:bg-gray-50 rounded flex justify-between items-center"
               >
-                {{ $t(`languages.${lang.code}`) }}
+                {{ lang.label }}
                 <span v-if="locale === lang.code" class="text-green-600 text-xs"
                   >✓</span
                 >

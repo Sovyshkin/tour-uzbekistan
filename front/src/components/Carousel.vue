@@ -413,8 +413,43 @@ watch(
 .next { right: 90px; }
 
 @media (max-width: 768px) {
-  .carousel-btn { 
-    display: none; 
+  .carousel-wrapper {
+    padding-inline: 54px;
+    border-radius: 0;
+  }
+
+  .carousel-btn {
+    display: flex;
+    width: 56px;
+    height: 56px;
+    top: 48%;
+    border: 2px solid #111;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  }
+
+  .carousel-btn svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .prev {
+    left: 10px;
+  }
+
+  .next {
+    right: 10px;
+  }
+
+  .carousel-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.94);
+    color: #111;
+    border-color: #111;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  }
+
+  .carousel-btn:active {
+    transform: translateY(-50%) scale(0.94);
   }
 }
 </style>
