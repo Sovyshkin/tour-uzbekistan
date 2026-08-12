@@ -63,6 +63,15 @@ const documentTypeOptions = [
   'ID Карта',
 ];
 const nationalityOptions = computed(() => getCountryNameOptions(locale.value));
+const nationalityDropdownOpen = ref(false);
+const filteredNationalityOptions = computed(() => {
+  const query = formData.value.nationality.trim().toLowerCase();
+  const options = query
+    ? nationalityOptions.value.filter((country) => country.toLowerCase().includes(query))
+    : nationalityOptions.value;
+
+  return options.slice(0, 12);
+});
 
 const clearFieldError = (field) => {
   if (!formErrors.value[field]) {
@@ -72,6 +81,21 @@ const clearFieldError = (field) => {
   const nextErrors = { ...formErrors.value };
   delete nextErrors[field];
   formErrors.value = nextErrors;
+};
+
+const openNationalityDropdown = () => {
+  nationalityDropdownOpen.value = true;
+};
+
+const closeNationalityDropdown = () => {
+  window.setTimeout(() => {
+    nationalityDropdownOpen.value = false;
+  }, 120);
+};
+
+const selectNationality = (country) => {
+  formData.value.nationality = country;
+  nationalityDropdownOpen.value = false;
 };
 
 const submitForm = async () => {
@@ -261,15 +285,25 @@ onMounted(() => {
                 <input
                   v-model="formData.nationality"
                   type="text"
-                  list="booking-page-nationality-options"
+                  autocomplete="off"
+                  @focus="openNationalityDropdown"
+                  @input="openNationalityDropdown"
+                  @blur="closeNationalityDropdown"
                 />
-                <datalist id="booking-page-nationality-options">
-                  <option
-                    v-for="country in nationalityOptions"
+                <div
+                  v-if="nationalityDropdownOpen"
+                  class="nationality-dropdown"
+                >
+                  <button
+                    v-for="country in filteredNationalityOptions"
                     :key="country"
-                    :value="country"
-                  />
-                </datalist>
+                    type="button"
+                    class="nationality-option"
+                    @mousedown.prevent="selectNationality(country)"
+                  >
+                    {{ country }}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -445,6 +479,38 @@ onMounted(() => {
 .form-group select:focus {
   outline: none;
   border-color: #285aff;
+}
+
+.nationality-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid #d8dde8;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 45px rgba(10, 17, 31, 0.16);
+}
+
+.nationality-option {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #111827;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nationality-option:hover {
+  background: #f0f4ff;
+  color: #285aff;
 }
 
 .form-group .input-error {
