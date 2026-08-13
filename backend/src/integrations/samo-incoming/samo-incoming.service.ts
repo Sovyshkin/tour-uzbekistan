@@ -962,49 +962,37 @@ export class SamoIncomingService {
     const adults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
     const children = Math.max(0, payload.childCount ?? 0);
     const peopleCount = adults + children;
-    const dateBeg = this.getIncomingCheckinDate(payload);
-    const duration = config.nights;
-    const price = this.normalizePrice(config.resolvedPrice ?? payload.tour.price);
-    const currency =
-      config.resolvedCurrency ??
-      payload.tour.currency ??
-      this.configService.get<string>('SAMO_XMLGATE_DEFAULT_CURRENCY') ??
-      'USD';
-    const guid =
-      this.readXmlAttribute(initReservationXml.match(/<Claim\b[^>]*>/i)?.[0] ?? '', 'guid') ??
-      '';
     const tourists = this.buildTourists(payload, peopleCount, adults);
     const members = tourists
-      .map((tourist) => `        <Member TouristID="${tourist.id}"/>`)
+      .map((tourist) => `        <Member TouristID="${tourist.id}" />`)
       .join('\n');
     const payerIssueDate = this.buildOptionalDateAttribute(
       'IssueDate',
       payload.person.documentIssuedAt,
     );
+    const payerXml = `  <Payer Name="${this.escapeXml(`${payload.person.lastName} ${payload.person.firstName}`.trim().toUpperCase())}" Phone="${this.escapeXml(payload.person.phone ?? '')}" EMail="${this.escapeXml(payload.person.email ?? '')}" Address="" PassportSerie="${this.escapeXml(payload.person.documentSeries ?? '')}" PassportNo="${this.escapeXml(payload.person.documentNumber ?? '')}"${payerIssueDate} IssuePlace=""/>`;
     const notesXml = this.buildNotesXml(payload);
+    let reservationXml = initReservationXml.trim();
 
-    return `<Reservation>
-  <Tourists>
-${tourists.map((tourist) => tourist.xml).join('\n')}
-  </Tourists>
-  <Payer Name="${this.escapeXml(`${payload.person.lastName} ${payload.person.firstName}`.trim().toUpperCase())}" Phone="${this.escapeXml(payload.person.phone ?? '')}" EMail="${this.escapeXml(payload.person.email ?? '')}" Address="" PassportSerie="${this.escapeXml(payload.person.documentSeries ?? '')}" PassportNo="${this.escapeXml(payload.person.documentNumber ?? '')}"${payerIssueDate} IssuePlace=""/>
-  <Rooms>
-    <Room RoomID="0" Hotel="${this.escapeXml(config.hotelCode ?? '')}" Hotel_Name="${this.escapeXml(config.hotelName)}" Date="${this.formatSamoDate(dateBeg)}" Duration="${duration}" Room="${this.escapeXml(config.roomCode)}" Room_Name="${this.escapeXml(config.roomName)}" Htplace="${this.escapeXml(config.htplaceCode)}" Htplace_Name="${this.escapeXml(config.htplaceName)}" Meal="${this.escapeXml(config.mealCode)}" Meal_Name="${this.escapeXml(config.mealName)}" confirm="0" Price="${price}" Currency="${this.escapeXml(currency)}" rcount="1">
-      <Members>
-${members}
-      </Members>
-    </Room>
-  </Rooms>
-  <Claims>
-    <Claim condition="ccOffer" status="Not confirmed" payStatus="Unpaid" peopleCount="${peopleCount}" adult="${adults}" child="${children}" guid="${this.escapeXml(guid)}" partnername="B2B Website Integration" BookingDate="${this.formatSamoDate(payload.createdAt)}" Date="${this.formatSamoDate(dateBeg)}" Duration="${duration}"/>
-  </Claims>
-  <Services/>
-  <VariantServices/>
-  <Moneys>
-    <Money TotalPrice="${price}" Currency="${this.escapeXml(currency)}"/>
-  </Moneys>
-${notesXml}
-</Reservation>`;
+    reservationXml = this.replaceXmlSection(
+      reservationXml,
+      'Tourists',
+      `  <Tourists>\n${tourists.map((tourist) => tourist.xml).join('\n')}\n  </Tourists>`,
+    );
+
+    reservationXml = reservationXml.replace(/<Payer\b[^>]*(?:\/>|>[\s\S]*?<\/Payer>)/i, payerXml);
+    reservationXml = reservationXml.replace(
+      /<Members\b[^>]*>[\s\S]*?<\/Members>/i,
+      `      <Members>\n${members}\n      </Members>`,
+    );
+    reservationXml = this.upsertXmlSection(reservationXml, 'Notes', notesXml);
+    reservationXml = this.patchFirstXmlTag(reservationXml, 'Claim', {
+      peopleCount: String(peopleCount),
+      adult: String(adults),
+      child: String(children),
+    });
+
+    return reservationXml;
   }
 
   private buildNotesXml(payload: SamoClaimPayload): string {
@@ -1068,7 +1056,7 @@ ${notesXml}
 
       return {
         id,
-        xml: `    <Tourist ID="${id}" Name="${this.escapeXml(fullName)}" Gender="${gender}" BornDate="${this.formatSamoPlainDate(born)}" PassportSerie="${this.escapeXml(passportSerie)}" PassportNo="${this.escapeXml(passportNo)}"/>`,
+        xml: `    <Tourist ID="${id}" Name="${this.escapeXml(fullName)}" Gender="${gender}" BornDate="${this.formatSamoPlainDate(born)}" PassportSerie="${this.escapeXml(passportSerie)}" PassportNo="${this.escapeXml(passportNo)}" />`,
       };
     });
   }
@@ -1088,6 +1076,58 @@ ${notesXml}
     }
 
     return undefined;
+  }
+
+  private replaceXmlSection(xml: string, tagName: string, replacement: string) {
+    const pattern = new RegExp(`<${tagName}\\b[^>]*>[\\s\\S]*?<\\/${tagName}>`, 'i');
+
+    if (!pattern.test(xml)) {
+      return this.insertBeforeReservationClose(xml, replacement);
+    }
+
+    return xml.replace(pattern, replacement);
+  }
+
+  private upsertXmlSection(xml: string, tagName: string, replacement: string) {
+    const expandedPattern = new RegExp(`<${tagName}\\b[^>]*>[\\s\\S]*?<\\/${tagName}>`, 'i');
+    const selfClosingPattern = new RegExp(`<${tagName}\\b[^>]*/>`, 'i');
+
+    if (expandedPattern.test(xml)) {
+      return xml.replace(expandedPattern, replacement);
+    }
+
+    if (selfClosingPattern.test(xml)) {
+      return xml.replace(selfClosingPattern, replacement);
+    }
+
+    return this.insertBeforeReservationClose(xml, replacement);
+  }
+
+  private insertBeforeReservationClose(xml: string, value: string) {
+    return xml.replace(/\s*<\/Reservation>\s*$/i, `\n${value}\n</Reservation>`);
+  }
+
+  private patchFirstXmlTag(
+    xml: string,
+    tagName: string,
+    attributes: Record<string, string>,
+  ) {
+    const pattern = new RegExp(`<${tagName}\\b[^>]*>`, 'i');
+
+    return xml.replace(pattern, (tag) => {
+      let nextTag = tag;
+      for (const [name, value] of Object.entries(attributes)) {
+        const escapedValue = this.escapeXml(value);
+        const attrPattern = new RegExp(`\\s${name}="[^"]*"`, 'i');
+        if (attrPattern.test(nextTag)) {
+          nextTag = nextTag.replace(attrPattern, ` ${name}="${escapedValue}"`);
+        } else {
+          nextTag = nextTag.replace(/\/?>$/, ` ${name}="${escapedValue}"$&`);
+        }
+      }
+
+      return nextTag;
+    });
   }
 
   private normalizeSamoAmount(value?: string | number | null) {
