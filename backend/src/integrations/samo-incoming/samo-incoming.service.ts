@@ -121,6 +121,8 @@ type SamoIncomingConfig = {
   htplaceName: string;
   mealCode: string;
   mealName: string;
+  resolvedPrice?: number;
+  resolvedCurrency?: string;
   nights: number;
   timeoutMs: number;
 };
@@ -132,7 +134,6 @@ type SamoHotelPricePacket = {
   nights: number;
   price: number;
   currency?: string;
-  htplaceMatchesOccupancy: boolean;
   raw: Record<string, string>;
 };
 
@@ -587,6 +588,8 @@ export class SamoIncomingService {
       roomCode: packet.roomCode,
       htplaceCode: packet.htplaceCode,
       mealCode: packet.mealCode,
+      resolvedPrice: packet.price,
+      resolvedCurrency: packet.currency,
       nights: packet.nights,
     };
   }
@@ -602,35 +605,85 @@ export class SamoIncomingService {
       .filter((item) => item._type?.toLowerCase() === 'hprice')
       .filter((item) => item.status?.trim().toUpperCase() !== 'D')
       .map<SamoHotelPricePacket | null>((item) => {
-        const price = Number(String(item.price ?? '').replace(/\s/g, '').replace(',', '.'));
-        const nights = Number(item.nights ?? item.nightsfrom ?? 1);
+        const roomCode = this.readFirstTextField(item, [
+          'room',
+          'roominc',
+          'room_inc',
+          'roomid',
+          'room_id',
+          'roomcode',
+        ]);
+        const htplaceCode = this.readFirstTextField(item, [
+          'htplace',
+          'htplaceinc',
+          'htplace_inc',
+          'htplaceid',
+          'htplace_id',
+          'htplacecode',
+        ]);
+        const mealCode = this.readFirstTextField(item, [
+          'meal',
+          'mealinc',
+          'meal_inc',
+          'mealid',
+          'meal_id',
+          'mealcode',
+        ]);
+        const priceValue = this.readFirstTextField(item, [
+          'price',
+          'amount',
+          'cost',
+          'total',
+          'totalprice',
+          'saleprice',
+        ]);
+        const nightsValue = this.readFirstTextField(item, [
+          'nights',
+          'night',
+          'nightsfrom',
+          'duration',
+        ]);
+        const price = Number(String(priceValue ?? '').replace(/\s/g, '').replace(',', '.'));
+        const nights = Number(nightsValue ?? 1);
 
         if (
           !Number.isFinite(price) ||
           price <= 0 ||
-          !item.room ||
-          !item.htplace ||
-          !item.meal
+          !roomCode ||
+          !htplaceCode ||
+          !mealCode
         ) {
           return null;
         }
 
         return {
-          roomCode: item.room,
-          htplaceCode: item.htplace,
-          mealCode: item.meal,
+          roomCode,
+          htplaceCode,
+          mealCode,
           nights: Number.isFinite(nights) && nights > 0 ? nights : 1,
           price,
-          currency: item.currency,
-          htplaceMatchesOccupancy: this.matchesHtplaceOccupancy(item, expectedAdults, expectedChildren),
+          currency: this.readFirstTextField(item, [
+            'currency',
+            'currencyinc',
+            'currency_inc',
+            'curr',
+          ]) ?? undefined,
           raw: item,
         };
       })
       .filter((item): item is SamoHotelPricePacket => Boolean(item));
 
-    return prices
-      .filter((item) => item.htplaceMatchesOccupancy)
+    const exactMappedPrices = prices
       .filter((item) => item.htplaceCode === config.htplaceCode)
+      .filter((item) => item.roomCode === config.roomCode)
+      .sort((a, b) => a.price - b.price);
+
+    if (exactMappedPrices[0]) {
+      return exactMappedPrices[0];
+    }
+
+    return prices
+      .filter((item) => this.matchesHtplaceOccupancy(item.raw, expectedAdults, expectedChildren))
       .filter((item) => item.roomCode === config.roomCode)
       .sort((a, b) => a.price - b.price)[0] ?? null;
   }
@@ -676,6 +729,30 @@ export class SamoIncomingService {
       const number = Number(String(value ?? '').replace(',', '.'));
       if (Number.isFinite(number)) {
         return number;
+      }
+    }
+
+    return null;
+  }
+
+  private readFirstTextField(item: Record<string, string>, keys: string[]) {
+    for (const key of keys) {
+      const exactValue = item[key] ?? item[key.toUpperCase()] ?? item[key.toLowerCase()];
+      if (exactValue !== undefined && exactValue !== null && String(exactValue).trim() !== '') {
+        return String(exactValue).trim();
+      }
+
+      const normalizedKey = key.toLowerCase().replace(/[_:-]/g, '');
+      const entry = Object.entries(item).find(
+        ([itemKey, value]) =>
+          itemKey.toLowerCase().replace(/[_:-]/g, '') === normalizedKey &&
+          value !== undefined &&
+          value !== null &&
+          String(value).trim() !== '',
+      );
+
+      if (entry) {
+        return String(entry[1]).trim();
       }
     }
 
@@ -842,8 +919,12 @@ export class SamoIncomingService {
     const peopleCount = adults + children;
     const dateBeg = this.getIncomingCheckinDate(payload);
     const duration = config.nights;
-    const price = this.normalizePrice(payload.tour.price);
-    const currency = payload.tour.currency ?? this.configService.get<string>('SAMO_XMLGATE_DEFAULT_CURRENCY') ?? 'USD';
+    const price = this.normalizePrice(config.resolvedPrice ?? payload.tour.price);
+    const currency =
+      config.resolvedCurrency ??
+      payload.tour.currency ??
+      this.configService.get<string>('SAMO_XMLGATE_DEFAULT_CURRENCY') ??
+      'USD';
     const guid =
       this.readXmlAttribute(initReservationXml.match(/<Claim\b[^>]*>/i)?.[0] ?? '', 'guid') ??
       '';
@@ -947,7 +1028,7 @@ ${notesXml}
     });
   }
 
-  private normalizePrice(value?: string | null) {
+  private normalizePrice(value?: string | number | null) {
     const amount = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'));
     return Number.isFinite(amount) && amount > 0 ? amount.toFixed(4) : '0.0000';
   }
