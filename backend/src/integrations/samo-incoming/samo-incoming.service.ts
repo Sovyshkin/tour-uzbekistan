@@ -219,6 +219,7 @@ export class SamoIncomingService {
       config = this.applyInitReservationData(config, initXml);
       target = this.buildTargetMetadata(config);
       requestXml = this.buildReservationXml(config, payload, initXml);
+      requestXml = this.sanitizeReservationXml(requestXml);
       const response = await this.sendXmlGateRequest(config, requestXml, partnerToken);
       const parsedResponse = this.parseResponse(response);
       if (parsedResponse.errorCode) {
@@ -1181,6 +1182,17 @@ export class SamoIncomingService {
     return xml.replace(/\s(Price|TotalPrice)="([^"]+)"/g, (_match, name, value) => {
       return ` ${name}="${this.normalizePrice(value)}"`;
     });
+  }
+
+  private sanitizeReservationXml(xml: string) {
+    const normalizedXml = this.normalizeReservationMoneyXml(xml);
+    const checkFields = normalizedXml.match(/<checkFields\b[^>]*>[\s\S]*?<\/checkFields>/i)?.[0];
+
+    if (checkFields && /<Payer\b[^>]*(?:\/>|>[\s\S]*?<\/Payer>)/i.test(checkFields)) {
+      throw new Error('SAMO XMLGate request is invalid: payer data was inserted into checkFields');
+    }
+
+    return normalizedXml;
   }
 
   private normalizeSamoAmount(value?: string | number | null) {
