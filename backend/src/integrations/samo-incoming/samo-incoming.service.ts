@@ -1074,20 +1074,34 @@ ${notesXml}
   }
 
   private normalizePrice(value?: string | number | null) {
-    const amount = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'));
+    const amount = this.normalizeSamoAmount(value);
     return Number.isFinite(amount) && amount > 0 ? amount.toFixed(4) : '0.0000';
   }
 
   private readMoneyAttribute(tag: string, attributes: string[]) {
     for (const attribute of attributes) {
       const value = this.readXmlAttribute(tag, attribute);
-      const amount = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'));
+      const amount = this.normalizeSamoAmount(value);
       if (Number.isFinite(amount) && amount > 0) {
         return amount;
       }
     }
 
     return undefined;
+  }
+
+  private normalizeSamoAmount(value?: string | number | null) {
+    const rawAmount = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'));
+
+    if (!Number.isFinite(rawAmount) || rawAmount <= 0) {
+      return rawAmount;
+    }
+
+    if (rawAmount >= 1_000_000) {
+      return rawAmount / 1_000_000;
+    }
+
+    return rawAmount;
   }
 
   private normalizeCurrency(value?: string | null) {
