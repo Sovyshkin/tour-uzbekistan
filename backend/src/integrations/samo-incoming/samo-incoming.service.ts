@@ -963,6 +963,7 @@ export class SamoIncomingService {
     const adults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
     const children = Math.max(0, payload.childCount ?? 0);
     const peopleCount = adults + children;
+    const dateBeg = this.getIncomingCheckinDate(payload);
     const tourists = this.buildTourists(payload, peopleCount, adults);
     const members = tourists
       .map((tourist) => `        <Member TouristID="${tourist.id}" />`)
@@ -987,9 +988,15 @@ export class SamoIncomingService {
       `      <Members>\n${members}\n      </Members>`,
     );
     reservationXml = this.normalizeReservationMoneyXml(reservationXml);
+    reservationXml = this.removeEmptyXmlSection(reservationXml, 'VariantServices');
     reservationXml = this.upsertXmlSection(reservationXml, 'Notes', notesXml);
     reservationXml = this.patchFirstXmlTagAfter(reservationXml, /<Claims\b[^>]*>/i, 'Claim', {
+      BookingDate: this.formatSamoPlainDate(payload.createdAt),
+      Date: this.formatSamoPlainDate(dateBeg),
+      Duration: String(config.nights),
       peopleCount: String(peopleCount),
+      adult: String(adults),
+      child: String(children),
     });
 
     return reservationXml;
@@ -1148,6 +1155,12 @@ export class SamoIncomingService {
     }
 
     return this.insertBeforeReservationClose(xml, replacement);
+  }
+
+  private removeEmptyXmlSection(xml: string, tagName: string) {
+    return xml
+      .replace(new RegExp(`<${tagName}\\b[^>]*/>`, 'i'), '')
+      .replace(new RegExp(`<${tagName}\\b[^>]*>\\s*<\\/${tagName}>`, 'i'), '');
   }
 
   private insertBeforeReservationClose(xml: string, value: string) {
