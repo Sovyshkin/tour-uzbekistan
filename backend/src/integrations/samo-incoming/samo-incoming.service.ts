@@ -977,6 +977,12 @@ export class SamoIncomingService {
     );
     reservationXml = this.removeXmlTagAfter(reservationXml, /<\/checkFields>/i, 'Payer');
     reservationXml = this.insertAfterXmlSection(reservationXml, 'Tourists', '  <Payer />');
+    reservationXml = this.patchFirstXmlTagAfter(reservationXml, /<Claims\b[^>]*>/i, 'Claim', {
+      BookingDate: this.formatSamoPlainDate(payload.createdAt),
+      Date: this.formatSamoPlainDate(this.getIncomingCheckinDate(payload)),
+      Duration: String(config.nights),
+      to_number: this.readXmlAttribute(reservationXml.match(/<Claim\b[^>]*>/i)?.[0] ?? '', 'to_number') ?? '',
+    });
     reservationXml = reservationXml.replace(
       /<Members\b[^>]*>[\s\S]*?<\/Members>/i,
       `      <Members>\n${members}\n      </Members>`,
