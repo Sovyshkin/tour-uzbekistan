@@ -980,13 +980,19 @@ export class SamoIncomingService {
       `  <Tourists>\n${tourists.map((tourist) => tourist.xml).join('\n')}\n  </Tourists>`,
     );
 
-    reservationXml = reservationXml.replace(/<Payer\b[^>]*(?:\/>|>[\s\S]*?<\/Payer>)/i, payerXml);
+    reservationXml = this.replaceXmlTagAfter(
+      reservationXml,
+      /<\/checkFields>/i,
+      'Payer',
+      payerXml,
+    );
     reservationXml = reservationXml.replace(
       /<Members\b[^>]*>[\s\S]*?<\/Members>/i,
       `      <Members>\n${members}\n      </Members>`,
     );
+    reservationXml = this.normalizeReservationMoneyXml(reservationXml);
     reservationXml = this.upsertXmlSection(reservationXml, 'Notes', notesXml);
-    reservationXml = this.patchFirstXmlTag(reservationXml, 'Claim', {
+    reservationXml = this.patchFirstXmlTagAfter(reservationXml, /<Claims\b[^>]*>/i, 'Claim', {
       peopleCount: String(peopleCount),
       adult: String(adults),
       child: String(children),
@@ -1088,6 +1094,29 @@ export class SamoIncomingService {
     return xml.replace(pattern, replacement);
   }
 
+  private replaceXmlTagAfter(
+    xml: string,
+    marker: RegExp,
+    tagName: string,
+    replacement: string,
+  ) {
+    const markerMatch = xml.match(marker);
+    if (!markerMatch || markerMatch.index === undefined) {
+      return xml.replace(new RegExp(`<${tagName}\\b[^>]*(?:\\/|>[\\s\\S]*?<\\/${tagName})>`, 'i'), replacement);
+    }
+
+    const splitAt = markerMatch.index + markerMatch[0].length;
+    const before = xml.slice(0, splitAt);
+    const after = xml.slice(splitAt);
+    const tagPattern = new RegExp(`<${tagName}\\b[^>]*(?:\\/|>[\\s\\S]*?<\\/${tagName})>`, 'i');
+
+    if (tagPattern.test(after)) {
+      return before + after.replace(tagPattern, replacement);
+    }
+
+    return before + `\n${replacement}` + after;
+  }
+
   private upsertXmlSection(xml: string, tagName: string, replacement: string) {
     const expandedPattern = new RegExp(`<${tagName}\\b[^>]*>[\\s\\S]*?<\\/${tagName}>`, 'i');
     const selfClosingPattern = new RegExp(`<${tagName}\\b[^>]*/>`, 'i');
@@ -1127,6 +1156,30 @@ export class SamoIncomingService {
       }
 
       return nextTag;
+    });
+  }
+
+  private patchFirstXmlTagAfter(
+    xml: string,
+    marker: RegExp,
+    tagName: string,
+    attributes: Record<string, string>,
+  ) {
+    const markerMatch = xml.match(marker);
+    if (!markerMatch || markerMatch.index === undefined) {
+      return this.patchFirstXmlTag(xml, tagName, attributes);
+    }
+
+    const splitAt = markerMatch.index + markerMatch[0].length;
+    return (
+      xml.slice(0, splitAt) +
+      this.patchFirstXmlTag(xml.slice(splitAt), tagName, attributes)
+    );
+  }
+
+  private normalizeReservationMoneyXml(xml: string) {
+    return xml.replace(/\s(Price|TotalPrice)="([^"]+)"/g, (_match, name, value) => {
+      return ` ${name}="${this.normalizePrice(value)}"`;
     });
   }
 
