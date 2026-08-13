@@ -94,6 +94,8 @@ export type SamoIncomingResult = {
   confirmStatus?: string;
   result?: number;
   comment?: string;
+  errorCode?: string;
+  errorDetail?: string;
   message?: string;
   rawResponse?: string;
   requestXml?: string;
@@ -214,8 +216,25 @@ export class SamoIncomingService {
       config = this.applyHotelPricePacket(config, pricePacket);
       target = this.buildTargetMetadata(config);
       const initXml = await this.initReservation(config, payload, partnerToken);
+      config = this.applyInitReservationData(config, initXml);
+      target = this.buildTargetMetadata(config);
       requestXml = this.buildReservationXml(config, payload, initXml);
       const response = await this.sendXmlGateRequest(config, requestXml, partnerToken);
+      const parsedResponse = this.parseResponse(response);
+      if (parsedResponse.errorCode) {
+        return {
+          enabled: true,
+          sent: false,
+          skippedReason: parsedResponse.message,
+          claimNumber,
+          requestXml,
+          rawResponse: response,
+          source,
+          target,
+          ...parsedResponse,
+        };
+      }
+
       return {
         enabled: true,
         sent: true,
@@ -224,7 +243,7 @@ export class SamoIncomingService {
         rawResponse: response,
         source,
         target,
-        ...this.parseResponse(response),
+        ...parsedResponse,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -588,9 +607,35 @@ export class SamoIncomingService {
       roomCode: packet.roomCode,
       htplaceCode: packet.htplaceCode,
       mealCode: packet.mealCode,
-      resolvedPrice: packet.price,
-      resolvedCurrency: packet.currency,
       nights: packet.nights,
+    };
+  }
+
+  private applyInitReservationData(
+    config: SamoIncomingConfig,
+    initReservationXml: string,
+  ): SamoIncomingConfig {
+    const roomTag = initReservationXml.match(/<Room\b[^>]*>/i)?.[0] ?? '';
+    const moneyTag = initReservationXml.match(/<Money\b[^>]*>/i)?.[0] ?? '';
+    const resolvedPrice = this.readMoneyAttribute(moneyTag, [
+      'TotalPrice',
+      'Price',
+      'Amount',
+      'Total',
+    ]);
+    const roomPrice = this.readMoneyAttribute(roomTag, ['Price', 'TotalPrice', 'Amount']);
+    const currency =
+      this.readXmlAttribute(moneyTag, 'Currency') ??
+      this.readXmlAttribute(roomTag, 'Currency') ??
+      config.resolvedCurrency;
+
+    return {
+      ...config,
+      roomName: this.readXmlAttribute(roomTag, 'Room_Name') ?? config.roomName,
+      htplaceName: this.readXmlAttribute(roomTag, 'Htplace_Name') ?? config.htplaceName,
+      mealName: this.readXmlAttribute(roomTag, 'Meal_Name') ?? config.mealName,
+      resolvedPrice: resolvedPrice ?? roomPrice ?? config.resolvedPrice,
+      resolvedCurrency: this.normalizeCurrency(currency),
     };
   }
 
@@ -1016,7 +1061,7 @@ ${notesXml}
       const fullName = `${lastName} ${firstName}`.trim();
       const gender = this.mapHuman(payload.person.sex);
       const born = isAdult
-        ? payload.person.birthDate ?? new Date(Date.UTC(1970, 0, 1))
+        ? this.getSafeAdultBirthDate(payload.person.birthDate)
         : new Date(Date.UTC(2016, 0, 1));
       const passportSerie = isMainPerson ? payload.person.documentSeries ?? '' : '';
       const passportNo = isMainPerson ? payload.person.documentNumber ?? '' : '';
@@ -1031,6 +1076,44 @@ ${notesXml}
   private normalizePrice(value?: string | number | null) {
     const amount = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'));
     return Number.isFinite(amount) && amount > 0 ? amount.toFixed(4) : '0.0000';
+  }
+
+  private readMoneyAttribute(tag: string, attributes: string[]) {
+    for (const attribute of attributes) {
+      const value = this.readXmlAttribute(tag, attribute);
+      const amount = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'));
+      if (Number.isFinite(amount) && amount > 0) {
+        return amount;
+      }
+    }
+
+    return undefined;
+  }
+
+  private normalizeCurrency(value?: string | null) {
+    const fallback = this.configService.get<string>('SAMO_XMLGATE_DEFAULT_CURRENCY') ?? 'USD';
+    const normalized = String(value ?? '').trim();
+
+    if (!normalized || /^-?\d+$/.test(normalized)) {
+      return fallback;
+    }
+
+    return normalized;
+  }
+
+  private getSafeAdultBirthDate(value?: Date | null) {
+    const fallback = new Date(Date.UTC(1970, 0, 1));
+
+    if (!value || Number.isNaN(value.getTime())) {
+      return fallback;
+    }
+
+    const today = new Date();
+    const latestAdultBirthDate = new Date(
+      Date.UTC(today.getUTCFullYear() - 12, today.getUTCMonth(), today.getUTCDate()),
+    );
+
+    return value <= latestAdultBirthDate ? value : fallback;
   }
 
   private buildSourceMetadata(payload: SamoClaimPayload) {
@@ -1060,6 +1143,20 @@ ${notesXml}
   }
 
   private parseResponse(response: string) {
+    const errorTag = response.match(/<Error\b[^>]*>/i)?.[0];
+    if (errorTag) {
+      const errorCode = this.readXmlAttribute(errorTag, 'code') ?? undefined;
+      const errorMessage = this.readXmlAttribute(errorTag, 'message') ?? 'SAMO XMLGate error';
+      const errorDetail = this.readXmlAttribute(errorTag, 'detail') ?? undefined;
+      return {
+        errorCode,
+        errorDetail,
+        message: [errorCode ? `SAMO error ${errorCode}` : 'SAMO error', errorMessage, errorDetail]
+          .filter(Boolean)
+          .join(': '),
+      };
+    }
+
     const claimTag = response.match(/<Claim\b[^>]*>/i)?.[0] ?? response.match(/<claim\b[^>]*>/i)?.[0];
     if (!claimTag) {
       return {
