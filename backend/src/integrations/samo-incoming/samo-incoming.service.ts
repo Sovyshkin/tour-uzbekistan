@@ -1188,7 +1188,7 @@ export class SamoIncomingService {
     const normalizedXml = this.normalizeReservationMoneyXml(xml);
     const checkFields = normalizedXml.match(/<checkFields\b[^>]*>[\s\S]*?<\/checkFields>/i)?.[0];
 
-    if (checkFields && /<Payer\b[^>]*(?:\/>|>[\s\S]*?<\/Payer>)/i.test(checkFields)) {
+    if (checkFields && /<Payer\b[^>]*\s(?:Name|Phone|EMail|PassportSerie|PassportNo)=/i.test(checkFields)) {
       throw new Error('SAMO XMLGate request is invalid: payer data was inserted into checkFields');
     }
 
