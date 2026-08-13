@@ -963,16 +963,10 @@ export class SamoIncomingService {
     const adults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
     const children = Math.max(0, payload.childCount ?? 0);
     const peopleCount = adults + children;
-    const dateBeg = this.getIncomingCheckinDate(payload);
     const tourists = this.buildTourists(payload, peopleCount, adults);
     const members = tourists
       .map((tourist) => `        <Member TouristID="${tourist.id}" />`)
       .join('\n');
-    const payerIssueDate = this.buildOptionalDateAttribute(
-      'IssueDate',
-      payload.person.documentIssuedAt,
-    );
-    const payerXml = `  <Payer Name="${this.escapeXml(`${payload.person.lastName} ${payload.person.firstName}`.trim().toUpperCase())}" Phone="${this.escapeXml(payload.person.phone ?? '')}" EMail="${this.escapeXml(payload.person.email ?? '')}" Address="" PassportSerie="${this.escapeXml(payload.person.documentSeries ?? '')}" PassportNo="${this.escapeXml(payload.person.documentNumber ?? '')}"${payerIssueDate} IssuePlace=""/>`;
     const notesXml = this.buildNotesXml(payload);
     let reservationXml = initReservationXml.trim();
 
@@ -981,8 +975,6 @@ export class SamoIncomingService {
       'Tourists',
       `  <Tourists>\n${tourists.map((tourist) => tourist.xml).join('\n')}\n  </Tourists>`,
     );
-    reservationXml = this.removeXmlTagAfter(reservationXml, /<\/checkFields>/i, 'Payer');
-    reservationXml = this.insertAfterXmlSection(reservationXml, 'Tourists', payerXml);
     reservationXml = reservationXml.replace(
       /<Members\b[^>]*>[\s\S]*?<\/Members>/i,
       `      <Members>\n${members}\n      </Members>`,
@@ -990,14 +982,6 @@ export class SamoIncomingService {
     reservationXml = this.normalizeReservationMoneyXml(reservationXml);
     reservationXml = this.removeEmptyXmlSection(reservationXml, 'VariantServices');
     reservationXml = this.upsertXmlSection(reservationXml, 'Notes', notesXml);
-    reservationXml = this.patchFirstXmlTagAfter(reservationXml, /<Claims\b[^>]*>/i, 'Claim', {
-      BookingDate: this.formatSamoPlainDate(payload.createdAt),
-      Date: this.formatSamoPlainDate(dateBeg),
-      Duration: String(config.nights),
-      peopleCount: String(peopleCount),
-      adult: String(adults),
-      child: String(children),
-    });
 
     return reservationXml;
   }
