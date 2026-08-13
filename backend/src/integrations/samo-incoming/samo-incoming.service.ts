@@ -975,6 +975,8 @@ export class SamoIncomingService {
       'Tourists',
       `  <Tourists>\n${tourists.map((tourist) => tourist.xml).join('\n')}\n  </Tourists>`,
     );
+    reservationXml = this.removeXmlTagAfter(reservationXml, /<\/checkFields>/i, 'Payer');
+    reservationXml = this.insertAfterXmlSection(reservationXml, 'Tourists', '  <Payer />');
     reservationXml = reservationXml.replace(
       /<Members\b[^>]*>[\s\S]*?<\/Members>/i,
       `      <Members>\n${members}\n      </Members>`,
