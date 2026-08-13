@@ -980,13 +980,8 @@ export class SamoIncomingService {
       'Tourists',
       `  <Tourists>\n${tourists.map((tourist) => tourist.xml).join('\n')}\n  </Tourists>`,
     );
-
-    reservationXml = this.replaceXmlTagAfter(
-      reservationXml,
-      /<\/checkFields>/i,
-      'Payer',
-      payerXml,
-    );
+    reservationXml = this.removeXmlTagAfter(reservationXml, /<\/checkFields>/i, 'Payer');
+    reservationXml = this.insertAfterXmlSection(reservationXml, 'Tourists', payerXml);
     reservationXml = reservationXml.replace(
       /<Members\b[^>]*>[\s\S]*?<\/Members>/i,
       `      <Members>\n${members}\n      </Members>`,
@@ -995,8 +990,6 @@ export class SamoIncomingService {
     reservationXml = this.upsertXmlSection(reservationXml, 'Notes', notesXml);
     reservationXml = this.patchFirstXmlTagAfter(reservationXml, /<Claims\b[^>]*>/i, 'Claim', {
       peopleCount: String(peopleCount),
-      adult: String(adults),
-      child: String(children),
     });
 
     return reservationXml;
@@ -1116,6 +1109,30 @@ export class SamoIncomingService {
     }
 
     return before + `\n${replacement}` + after;
+  }
+
+  private removeXmlTagAfter(xml: string, marker: RegExp, tagName: string) {
+    const markerMatch = xml.match(marker);
+    if (!markerMatch || markerMatch.index === undefined) {
+      return xml;
+    }
+
+    const splitAt = markerMatch.index + markerMatch[0].length;
+    const before = xml.slice(0, splitAt);
+    const after = xml.slice(splitAt);
+    const tagPattern = new RegExp(`<${tagName}\\b[^>]*(?:\\/|>[\\s\\S]*?<\\/${tagName})>`, 'i');
+
+    return before + after.replace(tagPattern, '');
+  }
+
+  private insertAfterXmlSection(xml: string, tagName: string, value: string) {
+    const pattern = new RegExp(`(<${tagName}\\b[^>]*>[\\s\\S]*?<\\/${tagName}>)`, 'i');
+
+    if (!pattern.test(xml)) {
+      return this.insertBeforeReservationClose(xml, value);
+    }
+
+    return xml.replace(pattern, `$1\n${value}`);
   }
 
   private upsertXmlSection(xml: string, tagName: string, replacement: string) {
