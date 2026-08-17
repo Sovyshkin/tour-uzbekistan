@@ -70,6 +70,12 @@ export class TourDetailDto {
   @ApiProperty({ required: false, nullable: true })
   maxChildCount!: number | null;
 
+  @ApiProperty({ required: false, nullable: true })
+  maxTouristCount!: number | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  departureCity!: string | null;
+
   @ApiPropertyOptional()
   priceFrom?: string;
 

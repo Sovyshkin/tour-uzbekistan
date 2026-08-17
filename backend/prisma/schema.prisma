@@ -217,6 +217,8 @@ model Tour {
   maxAdultCount     Int?
   minChildCount     Int?
   maxChildCount     Int?
+  maxTouristCount   Int?
+  departureCity     String?
   comfortLevel      Int?
   priceFrom         Decimal?          @db.Decimal(10, 2)
   currency          String?           @default("USD")
@@ -240,6 +242,7 @@ model Tour {
   @@index([status, isFeatured])
   @@index([status, isFeatured, sortOrder])
   @@index([type, season])
+  @@index([departureCity, status])
 }
 
 model TourTranslation {

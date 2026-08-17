@@ -12,6 +12,17 @@ defineProps({
     type: String,
     default: null,
   },
+  searchQuery: {
+    type: Object,
+    default: () => ({}),
+  },
+});
+
+const buildTourQuery = (country, searchQuery) => ({
+  ...(country ? { country } : {}),
+  ...Object.fromEntries(
+    Object.entries(searchQuery || {}).filter(([, value]) => value !== undefined && value !== null && value !== ''),
+  ),
 });
 </script>
 
@@ -25,7 +36,7 @@ defineProps({
       @click="
         $router.push({
           path: `/tours/${tour.slug || tour.id}`,
-          query: country ? { country: country } : {},
+          query: buildTourQuery(country, searchQuery),
         })
       "
     >
@@ -47,7 +58,7 @@ defineProps({
         @click="
           $router.push({
             path: `/tours/${tour.slug || tour.id}`,
-            query: country ? { country: country } : {},
+            query: buildTourQuery(country, searchQuery),
           })
         "
       >
@@ -66,7 +77,7 @@ defineProps({
         @click="
           $router.push({
             path: `/tours/${tour.slug || tour.id}`,
-            query: country ? { country: country } : {},
+            query: buildTourQuery(country, searchQuery),
           })
         "
       >
@@ -82,7 +93,7 @@ defineProps({
         @click="
           $router.push({
             path: `/tours/${tour.slug || tour.id}`,
-            query: country ? { country: country } : {},
+            query: buildTourQuery(country, searchQuery),
           })
         "
       >
@@ -115,12 +126,12 @@ defineProps({
           class="cursor-pointer bg-[#ff00e7] w-full text-white rounded-[10px] py-[8px] text-[14px] hover:bg-[#eb02d3] transition"
           @click="
             $router.push({
-              path: `/tours/${tour.slug || tour.id}`,
-              query: country ? { country: country } : {},
+            path: `/tours/${tour.slug || tour.id}`,
+              query: buildTourQuery(country, searchQuery),
             })
           "
         >
-          {{ tour.priceFrom || tour.priceOnRequest ? t('openCard.buy') : t('openCard.more_details') }}
+          {{ tour.priceOnRequest ? t('openCard.leave_request') : tour.priceFrom ? t('openCard.buy') : t('openCard.more_details') }}
         </button>
       </div>
     </div>

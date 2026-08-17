@@ -1,16 +1,82 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Locale } from '@prisma/client';
 import {
+  IsArray,
   IsDateString,
   IsEmail,
   IsEnum,
   IsInt,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class BookingTravelerDto {
+  @ApiProperty({ example: 'John' })
+  @IsString()
+  @MaxLength(120)
+  firstName!: string;
+
+  @ApiProperty({ example: 'Smith' })
+  @IsString()
+  @MaxLength(120)
+  lastName!: string;
+
+  @ApiPropertyOptional({ example: 'adult', enum: ['adult', 'child'] })
+  @IsOptional()
+  @IsIn(['adult', 'child'])
+  type?: 'adult' | 'child';
+
+  @ApiPropertyOptional({ example: 'MR' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  sex?: string;
+
+  @ApiPropertyOptional({ example: '1990-04-16' })
+  @IsOptional()
+  @IsDateString()
+  birthDate?: string;
+
+  @ApiPropertyOptional({ example: 'British' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  nationality?: string;
+
+  @ApiPropertyOptional({ example: 'Passport' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  documentType?: string;
+
+  @ApiPropertyOptional({ example: 'AA' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  documentSeries?: string;
+
+  @ApiPropertyOptional({ example: '1234567' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  documentNumber?: string;
+
+  @ApiPropertyOptional({ example: '2021-05-01' })
+  @IsOptional()
+  @IsDateString()
+  documentIssuedAt?: string;
+
+  @ApiPropertyOptional({ example: '2031-05-01' })
+  @IsOptional()
+  @IsDateString()
+  documentValidUntil?: string;
+}
 
 export class CreateBookingDto {
   @ApiProperty({ example: '4d6efef7-7fd7-4e0a-b78f-843034b9a301' })
@@ -110,6 +176,11 @@ export class CreateBookingDto {
   @Min(0)
   childCount?: number;
 
+  @ApiPropertyOptional({ example: '9' })
+  @IsOptional()
+  @IsString()
+  childAges?: string;
+
   @ApiPropertyOptional({ example: 'Silk Road Hotel' })
   @IsOptional()
   @IsString()
@@ -127,4 +198,11 @@ export class CreateBookingDto {
   @IsString()
   @MaxLength(5000)
   specialRequests?: string;
+
+  @ApiPropertyOptional({ type: [BookingTravelerDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BookingTravelerDto)
+  travelers?: BookingTravelerDto[];
 }

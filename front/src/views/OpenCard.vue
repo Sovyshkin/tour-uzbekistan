@@ -14,6 +14,7 @@ import {
   isApprovedPartnerAuth,
   resolveAssetUrl,
   submitLead,
+  submitPartnerRequest,
 } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateBookingFormFields, validateContactFormFields } from '@/utils/formValidation';
@@ -79,6 +80,7 @@ const where = ref(null);
 const when = ref('');
 const adultCount = ref(2);
 const childCount = ref(0);
+const childAges = ref([]);
 const totalPeople = computed(() => adultCount.value + childCount.value);
 const minAdults = computed(() => tour.value.minAdultCount || 1);
 const maxAdults = computed(() => tour.value.maxAdultCount || 20);
@@ -96,7 +98,8 @@ const hasIncomingPlacementForSelectedTravelers = computed(() => {
   return placements.some(
     (placement) =>
       Number(placement.adultCount) === Number(adultCount.value) &&
-      Number(placement.childCount) === Number(childCount.value),
+      Number(placement.childCount) === Number(childCount.value) &&
+      matchesChildAgeRanges(placement.label, childAges.value.slice(0, childCount.value), Number(childCount.value)),
   );
 });
 const hasIncomingPlacementForBookingForm = computed(() => {
@@ -128,6 +131,16 @@ const openMobileFilter = () => {
 };
 const closeMobileFilter = () => {
   isMobileFilterOpen.value = false;
+};
+
+const applyRouteSearchParams = () => {
+  adultCount.value = Number(route.query.adults) || adultCount.value;
+  childCount.value = Number(route.query.children) || childCount.value;
+  childAges.value = String(route.query.childAges || '')
+    .split(',')
+    .map((age) => Number(age))
+    .filter((age) => Number.isFinite(age) && age >= 0 && age < 18);
+  when.value = route.query.travelDate || when.value;
 };
 
 const authState = ref(getAuth());
@@ -163,6 +176,8 @@ const formData = ref({
   issuedDate: '',
   validUntil: '',
 });
+const travelers = ref([]);
+const activeTravelerIndex = ref(0);
 const formErrors = ref({});
 const sexOptions = ['CHD', 'MR', 'MRS'];
 const documentTypeOptions = [
@@ -173,15 +188,25 @@ const documentTypeOptions = [
 ];
 const nationalityOptions = computed(() => getCountryNameOptions(locale.value));
 const nationalityDropdownOpen = ref(false);
+const bookingSubmitting = ref(false);
+const travelerCount = computed(
+  () => (Number(formData.value.adultCount) || 1) + (Number(formData.value.childCount) || 0),
+);
+const activeTraveler = computed(() => travelers.value[activeTravelerIndex.value] || travelers.value[0]);
+const travelerTabs = computed(() =>
+  travelers.value.map((traveler, index) => ({
+    index,
+    label: `${traveler.type === 'child' ? 'Ребенок' : 'Турист'} ${index + 1}`,
+  })),
+);
 const filteredNationalityOptions = computed(() => {
-  const query = formData.value.nationality.trim().toLowerCase();
+  const query = String(activeTraveler.value?.nationality || '').trim().toLowerCase();
   const options = query
     ? nationalityOptions.value.filter((country) => country.toLowerCase().includes(query))
     : nationalityOptions.value;
 
   return options.slice(0, 12);
 });
-const bookingSubmitting = ref(false);
 const leadForm = ref({
   name: '',
   phone: '',
@@ -192,6 +217,46 @@ const leadForm = ref({
 const leadErrors = ref({});
 const leadSubmitting = ref(false);
 
+const parseSearchDate = (value) => {
+  if (!value) {
+    return '';
+  }
+  const [day, month, year] = String(value).split('.');
+  if (day && month && year) {
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  return String(value);
+};
+
+const matchesChildAgeRanges = (label, ages, children) => {
+  if (!children || ages.length !== children) {
+    return true;
+  }
+
+  const ranges = [...String(label || '').matchAll(/\((\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)\)/g)]
+    .map((match) => ({
+      from: Number(match[1].replace(',', '.')),
+      to: Number(match[2].replace(',', '.')),
+    }))
+    .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to));
+
+  if (ranges.length < children) {
+    return false;
+  }
+
+  const used = new Set();
+  return [...ages].sort((a, b) => a - b).every((age) => {
+    const index = ranges.findIndex(
+      (range, rangeIndex) => !used.has(rangeIndex) && age >= range.from && age <= range.to,
+    );
+    if (index === -1) {
+      return false;
+    }
+    used.add(index);
+    return true;
+  });
+};
+
 const clearFieldError = (field) => {
   if (!formErrors.value[field]) {
     return;
@@ -200,6 +265,91 @@ const clearFieldError = (field) => {
   const nextErrors = { ...formErrors.value };
   delete nextErrors[field];
   formErrors.value = nextErrors;
+};
+
+const makeTraveler = (index) => {
+  const isChild = index >= (Number(formData.value.adultCount) || 1);
+
+  return {
+    type: isChild ? 'child' : 'adult',
+    sex: isChild ? 'CHD' : 'MR',
+    firstName: '',
+    lastName: '',
+    birthDate: '',
+    idCard: '',
+    nationality: '',
+    documentSeries: '',
+    documentNumber: '',
+    issuedDate: '',
+    validUntil: '',
+  };
+};
+
+const syncTravelers = () => {
+  const count = Math.max(1, travelerCount.value);
+  const adultTotal = Number(formData.value.adultCount) || 1;
+  const nextTravelers = Array.from({ length: count }, (_, index) => {
+    const existing = travelers.value[index] || makeTraveler(index);
+    const isChild = index >= adultTotal;
+
+    return {
+      ...existing,
+      type: isChild ? 'child' : 'adult',
+      sex: existing.sex || (isChild ? 'CHD' : 'MR'),
+    };
+  });
+
+  travelers.value = nextTravelers;
+
+  if (activeTravelerIndex.value >= nextTravelers.length) {
+    activeTravelerIndex.value = nextTravelers.length - 1;
+  }
+};
+
+const clearTravelerError = (field) => {
+  clearFieldError(`travelers.${activeTravelerIndex.value}.${field}`);
+};
+
+const selectTravelerNationality = (country) => {
+  if (activeTraveler.value) {
+    activeTraveler.value.nationality = country;
+  }
+  nationalityDropdownOpen.value = false;
+};
+
+const buildTravelerPayload = () =>
+  travelers.value.map((traveler) => ({
+    type: traveler.type,
+    firstName: traveler.firstName,
+    lastName: traveler.lastName,
+    sex: traveler.sex || undefined,
+    birthDate: traveler.birthDate || undefined,
+    nationality: traveler.nationality || undefined,
+    documentType: traveler.idCard || undefined,
+    documentSeries: traveler.documentSeries || undefined,
+    documentNumber: traveler.documentNumber || undefined,
+    documentIssuedAt: traveler.issuedDate || undefined,
+    documentValidUntil: traveler.validUntil || undefined,
+  }));
+
+const validateTravelers = () => {
+  const errors = {};
+
+  travelers.value.forEach((traveler, index) => {
+    if (!String(traveler.firstName || '').trim()) {
+      errors[`travelers.${index}.firstName`] = `Введите имя туриста ${index + 1}`;
+    }
+
+    if (!String(traveler.lastName || '').trim()) {
+      errors[`travelers.${index}.lastName`] = `Введите фамилию туриста ${index + 1}`;
+    }
+
+    if (!String(traveler.sex || '').trim()) {
+      errors[`travelers.${index}.sex`] = `Выберите пол туриста ${index + 1}`;
+    }
+  });
+
+  return errors;
 };
 
 const openNationalityDropdown = () => {
@@ -213,7 +363,7 @@ const closeNationalityDropdown = () => {
 };
 
 const selectNationality = (country) => {
-  formData.value.nationality = country;
+  selectTravelerNationality(country);
   nationalityDropdownOpen.value = false;
 };
 
@@ -233,12 +383,50 @@ const openModal = () => {
     return;
   }
 
+  if (!tour.value.priceFrom || !hasIncomingPlacementForSelectedTravelers.value || route.query.request === '1') {
+    submitPartnerTourRequest();
+    return;
+  }
+
   formErrors.value = {};
   formData.value.adultCount = adultCount.value;
   formData.value.childCount = childCount.value;
+  formData.value.email = authState.value?.user?.email || formData.value.email;
+  formData.value.phone = authState.value?.user?.phone || formData.value.phone;
+  syncTravelers();
   isModalOpen.value = true;
   modalStep.value = 1;
   document.body.style.overflow = 'hidden';
+};
+
+const submitPartnerTourRequest = async () => {
+  if (leadSubmitting.value) {
+    return;
+  }
+
+  leadSubmitting.value = true;
+  try {
+    await submitPartnerRequest({
+      language: getApiLocale(locale.value),
+      tourId: tour.value.id || undefined,
+      sourcePage: route.fullPath,
+      sourcePageTitle: document.title,
+      travelDate: parseSearchDate(when.value || route.query.travelDate) || undefined,
+      adultCount: Number(adultCount.value) || 1,
+      childCount: Number(childCount.value) || 0,
+      childAges: childAges.value.slice(0, childCount.value).join(','),
+      departureCity: route.query.from || undefined,
+      message: `Request without confirmed price: ${tour.value.title}`,
+    });
+    leadStep.value = 2;
+    isLeadModalOpen.value = true;
+    document.body.style.overflow = 'hidden';
+    notifySuccess(t('notifications.messageSent'));
+  } catch (error) {
+    notifyError(error.message || t('notifications.sendMessageFailed'), t('notifications.messageNotSent'));
+  } finally {
+    leadSubmitting.value = false;
+  }
 };
 
 const openLeadModal = () => {
@@ -267,15 +455,32 @@ const submitForm = async () => {
     return;
   }
 
-  const validationErrors = validateBookingFormFields(formData.value, {
+  syncTravelers();
+  const primaryTraveler = travelers.value[0] || makeTraveler(0);
+  const validationErrors = {
+    ...validateBookingFormFields(
+      {
+        ...formData.value,
+        sex: primaryTraveler.sex,
+        firstName: primaryTraveler.firstName,
+        lastName: primaryTraveler.lastName,
+      },
+      {
     minAdults: minAdults.value,
     maxAdults: maxAdults.value,
     minChildren: minChildren.value,
     maxChildren: maxChildren.value,
-  });
+      },
+    ),
+    ...validateTravelers(),
+  };
   formErrors.value = validationErrors;
 
   if (Object.keys(validationErrors).length) {
+    const travelerErrorKey = Object.keys(validationErrors).find((key) => key.startsWith('travelers.'));
+    if (travelerErrorKey) {
+      activeTravelerIndex.value = Number(travelerErrorKey.split('.')[1]) || 0;
+    }
     notifyError(Object.values(validationErrors)[0], t('notifications.validationTitle'));
     return;
   }
@@ -289,21 +494,23 @@ const submitForm = async () => {
     await createBooking({
       tourId: tour.value.id,
       locale: getApiLocale(locale.value),
-      firstName: formData.value.firstName,
-      lastName: formData.value.lastName,
+      firstName: primaryTraveler.firstName,
+      lastName: primaryTraveler.lastName,
       travelDate: formData.value.travelDate,
       adultCount: Number(formData.value.adultCount) || 1,
       childCount: Number(formData.value.childCount) || 0,
+      childAges: childAges.value.slice(0, Number(formData.value.childCount) || 0).join(','),
       email: formData.value.email,
       phone: formData.value.phone || undefined,
-      sex: formData.value.sex || undefined,
-      birthDate: formData.value.birthDate || undefined,
-      nationality: formData.value.nationality || undefined,
-      documentType: formData.value.idCard || undefined,
-      documentSeries: formData.value.documentSeries || undefined,
-      documentNumber: formData.value.documentNumber || undefined,
-      documentIssuedAt: formData.value.issuedDate || undefined,
-      documentValidUntil: formData.value.validUntil || undefined,
+      sex: primaryTraveler.sex || undefined,
+      birthDate: primaryTraveler.birthDate || undefined,
+      nationality: primaryTraveler.nationality || undefined,
+      documentType: primaryTraveler.idCard || undefined,
+      documentSeries: primaryTraveler.documentSeries || undefined,
+      documentNumber: primaryTraveler.documentNumber || undefined,
+      documentIssuedAt: primaryTraveler.issuedDate || undefined,
+      documentValidUntil: primaryTraveler.validUntil || undefined,
+      travelers: buildTravelerPayload(),
       sourcePage: route.fullPath,
       groupSize: (Number(formData.value.adultCount) || 1) + (Number(formData.value.childCount) || 0),
     });
@@ -528,8 +735,13 @@ const loadTour = async () => {
       priceFrom: data.priceFrom || null,
       currency: data.currency || null,
     };
-    adultCount.value = minAdults.value;
-    childCount.value = minChildren.value;
+    if (!route.query.adults) {
+      adultCount.value = minAdults.value;
+    }
+    if (!route.query.children) {
+      childCount.value = minChildren.value;
+    }
+    applyRouteSearchParams();
     days.value = (data.program || []).map((day, index) => ({
       id: day.id,
       title: day.title,
@@ -548,6 +760,18 @@ const loadTour = async () => {
 watch(() => locale.value, async () => {
   await loadCountries();
   await loadTour();
+});
+
+watch(
+  () => [formData.value.adultCount, formData.value.childCount],
+  () => {
+    syncTravelers();
+  },
+);
+
+watch(childCount, (count) => {
+  const nextCount = Math.max(0, Number(count) || 0);
+  childAges.value = Array.from({ length: nextCount }, (_, index) => childAges.value[index] ?? 0);
 });
 
 onMounted(() => {
@@ -632,6 +856,21 @@ onUnmounted(() => {
             :max="maxChildren"
             :unit="t('openCard.search_children_unit')"
           />
+          <div
+            v-if="childCount > 0"
+            class="flex items-center gap-1 px-2 border-r border-[#e6e6e7] bg-white"
+          >
+            <input
+              v-for="(_, index) in childAges"
+              :key="index"
+              v-model.number="childAges[index]"
+              type="number"
+              min="0"
+              max="17"
+              :title="t('openCard.child_age', { number: index + 1 })"
+              class="w-12 h-9 rounded-[8px] border border-[#e6e6e7] px-2 text-[13px] outline-none focus:border-[#285aff]"
+            />
+          </div>
           <CustomSelect
             v-model="duration"
             :placeholder="t('openCard.search_duration')"
@@ -1188,7 +1427,7 @@ onUnmounted(() => {
                   @click="openModal"
                   class="w-full bg-[#ff00e7] text-white rounded-[12px] py-3 text-[15px] font-medium hover:bg-[#eb02d3] transition cursor-pointer"
                 >
-                  {{ t('openCard.buy') }}
+                  {{ isB2BUser && (!tour.priceFrom || !hasIncomingPlacementForSelectedTravelers || route.query.request === '1') ? t('openCard.leave_request') : t('openCard.buy') }}
                 </button>
               </div>
 
@@ -1273,41 +1512,6 @@ onUnmounted(() => {
             <div v-if="modalStep === 1" class="modal-content">
               <form @submit.prevent="submitForm" class="modal-form">
                 <div class="form-group">
-                  <label>{{ t('openCard.modal_sex') }}</label>
-                  <select v-model="formData.sex" :class="{ 'input-error': formErrors.sex }" @change="clearFieldError('sex')" required>
-                    <option value="" disabled>{{ t('openCard.modal_sex') }}</option>
-                    <option v-for="option in sexOptions" :key="option" :value="option">
-                      {{ option }}
-                    </option>
-                  </select>
-                  <p v-if="formErrors.sex" class="field-error">{{ formErrors.sex }}</p>
-                </div>
-
-                <div class="form-group">
-                  <label>{{ t('openCard.modal_firstname') }}</label>
-                  <input type="text" v-model="formData.firstName" :class="{ 'input-error': formErrors.firstName }" @input="clearFieldError('firstName')" required />
-                  <p v-if="formErrors.firstName" class="field-error">{{ formErrors.firstName }}</p>
-                </div>
-
-                <div class="form-group">
-                  <label>{{ t('openCard.modal_lastname') }}</label>
-                  <input type="text" v-model="formData.lastName" :class="{ 'input-error': formErrors.lastName }" @input="clearFieldError('lastName')" required />
-                  <p v-if="formErrors.lastName" class="field-error">{{ formErrors.lastName }}</p>
-                </div>
-
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>{{ t('openCard.modal_birthdate') }}</label>
-                    <input type="date" v-model="formData.birthDate" />
-                  </div>
-                  <div class="form-group">
-                    <label>{{ t('openCard.modal_phone') }}</label>
-                    <input type="tel" v-model="formData.phone" :class="{ 'input-error': formErrors.phone }" @input="clearFieldError('phone')" required />
-                    <p v-if="formErrors.phone" class="field-error">{{ formErrors.phone }}</p>
-                  </div>
-                </div>
-
-                <div class="form-group">
                   <label>{{ t('openCard.modal_travel_date') }}</label>
                   <input type="date" v-model="formData.travelDate" :min="minTravelDate" :class="{ 'input-error': formErrors.travelDate }" @input="clearFieldError('travelDate')" required />
                   <p v-if="formErrors.travelDate" class="field-error">{{ formErrors.travelDate }}</p>
@@ -1330,26 +1534,81 @@ onUnmounted(() => {
                   Для выбранного состава туристов стоимость и подтверждение будут обработаны менеджером вручную.
                 </p>
 
-                <div class="form-group">
-                  <label>{{ t('openCard.modal_email') }}</label>
-                  <input type="email" v-model="formData.email" :class="{ 'input-error': formErrors.email }" @input="clearFieldError('email')" required />
-                  <p v-if="formErrors.email" class="field-error">{{ formErrors.email }}</p>
-                </div>
-
                 <div class="form-row">
                   <div class="form-group">
-                    <label>{{ t('openCard.modal_doc_type') }}</label>
-                    <select v-model="formData.idCard">
-                      <option value="" disabled>{{ t('openCard.modal_doc_type') }}</option>
-                      <option v-for="option in documentTypeOptions" :key="option" :value="option">
+                    <label>{{ t('openCard.modal_phone') }}</label>
+                    <input type="tel" v-model="formData.phone" :class="{ 'input-error': formErrors.phone }" @input="clearFieldError('phone')" required />
+                    <p v-if="formErrors.phone" class="field-error">{{ formErrors.phone }}</p>
+                  </div>
+                  <div class="form-group">
+                    <label>{{ t('openCard.modal_email') }}</label>
+                    <input type="email" v-model="formData.email" :class="{ 'input-error': formErrors.email }" @input="clearFieldError('email')" required />
+                    <p v-if="formErrors.email" class="field-error">{{ formErrors.email }}</p>
+                  </div>
+                </div>
+
+                <div class="traveler-card" v-if="activeTraveler">
+                  <div class="traveler-tabs" role="tablist" aria-label="Tourists">
+                    <button
+                      v-for="tab in travelerTabs"
+                      :key="tab.index"
+                      type="button"
+                      class="traveler-tab"
+                      :class="{ active: activeTravelerIndex === tab.index }"
+                      @click="activeTravelerIndex = tab.index"
+                    >
+                      {{ tab.label }}
+                    </button>
+                  </div>
+
+                  <div class="traveler-card-title">
+                    {{ activeTraveler.type === 'child' ? 'Данные ребенка' : `Данные туриста ${activeTravelerIndex + 1}` }}
+                  </div>
+
+                  <div class="form-group">
+                    <label>{{ t('openCard.modal_sex') }}</label>
+                    <select v-model="activeTraveler.sex" :class="{ 'input-error': formErrors[`travelers.${activeTravelerIndex}.sex`] }" @change="clearTravelerError('sex')" required>
+                      <option value="" disabled>{{ t('openCard.modal_sex') }}</option>
+                      <option v-for="option in sexOptions" :key="option" :value="option">
                         {{ option }}
                       </option>
                     </select>
+                    <p v-if="formErrors[`travelers.${activeTravelerIndex}.sex`]" class="field-error">{{ formErrors[`travelers.${activeTravelerIndex}.sex`] }}</p>
                   </div>
+
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>{{ t('openCard.modal_firstname') }}</label>
+                      <input type="text" v-model="activeTraveler.firstName" :class="{ 'input-error': formErrors[`travelers.${activeTravelerIndex}.firstName`] }" @input="clearTravelerError('firstName')" required />
+                      <p v-if="formErrors[`travelers.${activeTravelerIndex}.firstName`]" class="field-error">{{ formErrors[`travelers.${activeTravelerIndex}.firstName`] }}</p>
+                    </div>
+                    <div class="form-group">
+                      <label>{{ t('openCard.modal_lastname') }}</label>
+                      <input type="text" v-model="activeTraveler.lastName" :class="{ 'input-error': formErrors[`travelers.${activeTravelerIndex}.lastName`] }" @input="clearTravelerError('lastName')" required />
+                      <p v-if="formErrors[`travelers.${activeTravelerIndex}.lastName`]" class="field-error">{{ formErrors[`travelers.${activeTravelerIndex}.lastName`] }}</p>
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>{{ t('openCard.modal_birthdate') }}</label>
+                      <input type="date" v-model="activeTraveler.birthDate" />
+                    </div>
+                    <div class="form-group">
+                      <label>{{ t('openCard.modal_doc_type') }}</label>
+                      <select v-model="activeTraveler.idCard">
+                        <option value="" disabled>{{ t('openCard.modal_doc_type') }}</option>
+                        <option v-for="option in documentTypeOptions" :key="option" :value="option">
+                          {{ option }}
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+
                   <div class="form-group">
                     <label>{{ t('openCard.modal_nationality') }}</label>
                     <input
-                      v-model="formData.nationality"
+                      v-model="activeTraveler.nationality"
                       type="text"
                       autocomplete="off"
                       @focus="openNationalityDropdown"
@@ -1371,27 +1630,27 @@ onUnmounted(() => {
                       </button>
                     </div>
                   </div>
-                </div>
 
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>{{ t('openCard.modal_passport_series') }}</label>
-                    <input type="text" v-model="formData.documentSeries" />
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>{{ t('openCard.modal_passport_series') }}</label>
+                      <input type="text" v-model="activeTraveler.documentSeries" />
+                    </div>
+                    <div class="form-group">
+                      <label>{{ t('openCard.modal_doc_number') }}</label>
+                      <input type="text" v-model="activeTraveler.documentNumber" />
+                    </div>
                   </div>
-                  <div class="form-group">
-                    <label>{{ t('openCard.modal_doc_number') }}</label>
-                    <input type="text" v-model="formData.documentNumber" />
-                  </div>
-                </div>
 
-                <div class="form-row">
-                  <div class="form-group">
-                    <label>{{ t('openCard.modal_issued') }}</label>
-                    <input type="date" v-model="formData.issuedDate" />
-                  </div>
-                  <div class="form-group">
-                    <label>{{ t('openCard.modal_valid_until') }}</label>
-                    <input type="date" v-model="formData.validUntil" />
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>{{ t('openCard.modal_issued') }}</label>
+                      <input type="date" v-model="activeTraveler.issuedDate" />
+                    </div>
+                    <div class="form-group">
+                      <label>{{ t('openCard.modal_valid_until') }}</label>
+                      <input type="date" v-model="activeTraveler.validUntil" />
+                    </div>
                   </div>
                 </div>
 
@@ -2076,6 +2335,50 @@ onUnmounted(() => {
   color: #9a6413;
   font-size: 13px;
   line-height: 1.4;
+}
+
+.traveler-card {
+  padding: 12px;
+  border: 1px solid #dedede;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.traveler-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 0 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e7e7e7;
+}
+
+.traveler-tab {
+  flex: 0 0 auto;
+  min-width: 92px;
+  padding: 9px 14px;
+  border: 1px solid #cfcfd4;
+  border-bottom-color: #a8a8ae;
+  border-radius: 12px 12px 4px 4px;
+  background: #f6f6f6;
+  color: #333;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.traveler-tab.active {
+  border-color: #000;
+  background: #000;
+  color: #fff;
+}
+
+.traveler-card-title {
+  margin-bottom: 12px;
+  color: #111;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .modal-submit {

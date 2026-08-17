@@ -31,6 +31,20 @@ type TourSnapshot = {
   includedServices: string[];
 };
 
+type BookingTravelerSnapshot = {
+  type: 'adult' | 'child';
+  firstName: string;
+  lastName: string;
+  sex?: string | null;
+  birthDate?: string | null;
+  nationality?: string | null;
+  documentType?: string | null;
+  documentSeries?: string | null;
+  documentNumber?: string | null;
+  documentIssuedAt?: string | null;
+  documentValidUntil?: string | null;
+};
+
 @Injectable()
 export class BookingsService {
   constructor(
@@ -94,6 +108,8 @@ export class BookingsService {
     const childCount = dto.childCount ?? 0;
     const groupSize = adultCount + childCount;
     this.validateTravelerCounts(adultCount, childCount, tour);
+    const travelers = this.normalizeTravelers(dto, adultCount, childCount);
+    const primaryTraveler = travelers[0];
 
     const booking = await this.prisma.booking.create({
       data: {
@@ -104,21 +120,21 @@ export class BookingsService {
         tourId: tour.id,
         partnerId: partnerUser.partnerId,
         countryId: tour.countryId,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
+        firstName: primaryTraveler.firstName,
+        lastName: primaryTraveler.lastName,
         email: dto.email.toLowerCase(),
         phone: dto.phone,
-        sex: dto.sex,
-        birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
-        nationality: dto.nationality,
-        documentType: dto.documentType,
-        documentSeries: dto.documentSeries,
-        documentNumber: dto.documentNumber,
-        documentIssuedAt: dto.documentIssuedAt
-          ? new Date(dto.documentIssuedAt)
+        sex: primaryTraveler.sex ?? undefined,
+        birthDate: primaryTraveler.birthDate ? new Date(primaryTraveler.birthDate) : undefined,
+        nationality: primaryTraveler.nationality ?? undefined,
+        documentType: primaryTraveler.documentType ?? undefined,
+        documentSeries: primaryTraveler.documentSeries ?? undefined,
+        documentNumber: primaryTraveler.documentNumber ?? undefined,
+        documentIssuedAt: primaryTraveler.documentIssuedAt
+          ? new Date(primaryTraveler.documentIssuedAt)
           : undefined,
-        documentValidUntil: dto.documentValidUntil
-          ? new Date(dto.documentValidUntil)
+        documentValidUntil: primaryTraveler.documentValidUntil
+          ? new Date(primaryTraveler.documentValidUntil)
           : undefined,
         travelDate: dto.travelDate ? new Date(dto.travelDate) : undefined,
         adultCount,
@@ -129,6 +145,10 @@ export class BookingsService {
         currency: tour.currency ?? undefined,
         sourcePagePath: dto.sourcePage,
         includedServicesSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+        metadata: {
+          travelers,
+          childAges: this.parseChildAges(dto.childAges),
+        } as Prisma.InputJsonValue,
         translations: {
           create: [
             {
@@ -286,6 +306,21 @@ export class BookingsService {
     return value.filter((item): item is string => typeof item === 'string');
   }
 
+  private parseChildAges(value?: string) {
+    return String(value ?? '')
+      .split(',')
+      .map((item) => Number(item.trim()))
+      .filter((age) => Number.isFinite(age) && age >= 0 && age < 18);
+  }
+
+  private readChildAges(value: Prisma.JsonValue | null | undefined) {
+    if (!this.isPlainObject(value) || !Array.isArray(value.childAges)) {
+      return [];
+    }
+
+    return value.childAges.filter((age): age is number => typeof age === 'number');
+  }
+
   private readSnapshot(value: Prisma.JsonValue | null | undefined): TourSnapshot {
     const snapshot = (value ?? {}) as Partial<TourSnapshot>;
 
@@ -375,6 +410,7 @@ export class BookingsService {
       travelDate: booking.travelDate,
       adultCount: booking.adultCount,
       childCount: booking.childCount,
+      childAges: this.readChildAges(booking.metadata),
       groupSize: booking.groupSize,
       hotelName: booking.hotelName,
       incomingTourId: tour.incomingTourId,
@@ -405,6 +441,7 @@ export class BookingsService {
         documentIssuedAt: booking.documentIssuedAt,
         documentValidUntil: booking.documentValidUntil,
       },
+      travelers: this.readTravelers(booking.metadata),
       tour: {
         title: snapshot.title,
         durationDays: tour.durationDays,
@@ -444,6 +481,58 @@ export class BookingsService {
     }
   }
 
+  private normalizeTravelers(
+    dto: CreateBookingDto,
+    adultCount: number,
+    childCount: number,
+  ): BookingTravelerSnapshot[] {
+    const expectedCount = adultCount + childCount;
+    const sourceTravelers =
+      Array.isArray(dto.travelers) && dto.travelers.length > 0
+        ? dto.travelers
+        : Array.from({ length: expectedCount }, (_, index) => ({
+            type: index < adultCount ? ('adult' as const) : ('child' as const),
+            firstName: index === 0 ? dto.firstName : `Traveler ${index + 1}`,
+            lastName: index === 0 ? dto.lastName : 'Tourist',
+            sex: index === 0 ? dto.sex : index < adultCount ? 'MR' : 'CHD',
+            birthDate: index === 0 ? dto.birthDate : undefined,
+            nationality: index === 0 ? dto.nationality : undefined,
+            documentType: index === 0 ? dto.documentType : undefined,
+            documentSeries: index === 0 ? dto.documentSeries : undefined,
+            documentNumber: index === 0 ? dto.documentNumber : undefined,
+            documentIssuedAt: index === 0 ? dto.documentIssuedAt : undefined,
+            documentValidUntil: index === 0 ? dto.documentValidUntil : undefined,
+          }));
+
+    if (sourceTravelers.length !== expectedCount) {
+      throw new BadRequestException(`Travelers count must be ${expectedCount}`);
+    }
+
+    return sourceTravelers.map((traveler, index) => {
+      const type: 'adult' | 'child' = index < adultCount ? 'adult' : 'child';
+      const firstName = traveler.firstName?.trim();
+      const lastName = traveler.lastName?.trim();
+
+      if (!firstName || !lastName) {
+        throw new BadRequestException(`Traveler ${index + 1} first name and last name are required`);
+      }
+
+      return {
+        type,
+        firstName,
+        lastName,
+        sex: traveler.sex?.trim() || (type === 'child' ? 'CHD' : 'MR'),
+        birthDate: traveler.birthDate || null,
+        nationality: traveler.nationality?.trim() || null,
+        documentType: traveler.documentType?.trim() || null,
+        documentSeries: traveler.documentSeries?.trim() || null,
+        documentNumber: traveler.documentNumber?.trim() || null,
+        documentIssuedAt: traveler.documentIssuedAt || null,
+        documentValidUntil: traveler.documentValidUntil || null,
+      };
+    });
+  }
+
   private toSafeSamoMetadata(result: SamoIncomingResult) {
     const { requestXml: _requestXml, ...safeResult } = result;
     return {
@@ -460,6 +549,38 @@ export class BookingsService {
     }
 
     return value.samoIncoming;
+  }
+
+  private readTravelers(value: Prisma.JsonValue | null | undefined) {
+    if (!this.isPlainObject(value) || !Array.isArray(value.travelers)) {
+      return undefined;
+    }
+
+    return value.travelers
+      .filter((traveler): traveler is Record<string, Prisma.JsonValue> => this.isPlainObject(traveler))
+      .map((traveler) => ({
+        type: typeof traveler.type === 'string' ? traveler.type : null,
+        firstName: typeof traveler.firstName === 'string' ? traveler.firstName : '',
+        lastName: typeof traveler.lastName === 'string' ? traveler.lastName : '',
+        sex: typeof traveler.sex === 'string' ? traveler.sex : null,
+        birthDate:
+          typeof traveler.birthDate === 'string' && traveler.birthDate
+            ? new Date(traveler.birthDate)
+            : null,
+        nationality: typeof traveler.nationality === 'string' ? traveler.nationality : null,
+        documentSeries:
+          typeof traveler.documentSeries === 'string' ? traveler.documentSeries : null,
+        documentNumber:
+          typeof traveler.documentNumber === 'string' ? traveler.documentNumber : null,
+        documentIssuedAt:
+          typeof traveler.documentIssuedAt === 'string' && traveler.documentIssuedAt
+            ? new Date(traveler.documentIssuedAt)
+            : null,
+        documentValidUntil:
+          typeof traveler.documentValidUntil === 'string' && traveler.documentValidUntil
+            ? new Date(traveler.documentValidUntil)
+            : null,
+      }));
   }
 
   private isPlainObject(value: unknown): value is Record<string, Prisma.JsonValue> {

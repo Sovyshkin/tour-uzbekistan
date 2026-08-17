@@ -452,6 +452,13 @@ export async function submitLead(payload) {
   });
 }
 
+export async function submitPartnerRequest(payload) {
+  return request('/leads/partner-request', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function registerPartner(payload) {
   const auth = await request('/auth/register/partner', {
     method: 'POST',

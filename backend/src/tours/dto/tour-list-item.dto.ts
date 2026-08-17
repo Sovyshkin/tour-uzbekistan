@@ -26,6 +26,12 @@ export class TourListItemDto {
   durationNights!: number;
 
   @ApiProperty({ required: false, nullable: true })
+  departureCity!: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  maxTouristCount!: number | null;
+
+  @ApiProperty({ required: false, nullable: true })
   country!: string | null;
 
   @ApiProperty({ required: false, nullable: true })
@@ -45,6 +51,9 @@ export class TourListItemDto {
 
   @ApiPropertyOptional()
   currency?: string;
+
+  @ApiPropertyOptional()
+  hasMatchingPlacement?: boolean;
 
   @ApiProperty({ required: false, nullable: true })
   transportInfo!: string | null;

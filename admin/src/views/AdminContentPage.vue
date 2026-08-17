@@ -41,6 +41,8 @@ type ContentRecord = {
   maxAdultCount?: number | null;
   minChildCount?: number | null;
   maxChildCount?: number | null;
+  maxTouristCount?: number | null;
+  departureCity?: string | null;
   comfortLevel?: number | null;
   priceFrom?: string | null;
   currency?: string | null;
@@ -395,6 +397,8 @@ const form = reactive<{
   maxAdultCount?: number;
   minChildCount?: number;
   maxChildCount?: number;
+  maxTouristCount?: number;
+  departureCity?: string;
   comfortLevel?: number;
   priceFrom?: number;
   currency?: string;
@@ -426,6 +430,8 @@ const form = reactive<{
   maxAdultCount: undefined,
   minChildCount: undefined,
   maxChildCount: undefined,
+  maxTouristCount: undefined,
+  departureCity: undefined,
   comfortLevel: undefined,
   priceFrom: undefined,
   currency: undefined,
@@ -504,6 +510,8 @@ const resetForm = () => {
   form.maxAdultCount = undefined;
   form.minChildCount = undefined;
   form.maxChildCount = undefined;
+  form.maxTouristCount = undefined;
+  form.departureCity = undefined;
   form.comfortLevel = undefined;
   form.priceFrom = undefined;
   form.currency = undefined;
@@ -1420,6 +1428,8 @@ const openEditor = async (record: ContentRecord) => {
   form.maxAdultCount = record.maxAdultCount ?? record.maxGroupSize ?? undefined;
   form.minChildCount = record.minChildCount ?? 0;
   form.maxChildCount = record.maxChildCount ?? 0;
+  form.maxTouristCount = record.maxTouristCount ?? record.maxGroupSize ?? undefined;
+  form.departureCity = record.departureCity ?? '';
   form.comfortLevel = record.comfortLevel ?? undefined;
   form.priceFrom = record.priceFrom ? Number(record.priceFrom) : undefined;
   form.currency = record.currency ?? undefined;
@@ -1513,6 +1523,8 @@ const openCreate = async () => {
       form.maxAdultCount = 2;
       form.minChildCount = 0;
       form.maxChildCount = 0;
+      form.maxTouristCount = 2;
+      form.departureCity = '';
       form.comfortLevel = 4;
       form.priceFrom = undefined;
       form.currency = 'USD';
@@ -1582,6 +1594,8 @@ const saveContent = async () => {
       payload.maxAdultCount = form.maxAdultCount;
       payload.minChildCount = form.minChildCount;
       payload.maxChildCount = form.maxChildCount;
+      payload.maxTouristCount = form.maxTouristCount;
+      payload.departureCity = form.departureCity;
       payload.comfortLevel = form.comfortLevel;
       payload.priceFrom = form.priceFrom;
       payload.currency = form.currency;
@@ -2220,6 +2234,10 @@ watch(
               </el-select>
             </el-form-item>
 
+            <el-form-item :label="t('content.departureCity')">
+              <el-input v-model="form.departureCity" placeholder="Москва" />
+            </el-form-item>
+
             <el-form-item :label="t('content.days')">
               <el-input-number v-model="form.durationDays" :min="1" />
             </el-form-item>
@@ -2244,6 +2262,10 @@ watch(
 
             <el-form-item :label="t('content.maxChildren')">
               <el-input-number v-model="form.maxChildCount" :min="0" />
+            </el-form-item>
+
+            <el-form-item :label="t('content.maxTourists')">
+              <el-input-number v-model="form.maxTouristCount" :min="1" />
             </el-form-item>
 
             <el-form-item :label="t('content.comfort')">

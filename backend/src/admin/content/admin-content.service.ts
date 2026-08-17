@@ -31,6 +31,8 @@ type AdminContentRecord = {
   maxAdultCount?: number | null;
   minChildCount?: number | null;
   maxChildCount?: number | null;
+  maxTouristCount?: number | null;
+  departureCity?: string | null;
   comfortLevel?: number | null;
   priceFrom?: string | null;
   currency?: string | null;
@@ -1778,6 +1780,8 @@ export class AdminContentService {
         maxAdultCount: dto.maxAdultCount,
         minChildCount: dto.minChildCount,
         maxChildCount: dto.maxChildCount,
+        maxTouristCount: dto.maxTouristCount,
+        departureCity: this.readNullableString(dto.departureCity),
         comfortLevel: dto.comfortLevel,
         priceFrom: dto.priceFrom,
         currency: dto.currency ?? 'USD',
@@ -2141,6 +2145,8 @@ export class AdminContentService {
       maxAdultCount: record.maxAdultCount,
       minChildCount: record.minChildCount,
       maxChildCount: record.maxChildCount,
+      maxTouristCount: record.maxTouristCount,
+      departureCity: record.departureCity,
       comfortLevel: record.comfortLevel,
       priceFrom: record.priceFrom?.toString() ?? null,
       currency: record.currency,
@@ -2341,6 +2347,10 @@ export class AdminContentService {
         ...(dto.maxAdultCount !== undefined ? { maxAdultCount: dto.maxAdultCount } : {}),
         ...(dto.minChildCount !== undefined ? { minChildCount: dto.minChildCount } : {}),
         ...(dto.maxChildCount !== undefined ? { maxChildCount: dto.maxChildCount } : {}),
+        ...(dto.maxTouristCount !== undefined ? { maxTouristCount: dto.maxTouristCount } : {}),
+        ...(dto.departureCity !== undefined
+          ? { departureCity: this.readNullableString(dto.departureCity) }
+          : {}),
         ...(dto.comfortLevel !== undefined ? { comfortLevel: dto.comfortLevel } : {}),
         ...(dto.priceFrom !== undefined ? { priceFrom: dto.priceFrom } : {}),
         ...(dto.currency !== undefined ? { currency: dto.currency } : {}),

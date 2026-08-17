@@ -203,6 +203,17 @@ export class AdminContentCreateDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
+  maxTouristCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  departureCity?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   comfortLevel?: number;
 
   @ApiPropertyOptional()

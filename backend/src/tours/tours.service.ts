@@ -2,12 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { ContentStatus, Locale, Prisma, UserRole, UserStatus } from '@prisma/client';
 
 import { pickTranslation } from '../common/translation.util';
+import { SamoIncomingService } from '../integrations/samo-incoming/samo-incoming.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ToursQueryDto } from './dto/tours-query.dto';
 
 @Injectable()
 export class ToursService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly samoIncomingService: SamoIncomingService,
+  ) {}
 
   async getTours(
     query: ToursQueryDto,
@@ -32,10 +36,14 @@ export class ToursService {
       this.getLinkedIncomingPlacements(canViewPrices),
     ]);
 
-    return {
-      items: tours.map((tour) =>
-        this.mapTourSummary(tour, canViewPrices, locale, linkedPlacements),
+    const items = await Promise.all(
+      tours.map((tour) =>
+        this.mapTourSummary(tour, canViewPrices, locale, linkedPlacements, query),
       ),
+    );
+
+    return {
+      items,
       meta: {
         page,
         pageSize,
@@ -82,6 +90,27 @@ export class ToursService {
         slug: query.country,
         status: ContentStatus.PUBLISHED,
       };
+    }
+
+    if (query.from) {
+      where.departureCity = {
+        equals: query.from,
+        mode: 'insensitive',
+      };
+    }
+
+    if (query.adults !== undefined || query.children !== undefined) {
+      const adults = query.adults ?? 1;
+      const children = query.children ?? 0;
+      const totalTourists = adults + children;
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        { OR: [{ minAdultCount: null }, { minAdultCount: { lte: adults } }] },
+        { OR: [{ maxAdultCount: null }, { maxAdultCount: { gte: adults } }] },
+        { OR: [{ minChildCount: null }, { minChildCount: { lte: children } }] },
+        { OR: [{ maxChildCount: null }, { maxChildCount: { gte: children } }] },
+        { OR: [{ maxTouristCount: null }, { maxTouristCount: { gte: totalTourists } }] },
+      ];
     }
 
     if (query.minDuration !== undefined || query.maxDuration !== undefined) {
@@ -189,11 +218,12 @@ export class ToursService {
     } satisfies Prisma.TourInclude;
   }
 
-  private mapTourSummary(
+  private async mapTourSummary(
     tour: Prisma.TourGetPayload<{ include: ReturnType<ToursService['buildInclude']> }>,
     isAuthorized: boolean,
     locale: Locale,
     linkedPlacements: Array<{ adultCount: number; childCount: number; label: string }>,
+    query?: ToursQueryDto,
   ) {
     const translation = pickTranslation(tour.translations, locale);
     const countryTranslation = pickTranslation(tour.country.translations, locale);
@@ -205,6 +235,12 @@ export class ToursService {
       route: translation?.route ?? '',
       durationDays: tour.durationDays,
       durationNights: tour.durationNights,
+      minAdultCount: tour.minAdultCount,
+      maxAdultCount: tour.maxAdultCount,
+      minChildCount: tour.minChildCount,
+      maxChildCount: tour.maxChildCount,
+      maxTouristCount: tour.maxTouristCount,
+      departureCity: tour.departureCity,
       country: countryTranslation?.name ?? null,
       heroImage: tour.heroImage,
       mainImage: tour.mainImage,
@@ -242,10 +278,55 @@ export class ToursService {
       }),
     } as Record<string, unknown>;
 
-    if (isAuthorized && tour.priceFrom) {
-      payload.priceFrom = tour.priceFrom.toString();
-      payload.currency = tour.currency ?? null;
+    if (isAuthorized) {
+      const adults = query?.adults ?? 2;
+      const children = query?.children ?? 0;
+      const childAges = this.parseChildAges(query?.childAges);
+      const matchingPlacement = linkedPlacements.find((placement) =>
+        placement.adultCount === adults &&
+        placement.childCount === children &&
+        this.matchesChildAgeRanges(placement.label, childAges, children),
+      );
+      const shouldQuote = Boolean(
+        query?.adults !== undefined ||
+          query?.children !== undefined ||
+          query?.childAges,
+      );
+
       payload.incomingPlacements = linkedPlacements;
+      payload.hasMatchingPlacement = Boolean(matchingPlacement);
+
+      if (matchingPlacement && shouldQuote) {
+        const quote = await this.samoIncomingService.quoteTourPrice({
+          bookingId: tour.id,
+          bookingNumber: `QUOTE-${tour.id}`,
+          createdAt: new Date(),
+          adultCount: adults,
+          childCount: children,
+          childAges,
+          incomingTourId: tour.incomingTourId,
+          incomingHotelCode: tour.incomingHotelCode,
+          incomingHotelName: tour.incomingHotelName,
+          person: {
+            firstName: 'Quote',
+            lastName: 'Request',
+          },
+          tour: {
+            title: translation?.title ?? '',
+            durationDays: tour.durationDays,
+            includedServices: [],
+          },
+        });
+
+        payload.priceQuote = quote;
+        if (quote.amount) {
+          payload.priceFrom = String(quote.amount);
+          payload.currency = quote.currency ?? tour.currency ?? null;
+        }
+      } else if (matchingPlacement && tour.priceFrom) {
+        payload.priceFrom = tour.priceFrom.toString();
+        payload.currency = tour.currency ?? null;
+      }
     }
 
     return payload;
@@ -277,6 +358,8 @@ export class ToursService {
       maxAdultCount: tour.maxAdultCount,
       minChildCount: tour.minChildCount,
       maxChildCount: tour.maxChildCount,
+      maxTouristCount: tour.maxTouristCount,
+      departureCity: tour.departureCity,
       country: countryTranslation?.name ?? null,
       heroImage: tour.heroImage,
       mainImage: tour.mainImage,
@@ -384,5 +467,42 @@ export class ToursService {
         childCount: placement.childCount,
         label: placement.samoName || placement.cmsLabel,
       }));
+  }
+
+  private parseChildAges(value?: string) {
+    return String(value ?? '')
+      .split(',')
+      .map((item) => Number(item.trim()))
+      .filter((age) => Number.isFinite(age) && age >= 0 && age < 18);
+  }
+
+  private matchesChildAgeRanges(label: string, childAges: number[], childCount: number) {
+    if (childCount === 0 || childAges.length !== childCount) {
+      return true;
+    }
+
+    const ranges = [...label.matchAll(/\((\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)\)/g)]
+      .map((match) => ({
+        from: Number(match[1].replace(',', '.')),
+        to: Number(match[2].replace(',', '.')),
+      }))
+      .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to));
+
+    if (ranges.length < childCount) {
+      return false;
+    }
+
+    const used = new Set<number>();
+    return [...childAges].sort((a, b) => a - b).every((age) => {
+      const index = ranges.findIndex(
+        (range, rangeIndex) =>
+          !used.has(rangeIndex) && age >= range.from && age <= range.to,
+      );
+      if (index === -1) {
+        return false;
+      }
+      used.add(index);
+      return true;
+    });
   }
 }

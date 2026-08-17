@@ -22,6 +22,32 @@ export class ToursQueryDto {
   @IsString()
   country?: string;
 
+  @ApiPropertyOptional({ example: 'Москва' })
+  @IsOptional()
+  @IsString()
+  from?: string;
+
+  @ApiPropertyOptional({ example: 2, minimum: 1, maximum: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  adults?: number;
+
+  @ApiPropertyOptional({ example: 1, minimum: 0, maximum: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(20)
+  children?: number;
+
+  @ApiPropertyOptional({ example: '9', description: 'Comma-separated child ages' })
+  @IsOptional()
+  @IsString()
+  childAges?: string;
+
   @ApiPropertyOptional({ example: 1, minimum: 1 })
   @IsOptional()
   @Type(() => Number)

@@ -30,9 +30,11 @@ const closeMobileFilter = () => {
 
 // ─── Поисковые значения ───
 const where = ref(null);
+const from = ref(null);
 const when = ref('');
 const adultCount = ref(2);
 const childCount = ref(0);
+const childAges = ref([]);
 const duration = ref(7);
 const searchText = ref('');
 const maxPrice = ref(null);
@@ -41,6 +43,7 @@ const isSearchDurationActive = ref(false);
 const isPriceFilterAvailable = ref(isB2BAuthenticated());
 
 const countries = ref([]);
+const departureCities = ref([]);
 const settings = ref({});
 
 // ─── Фильтры ───
@@ -102,7 +105,9 @@ onUnmounted(() => window.removeEventListener('resize', updatePerPage));
 
 const resetFilters = () => {
   where.value = null;
+  from.value = null;
   when.value = '';
+  childAges.value = [];
   searchText.value = '';
   comfortFilter.value = null;
   maxPrice.value = null;
@@ -117,6 +122,35 @@ const resetFilters = () => {
 const applyRangeFilters = () => {
   currentPage.value = 1;
   loadTours();
+};
+
+const matchesChildAgeRanges = (label, ages, children) => {
+  if (!children || ages.length !== children) {
+    return true;
+  }
+
+  const ranges = [...String(label || '').matchAll(/\((\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)\)/g)]
+    .map((match) => ({
+      from: Number(match[1].replace(',', '.')),
+      to: Number(match[2].replace(',', '.')),
+    }))
+    .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to));
+
+  if (ranges.length < children) {
+    return false;
+  }
+
+  const used = new Set();
+  return [...ages].sort((a, b) => a - b).every((age) => {
+    const index = ranges.findIndex(
+      (range, rangeIndex) => !used.has(rangeIndex) && age >= range.from && age <= range.to,
+    );
+    if (index === -1) {
+      return false;
+    }
+    used.add(index);
+    return true;
+  });
 };
 
 const setComfortFilter = (stars) => {
@@ -177,6 +211,33 @@ const loadCountries = async () => {
   }
 };
 
+const loadSearchOptions = async () => {
+  try {
+    const data = await getTours({
+      locale: getApiLocale(locale.value),
+      page: 1,
+      pageSize: 50,
+      from: from.value?.label,
+    });
+    const items = data.items || [];
+    const cities = [...new Set(items.map((tour) => tour.departureCity).filter(Boolean))];
+    if (!from.value) {
+      departureCities.value = cities.map((city) => ({ id: city, label: city }));
+    }
+    if (from.value) {
+      const countryNames = new Set(items.map((tour) => tour.country).filter(Boolean));
+      countries.value = countries.value.filter((country) => countryNames.has(country.label));
+      if (where.value && !countries.value.some((country) => country.slug === where.value.slug)) {
+        where.value = null;
+      }
+    }
+  } catch {
+    if (!departureCities.value.length) {
+      departureCities.value = [];
+    }
+  }
+};
+
 const loadTours = async () => {
   try {
     const data = await getTours({
@@ -184,6 +245,10 @@ const loadTours = async () => {
       page: currentPage.value,
       pageSize: perPage.value,
       country: where.value?.slug,
+      from: from.value?.label,
+      adults: adultCount.value,
+      children: childCount.value,
+      childAges: childAges.value.slice(0, childCount.value).join(','),
       maxDuration: maxDuration.value || (isSearchDurationActive.value ? duration.value : undefined),
       minStars: comfortFilter.value || undefined,
       maxStars: comfortFilter.value || undefined,
@@ -196,7 +261,12 @@ const loadTours = async () => {
         ? tour.incomingPlacements.some(
             (placement) =>
               Number(placement.adultCount) === Number(adultCount.value) &&
-              Number(placement.childCount) === Number(childCount.value),
+              Number(placement.childCount) === Number(childCount.value) &&
+              matchesChildAgeRanges(
+                placement.label,
+                childAges.value.slice(0, childCount.value).map(Number),
+                Number(childCount.value),
+              ),
           )
         : false;
 
@@ -214,7 +284,7 @@ const loadTours = async () => {
         country: tour.country,
         comfort: tour.comfortLevel,
         priceFrom: hasLinkedPlacement ? tour.priceFrom || null : null,
-        priceOnRequest: isPriceFilterAvailable.value && !hasLinkedPlacement,
+        priceOnRequest: isPriceFilterAvailable.value && (!hasLinkedPlacement || !tour.priceFrom),
         currency: tour.currency || null,
       };
     });
@@ -255,7 +325,18 @@ const reloadToursAfterAuthChange = () => {
 
 watch(() => locale.value, async () => {
   await Promise.all([loadSettings(), loadCountries()]);
+  await loadSearchOptions();
   await loadTours();
+});
+
+watch(from, async () => {
+  await loadCountries();
+  await loadSearchOptions();
+});
+
+watch(childCount, (count) => {
+  const nextCount = Math.max(0, Number(count) || 0);
+  childAges.value = Array.from({ length: nextCount }, (_, index) => childAges.value[index] ?? 0);
 });
 
 watch(currentPage, () => {
@@ -271,6 +352,7 @@ onMounted(async () => {
   syncPriceFilterVisibility();
   window.addEventListener('tour-auth-changed', reloadToursAfterAuthChange);
   await Promise.all([loadSettings(), loadCountries()]);
+  await loadSearchOptions();
   await loadTours();
 });
 
@@ -343,6 +425,14 @@ onUnmounted(() => {
         <!-- Мобильная поисковая панель -->
         <div class="lg:hidden flex flex-col gap-2 sm:gap-3">
           <CustomSelect
+            v-model="from"
+            :placeholder="t('toursPage.search_from')"
+            :options="departureCities"
+            type="list"
+            class="w-full"
+            :border="false"
+          />
+          <CustomSelect
             v-model="where"
             :placeholder="t('toursPage.search_where')"
             :options="countries"
@@ -377,6 +467,22 @@ onUnmounted(() => {
             class="flex-1"
             :border="false"
           />
+          <div v-if="childCount > 0" class="grid grid-cols-2 gap-2">
+            <label
+              v-for="(_, index) in childAges"
+              :key="index"
+              class="bg-white border border-[#e6e6e7] rounded-[8px] px-3 py-2 text-[12px] text-[#666]"
+            >
+              {{ t('toursPage.child_age', { number: index + 1 }) }}
+              <input
+                v-model.number="childAges[index]"
+                type="number"
+                min="0"
+                max="17"
+                class="block w-full mt-1 text-[14px] text-[#111] outline-none"
+              />
+            </label>
+          </div>
           <CustomSelect
             v-model="duration"
             :placeholder="t('toursPage.search_days')"
@@ -398,6 +504,12 @@ onUnmounted(() => {
         <!-- Десктопная поисковая панель -->
         <div class="hidden lg:flex bg-white rounded-[12px] border px-[0.5px]">
           <CustomSelect
+            v-model="from"
+            :placeholder="t('toursPage.search_from')"
+            :options="departureCities"
+            type="list"
+          />
+          <CustomSelect
             v-model="where"
             :placeholder="t('toursPage.search_where')"
             :options="countries"
@@ -424,6 +536,21 @@ onUnmounted(() => {
             :max="20"
             :unit="t('toursPage.search_children_unit')"
           />
+          <div
+            v-if="childCount > 0"
+            class="flex items-center gap-1 px-2 border-r border-[#e6e6e7] bg-white"
+          >
+            <input
+              v-for="(_, index) in childAges"
+              :key="index"
+              v-model.number="childAges[index]"
+              type="number"
+              min="0"
+              max="17"
+              :title="t('toursPage.child_age', { number: index + 1 })"
+              class="w-12 h-9 rounded-[8px] border border-[#e6e6e7] px-2 text-[13px] outline-none focus:border-[#285aff]"
+            />
+          </div>
           <CustomSelect
             v-model="duration"
             :placeholder="t('toursPage.search_duration')"
@@ -677,6 +804,14 @@ onUnmounted(() => {
                 :key="tour.id"
                 :tour="tour"
                 :country="where?.slug"
+                :search-query="{
+                  from: from?.label,
+                  adults: adultCount,
+                  children: childCount,
+                  childAges: childAges.slice(0, childCount).join(','),
+                  travelDate: when,
+                  request: tour.priceOnRequest ? '1' : undefined,
+                }"
               />
             </div>
 

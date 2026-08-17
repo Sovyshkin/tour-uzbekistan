@@ -18,6 +18,10 @@ type SamoClaimPerson = {
   documentValidUntil?: Date | null;
 };
 
+type SamoClaimTraveler = SamoClaimPerson & {
+  type?: 'adult' | 'child' | string | null;
+};
+
 type SamoClaimTour = {
   title: string;
   durationDays: number;
@@ -71,15 +75,31 @@ export type SamoClaimPayload = {
   groupSize?: number | null;
   adultCount?: number | null;
   childCount?: number | null;
+  childAges?: number[] | null;
   hotelName?: string | null;
   incomingTourId?: string | null;
   incomingHotelCode?: string | null;
   incomingHotelName?: string | null;
   specialRequests?: string | null;
   person: SamoClaimPerson;
+  travelers?: SamoClaimTraveler[];
   tour: SamoClaimTour;
   source?: SamoClaimSource;
   linkedEntity?: SamoClaimLinkedEntity;
+};
+
+export type SamoIncomingPriceQuote = {
+  available: boolean;
+  amount: number | null;
+  currency: string | null;
+  roomCode: string | null;
+  roomName: string | null;
+  placementCode: string | null;
+  placementName: string | null;
+  mealCode: string | null;
+  mealName: string | null;
+  nights: number | null;
+  source: 'samo' | 'mapping' | 'none';
 };
 
 export type SamoIncomingResult = {
@@ -159,6 +179,74 @@ export class SamoIncomingService {
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
   ) {}
+
+  async quoteTourPrice(payload: SamoClaimPayload): Promise<SamoIncomingPriceQuote> {
+    let config = this.getConfig(payload);
+    if (!config.enabled || !config.hotelCode) {
+      return this.emptyPriceQuote('none');
+    }
+
+    try {
+      const mappings = await this.resolveAdminMappings(config, payload);
+      if (!mappings.placementMapping) {
+        return this.emptyPriceQuote('none');
+      }
+
+      config = this.applyAdminMappings(config, mappings);
+      const partnerToken = await this.getPartnerToken(config);
+      const pricePacket = await this.resolveHotelPricePacket(config, partnerToken, payload);
+
+      if (!pricePacket) {
+        return {
+          ...this.emptyPriceQuote('mapping'),
+          available: true,
+          roomCode: config.roomCode,
+          roomName: config.roomName,
+          placementCode: config.htplaceCode,
+          placementName: config.htplaceName,
+          mealCode: config.mealCode,
+          mealName: config.mealName,
+          nights: config.nights,
+        };
+      }
+
+      config = this.applyHotelPricePacket(config, pricePacket);
+      return {
+        available: true,
+        amount: pricePacket.price,
+        currency: this.normalizeCurrency(pricePacket.currency),
+        roomCode: config.roomCode,
+        roomName: config.roomName,
+        placementCode: config.htplaceCode,
+        placementName: config.htplaceName,
+        mealCode: config.mealCode,
+        mealName: config.mealName,
+        nights: pricePacket.nights,
+        source: 'samo',
+      };
+    } catch (error) {
+      this.logger.warn(
+        `SAMO Incoming price quote failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return this.emptyPriceQuote('none');
+    }
+  }
+
+  private emptyPriceQuote(source: SamoIncomingPriceQuote['source']): SamoIncomingPriceQuote {
+    return {
+      available: false,
+      amount: null,
+      currency: null,
+      roomCode: null,
+      roomName: null,
+      placementCode: null,
+      placementName: null,
+      mealCode: null,
+      mealName: null,
+      nights: null,
+      source,
+    };
+  }
 
   async sendBooking(payload: SamoClaimPayload): Promise<SamoIncomingResult> {
     let config = this.getConfig(payload);
@@ -353,7 +441,7 @@ export class SamoIncomingService {
     const children = Math.max(0, payload.childCount ?? 0);
     const [roomMapping, placementMapping] = await Promise.all([
       this.findRoomMapping(config.roomName),
-      this.findPlacementMapping(adults, children),
+      this.findPlacementMapping(adults, children, payload.childAges ?? []),
     ]);
 
     return {
@@ -395,8 +483,12 @@ export class SamoIncomingService {
     });
   }
 
-  private async findPlacementMapping(adultCount: number, childCount: number) {
-    return this.prisma.incomingMapping.findFirst({
+  private async findPlacementMapping(
+    adultCount: number,
+    childCount: number,
+    childAges: number[] = [],
+  ) {
+    const mappings = await this.prisma.incomingMapping.findMany({
       where: {
         type: 'placement',
         isActive: true,
@@ -404,6 +496,51 @@ export class SamoIncomingService {
         childCount,
       },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    return (
+      mappings.find((mapping) =>
+        this.matchesChildAgeRanges(mapping.samoName || mapping.cmsLabel, childAges, childCount),
+      ) ??
+      mappings.find((mapping) =>
+        this.matchesChildAgeRanges(mapping.cmsKey || mapping.cmsLabel, childAges, childCount),
+      ) ??
+      null
+    );
+  }
+
+  private matchesChildAgeRanges(label: string, childAges: number[], childCount: number) {
+    if (childCount === 0) {
+      return true;
+    }
+
+    if (childAges.length !== childCount) {
+      return true;
+    }
+
+    const ranges = [...label.matchAll(/\((\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)\)/g)]
+      .map((match) => ({
+        from: Number(match[1].replace(',', '.')),
+        to: Number(match[2].replace(',', '.')),
+      }))
+      .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to));
+
+    if (ranges.length < childCount) {
+      return false;
+    }
+
+    const sortedAges = [...childAges].sort((a, b) => a - b);
+    const used = new Set<number>();
+
+    return sortedAges.every((age) => {
+      const rangeIndex = ranges.findIndex(
+        (range, index) => !used.has(index) && age >= range.from && age <= range.to,
+      );
+      if (rangeIndex === -1) {
+        return false;
+      }
+      used.add(rangeIndex);
+      return true;
     });
   }
 
@@ -1036,22 +1173,25 @@ export class SamoIncomingService {
 
   private buildTourists(payload: SamoClaimPayload, count: number, adultCount: number) {
     return Array.from({ length: count }, (_, index) => {
-      const isMainPerson = index === 0;
+      const traveler = payload.travelers?.[index];
+      const person = traveler ?? (index === 0 ? payload.person : null);
       const id = index;
       const isAdult = index < adultCount;
-      const firstName = isMainPerson
-        ? payload.person.firstName.toUpperCase()
+      const firstName = person?.firstName
+        ? person.firstName.toUpperCase()
         : isAdult
           ? `ADULT ${index + 1}`
           : `CHILD ${index - adultCount + 1}`;
-      const lastName = isMainPerson ? payload.person.lastName.toUpperCase() : 'TOURIST';
+      const lastName = person?.lastName ? person.lastName.toUpperCase() : 'TOURIST';
       const fullName = `${lastName} ${firstName}`.trim();
-      const gender = this.mapHuman(payload.person.sex);
+      const gender = this.mapHuman(person?.sex ?? (isAdult ? 'MR' : 'CHD'));
       const born = isAdult
-        ? this.getSafeAdultBirthDate(payload.person.birthDate)
-        : new Date(Date.UTC(2016, 0, 1));
-      const passportSerie = isMainPerson ? payload.person.documentSeries ?? '' : '';
-      const passportNo = isMainPerson ? payload.person.documentNumber ?? '' : '';
+        ? this.getSafeAdultBirthDate(person?.birthDate)
+        : person?.birthDate && !Number.isNaN(person.birthDate.getTime())
+          ? person.birthDate
+          : new Date(Date.UTC(2016, 0, 1));
+      const passportSerie = person?.documentSeries ?? '';
+      const passportNo = person?.documentNumber ?? '';
 
       return {
         id,
