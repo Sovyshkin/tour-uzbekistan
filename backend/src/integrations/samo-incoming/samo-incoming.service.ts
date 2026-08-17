@@ -156,6 +156,7 @@ type SamoHotelPricePacket = {
   nights: number;
   price: number;
   currency?: string;
+  checkinDate?: string;
   raw: Record<string, string>;
 };
 
@@ -337,6 +338,15 @@ export class SamoIncomingService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`SAMO Incoming booking sync failed: ${message}`);
+      if (this.isSamoPacketPriceMissingError(message)) {
+        return this.buildManualModeResult({
+          config,
+          source,
+          claimNumber,
+          message: `Incoming price packet is not available for the selected date. Manual manager confirmation is required. ${message}`,
+        });
+      }
+
       return {
         enabled: true,
         sent: false,
@@ -828,6 +838,7 @@ export class SamoIncomingService {
         ]);
         const price = Number(String(priceValue ?? '').replace(/\s/g, '').replace(',', '.'));
         const nights = Number(nightsValue ?? 1);
+        const checkinDate = this.readPricePacketStartDate(item);
 
         if (
           !Number.isFinite(price) ||
@@ -851,12 +862,14 @@ export class SamoIncomingService {
             'currency_inc',
             'curr',
           ]) ?? undefined,
+          checkinDate: checkinDate ?? undefined,
           raw: item,
         };
       })
       .filter((item): item is SamoHotelPricePacket => Boolean(item));
+    const dateFilteredPrices = this.filterPricesByPayloadDate(prices, payload);
 
-    const exactMappedPrices = prices
+    const exactMappedPrices = dateFilteredPrices
       .filter((item) => item.htplaceCode === config.htplaceCode)
       .filter((item) => item.roomCode === config.roomCode)
       .sort((a, b) => a.price - b.price);
@@ -865,10 +878,115 @@ export class SamoIncomingService {
       return exactMappedPrices[0];
     }
 
-    return prices
+    return dateFilteredPrices
       .filter((item) => this.matchesHtplaceOccupancy(item.raw, expectedAdults, expectedChildren))
       .filter((item) => item.roomCode === config.roomCode)
       .sort((a, b) => a.price - b.price)[0] ?? null;
+  }
+
+  private filterPricesByPayloadDate(
+    prices: SamoHotelPricePacket[],
+    payload: SamoClaimPayload,
+  ) {
+    if (!payload.travelDate) {
+      return prices;
+    }
+
+    const pricesWithDate = prices.filter((packet) => this.hasPricePacketDate(packet.raw));
+    if (!pricesWithDate.length) {
+      return prices;
+    }
+
+    const targetDate = this.formatSamoPacketDate(this.getIncomingCheckinDate(payload));
+    return pricesWithDate.filter((packet) => this.pricePacketMatchesDate(packet.raw, targetDate));
+  }
+
+  private hasPricePacketDate(item: Record<string, string>) {
+    return Boolean(
+      this.readPricePacketStartDate(item) ||
+        this.readPricePacketEndDate(item) ||
+        this.readFirstTextField(item, ['date', 'checkin', 'arrival', 'packetdate', 'pdate']),
+    );
+  }
+
+  private pricePacketMatchesDate(item: Record<string, string>, targetDate: string) {
+    const startDate = this.readPricePacketStartDate(item);
+    const endDate = this.readPricePacketEndDate(item);
+
+    if (startDate && endDate) {
+      return targetDate >= startDate && targetDate <= endDate;
+    }
+
+    if (startDate) {
+      return targetDate === startDate;
+    }
+
+    const exactDate = this.normalizeSamoPacketDate(
+      this.readFirstTextField(item, ['date', 'checkin', 'arrival', 'packetdate', 'pdate']),
+    );
+    return exactDate ? targetDate === exactDate : true;
+  }
+
+  private readPricePacketStartDate(item: Record<string, string>) {
+    return this.normalizeSamoPacketDate(
+      this.readFirstTextField(item, [
+        'datebeg',
+        'date_beg',
+        'begdate',
+        'datebegin',
+        'date_begin',
+        'datefrom',
+        'date_from',
+        'checkin',
+        'arrival',
+        'date',
+      ]),
+    );
+  }
+
+  private readPricePacketEndDate(item: Record<string, string>) {
+    return this.normalizeSamoPacketDate(
+      this.readFirstTextField(item, [
+        'dateend',
+        'date_end',
+        'enddate',
+        'dateto',
+        'date_to',
+      ]),
+    );
+  }
+
+  private normalizeSamoPacketDate(value?: string | null) {
+    const raw = String(value ?? '').trim();
+    if (!raw) {
+      return null;
+    }
+
+    const compact = raw.replace(/[^\d]/g, '');
+    if (/^\d{8}$/.test(compact)) {
+      const leadingYear = Number(compact.slice(0, 4));
+      if (leadingYear >= 1900 && leadingYear <= 2200) {
+        return compact;
+      }
+
+      return `${compact.slice(4, 8)}${compact.slice(2, 4)}${compact.slice(0, 2)}`;
+    }
+
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      return `${isoMatch[1]}${isoMatch[2]}${isoMatch[3]}`;
+    }
+
+    const dottedMatch = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+    if (dottedMatch) {
+      return `${dottedMatch[3]}${dottedMatch[2].padStart(2, '0')}${dottedMatch[1].padStart(2, '0')}`;
+    }
+
+    return null;
+  }
+
+  private isSamoPacketPriceMissingError(message: string) {
+    return /Prices for this packet not found|price packet|packet not found/i.test(message);
   }
 
   private matchesHtplaceOccupancy(item: Record<string, string>, adults: number, children: number) {
