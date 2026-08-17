@@ -146,6 +146,22 @@ const childAgeSummary = computed(() => {
 
   return childAges.value.map((age) => `${age}`).join(', ');
 });
+const formatChildAge = (age) => {
+  const value = Number(age);
+  if (t('calendar.january') !== 'Январь') {
+    return `${value} ${props.childAgeUnit}`;
+  }
+
+  const lastDigit = value % 10;
+  const lastTwoDigits = value % 100;
+  if (lastDigit === 1 && lastTwoDigits !== 11) {
+    return `${value} год`;
+  }
+  if ([2, 3, 4].includes(lastDigit) && ![12, 13, 14].includes(lastTwoDigits)) {
+    return `${value} года`;
+  }
+  return `${value} лет`;
+};
 const emitCount = () => {
   emit('update:modelValue', count.value);
   if (props.showChildAges) {
@@ -308,7 +324,7 @@ watch(() => props.modelValue, (val) => {
             @change="updateChildAge(index, $event.target.value)"
           >
             <option v-for="age in ageOptions" :key="age" :value="age">
-              {{ age }} {{ childAgeUnit }}
+              {{ formatChildAge(age) }}
             </option>
           </select>
         </div>
