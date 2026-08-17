@@ -459,30 +459,19 @@ onUnmounted(() => {
           />
           <CustomSelect
             v-model="childCount"
+            :age-model-value="childAges"
             :placeholder="t('toursPage.search_children')"
             type="counter"
             :min="0"
             :max="20"
             :unit="t('toursPage.search_children_unit')"
+            :show-child-ages="true"
+            :child-age-label="t('toursPage.child_age', { number: '{number}' })"
+            :child-age-unit="t('toursPage.child_age_unit')"
             class="flex-1"
             :border="false"
+            @update:age-model-value="childAges = $event"
           />
-          <div v-if="childCount > 0" class="grid grid-cols-2 gap-2">
-            <label
-              v-for="(_, index) in childAges"
-              :key="index"
-              class="bg-white border border-[#e6e6e7] rounded-[8px] px-3 py-2 text-[12px] text-[#666]"
-            >
-              {{ t('toursPage.child_age', { number: index + 1 }) }}
-              <input
-                v-model.number="childAges[index]"
-                type="number"
-                min="0"
-                max="17"
-                class="block w-full mt-1 text-[14px] text-[#111] outline-none"
-              />
-            </label>
-          </div>
           <CustomSelect
             v-model="duration"
             :placeholder="t('toursPage.search_days')"
@@ -530,27 +519,17 @@ onUnmounted(() => {
           />
           <CustomSelect
             v-model="childCount"
+            :age-model-value="childAges"
             :placeholder="t('toursPage.search_children')"
             type="counter"
             :min="0"
             :max="20"
             :unit="t('toursPage.search_children_unit')"
+            :show-child-ages="true"
+            :child-age-label="t('toursPage.child_age', { number: '{number}' })"
+            :child-age-unit="t('toursPage.child_age_unit')"
+            @update:age-model-value="childAges = $event"
           />
-          <div
-            v-if="childCount > 0"
-            class="flex items-center gap-1 px-2 border-r border-[#e6e6e7] bg-white"
-          >
-            <input
-              v-for="(_, index) in childAges"
-              :key="index"
-              v-model.number="childAges[index]"
-              type="number"
-              min="0"
-              max="17"
-              :title="t('toursPage.child_age', { number: index + 1 })"
-              class="w-12 h-9 rounded-[8px] border border-[#e6e6e7] px-2 text-[13px] outline-none focus:border-[#285aff]"
-            />
-          </div>
           <CustomSelect
             v-model="duration"
             :placeholder="t('toursPage.search_duration')"

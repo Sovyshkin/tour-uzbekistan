@@ -139,7 +139,7 @@ const applyRouteSearchParams = () => {
   childAges.value = String(route.query.childAges || '')
     .split(',')
     .map((age) => Number(age))
-    .filter((age) => Number.isFinite(age) && age >= 0 && age < 18);
+    .filter((age) => Number.isFinite(age) && age >= 0 && age <= 18);
   when.value = route.query.travelDate || when.value;
 };
 
@@ -850,27 +850,17 @@ onUnmounted(() => {
           />
           <CustomSelect
             v-model="childCount"
+            :age-model-value="childAges"
             :placeholder="t('openCard.search_children')"
             type="counter"
             :min="minChildren"
             :max="maxChildren"
             :unit="t('openCard.search_children_unit')"
+            :show-child-ages="true"
+            :child-age-label="t('openCard.child_age', { number: '{number}' })"
+            :child-age-unit="t('openCard.child_age_unit')"
+            @update:age-model-value="childAges = $event"
           />
-          <div
-            v-if="childCount > 0"
-            class="flex items-center gap-1 px-2 border-r border-[#e6e6e7] bg-white"
-          >
-            <input
-              v-for="(_, index) in childAges"
-              :key="index"
-              v-model.number="childAges[index]"
-              type="number"
-              min="0"
-              max="17"
-              :title="t('openCard.child_age', { number: index + 1 })"
-              class="w-12 h-9 rounded-[8px] border border-[#e6e6e7] px-2 text-[13px] outline-none focus:border-[#285aff]"
-            />
-          </div>
           <CustomSelect
             v-model="duration"
             :placeholder="t('openCard.search_duration')"

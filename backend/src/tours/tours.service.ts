@@ -473,7 +473,7 @@ export class ToursService {
     return String(value ?? '')
       .split(',')
       .map((item) => Number(item.trim()))
-      .filter((age) => Number.isFinite(age) && age >= 0 && age < 18);
+      .filter((age) => Number.isFinite(age) && age >= 0 && age <= 18);
   }
 
   private matchesChildAgeRanges(label: string, childAges: number[], childCount: number) {

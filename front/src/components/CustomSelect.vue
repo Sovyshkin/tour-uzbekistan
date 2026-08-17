@@ -12,10 +12,14 @@ const props = defineProps({
   min: { type: Number, default: 1 },
   max: { type: Number, default: 10 },
   unit: { type: String, default: '' },
+  showChildAges: { type: Boolean, default: false },
+  ageModelValue: { type: Array, default: () => [] },
+  childAgeLabel: { type: String, default: '' },
+  childAgeUnit: { type: String, default: '' },
   border: { type: Boolean, default: true }
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'update:ageModelValue']);
 const displayPlaceholder = computed(() => props.placeholder || t('register.select_partner'));
 
 const isOpen = ref(false);
@@ -128,8 +132,44 @@ function clearSelection() {
 
 // ─── СЧЁТЧИК (только для type === 'counter') ───
 const count = ref(typeof props.modelValue === 'number' ? props.modelValue : props.min);
-const increment = () => { if (count.value < props.max) count.value++; emit('update:modelValue', count.value); };
-const decrement = () => { if (count.value > props.min) count.value--; emit('update:modelValue', count.value); };
+const ageOptions = computed(() => Array.from({ length: 19 }, (_, age) => age));
+const childAges = computed(() =>
+  Array.from({ length: Math.max(0, count.value) }, (_, index) => {
+    const age = Number(props.ageModelValue[index]);
+    return Number.isFinite(age) ? Math.min(18, Math.max(0, age)) : 0;
+  }),
+);
+const childAgeSummary = computed(() => {
+  if (!props.showChildAges || count.value <= 0) {
+    return '';
+  }
+
+  return childAges.value.map((age) => `${age}`).join(', ');
+});
+const emitCount = () => {
+  emit('update:modelValue', count.value);
+  if (props.showChildAges) {
+    emit('update:ageModelValue', childAges.value);
+  }
+};
+const increment = () => {
+  if (count.value < props.max) {
+    count.value++;
+    emitCount();
+  }
+};
+const decrement = () => {
+  if (count.value > props.min) {
+    count.value--;
+    emitCount();
+  }
+};
+const updateChildAge = (index, value) => {
+  const nextAges = [...childAges.value];
+  const age = Number(value);
+  nextAges[index] = Number.isFinite(age) ? Math.min(18, Math.max(0, age)) : 0;
+  emit('update:ageModelValue', nextAges);
+};
 
 // ─── СПИСОК (type === 'list') ───
 const selectOption = (opt) => {
@@ -160,6 +200,9 @@ watch(() => props.modelValue, (val) => {
   }
   if (props.type === 'counter' && typeof val === 'number') {
     count.value = val;
+    if (props.showChildAges) {
+      emit('update:ageModelValue', childAges.value);
+    }
   }
 });
 </script>
@@ -175,7 +218,7 @@ watch(() => props.modelValue, (val) => {
     >
       <!-- Counter -->
       <span v-if="type === 'counter'" class="text-[#333]">
-        {{ count }} {{ unit }}
+        {{ count }} {{ unit }}<span v-if="childAgeSummary" class="text-[#888]"> · {{ childAgeSummary }}</span>
       </span>
       <!-- Calendar / List -->
       <span v-else-if="modelValue" class="text-[#333] truncate">
@@ -237,7 +280,11 @@ watch(() => props.modelValue, (val) => {
     </div>
 
     <!-- COUNTER -->
-    <div v-if="isOpen && type === 'counter'" class="dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-[#e6e6e7] rounded-[8px] shadow-lg z-50 p-4 w-[200px]">
+    <div
+      v-if="isOpen && type === 'counter'"
+      class="dropdown counter-dropdown absolute top-full left-0 right-0 mt-1 bg-white border border-[#e6e6e7] rounded-[12px] shadow-lg z-50 p-4"
+      :class="showChildAges && count > 0 ? 'w-[320px]' : 'w-[200px]'"
+    >
       <div class="flex items-center justify-between mb-2">
         <span class="text-[14px] capitalize">{{ unit }}</span>
       </div>
@@ -245,6 +292,26 @@ watch(() => props.modelValue, (val) => {
         <button @click="decrement" class="w-8 h-8 flex items-center justify-center rounded-full bg-white shadow text-[16px] text-[#285aff] hover:bg-[#f0f0f0] transition disabled:opacity-30" :disabled="count <= min">−</button>
         <span class="text-[16px] font-medium">{{ count }}</span>
         <button @click="increment" class="w-8 h-8 flex items-center justify-center rounded-full bg-[#285aff] text-white text-[16px] hover:bg-[#1e4af5] transition disabled:opacity-30" :disabled="count >= max">+</button>
+      </div>
+      <div v-if="showChildAges && count > 0" class="child-age-panel mt-4 pt-4 border-t border-[#eeeeef]">
+        <div
+          v-for="(_, index) in childAges"
+          :key="index"
+          class="child-age-row"
+        >
+          <span class="child-age-title">
+            {{ childAgeLabel ? childAgeLabel.replace('{number}', index + 1) : `Child ${index + 1}` }}
+          </span>
+          <select
+            :value="childAges[index]"
+            class="child-age-select"
+            @change="updateChildAge(index, $event.target.value)"
+          >
+            <option v-for="age in ageOptions" :key="age" :value="age">
+              {{ age }} {{ childAgeUnit }}
+            </option>
+          </select>
+        </div>
       </div>
     </div>
   </div>
@@ -254,5 +321,39 @@ watch(() => props.modelValue, (val) => {
 .custom-select:first-child .trigger { border-radius: 8px 0 0 8px; }
 .custom-select:last-child .trigger { border-radius: 0 8px 8px 0; border-right: none; }
 .dropdown { animation: fadeIn 0.15s ease; }
+.counter-dropdown {
+  min-width: 200px;
+}
+.child-age-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.child-age-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: 12px;
+}
+.child-age-title {
+  color: #333;
+  font-size: 13px;
+  line-height: 1.2;
+}
+.child-age-select {
+  width: 100%;
+  height: 36px;
+  border: 1px solid #e0e0e2;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 10px;
+  color: #111;
+  font-size: 13px;
+  outline: none;
+}
+.child-age-select:focus {
+  border-color: #285aff;
+  box-shadow: 0 0 0 2px rgba(40, 90, 255, 0.12);
+}
 @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 </style>
