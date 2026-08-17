@@ -114,7 +114,12 @@ const hasIncomingPlacementForBookingForm = computed(() => {
   return placements.some(
     (placement) =>
       Number(placement.adultCount) === Number(formData.value.adultCount) &&
-      Number(placement.childCount) === Number(formData.value.childCount),
+      Number(placement.childCount) === Number(formData.value.childCount) &&
+      matchesChildAgeRanges(
+        placement.label,
+        bookingChildAges.value.slice(0, Number(formData.value.childCount) || 0),
+        Number(formData.value.childCount) || 0,
+      ),
   );
 });
 const duration = ref(7);
@@ -177,6 +182,7 @@ const formData = ref({
   validUntil: '',
 });
 const travelers = ref([]);
+const bookingChildAges = ref([]);
 const activeTravelerIndex = ref(0);
 const formErrors = ref({});
 const sexOptions = ['CHD', 'MR', 'MRS'];
@@ -216,6 +222,55 @@ const leadForm = ref({
 });
 const leadErrors = ref({});
 const leadSubmitting = ref(false);
+const bookingChildAgeOptions = computed(() => Array.from({ length: 19 }, (_, age) => age));
+
+const formatAgeLabel = (age) => {
+  const value = Number(age);
+  if (locale.value !== 'ru') {
+    return `${value} ${t('openCard.child_age_unit')}`;
+  }
+
+  const lastDigit = value % 10;
+  const lastTwoDigits = value % 100;
+  if (lastDigit === 1 && lastTwoDigits !== 11) {
+    return `${value} год`;
+  }
+  if ([2, 3, 4].includes(lastDigit) && ![12, 13, 14].includes(lastTwoDigits)) {
+    return `${value} года`;
+  }
+  return `${value} лет`;
+};
+
+const syncBookingChildAges = () => {
+  const count = Math.max(0, Number(formData.value.childCount) || 0);
+  bookingChildAges.value = Array.from(
+    { length: count },
+    (_, index) => bookingChildAges.value[index] ?? childAges.value[index] ?? 0,
+  );
+};
+
+const setBookingChildCount = (value) => {
+  const nextCount = Math.min(maxChildren.value, Math.max(minChildren.value, Number(value) || 0));
+  formData.value.childCount = nextCount;
+  syncBookingChildAges();
+  syncTravelers();
+  clearFieldError('childCount');
+};
+
+const incrementBookingChildren = () => {
+  setBookingChildCount((Number(formData.value.childCount) || 0) + 1);
+};
+
+const decrementBookingChildren = () => {
+  setBookingChildCount((Number(formData.value.childCount) || 0) - 1);
+};
+
+const updateBookingChildAge = (index, value) => {
+  const nextAges = [...bookingChildAges.value];
+  const age = Number(value);
+  nextAges[index] = Number.isFinite(age) ? Math.min(18, Math.max(0, age)) : 0;
+  bookingChildAges.value = nextAges;
+};
 
 const parseSearchDate = (value) => {
   if (!value) {
@@ -389,8 +444,11 @@ const openModal = () => {
   }
 
   formErrors.value = {};
+  formData.value.travelDate = parseSearchDate(when.value || route.query.travelDate) || formData.value.travelDate;
   formData.value.adultCount = adultCount.value;
   formData.value.childCount = childCount.value;
+  bookingChildAges.value = childAges.value.slice(0, Number(childCount.value) || 0);
+  syncBookingChildAges();
   formData.value.email = authState.value?.user?.email || formData.value.email;
   formData.value.phone = authState.value?.user?.phone || formData.value.phone;
   syncTravelers();
@@ -499,7 +557,7 @@ const submitForm = async () => {
       travelDate: formData.value.travelDate,
       adultCount: Number(formData.value.adultCount) || 1,
       childCount: Number(formData.value.childCount) || 0,
-      childAges: childAges.value.slice(0, Number(formData.value.childCount) || 0).join(','),
+      childAges: bookingChildAges.value.slice(0, Number(formData.value.childCount) || 0).join(','),
       email: formData.value.email,
       phone: formData.value.phone || undefined,
       sex: primaryTraveler.sex || undefined,
@@ -765,6 +823,7 @@ watch(() => locale.value, async () => {
 watch(
   () => [formData.value.adultCount, formData.value.childCount],
   () => {
+    syncBookingChildAges();
     syncTravelers();
   },
 );
@@ -1514,8 +1573,45 @@ onUnmounted(() => {
                     <p v-if="formErrors.adultCount" class="field-error">{{ formErrors.adultCount }}</p>
                   </div>
                   <div class="form-group">
-                    <label>{{ t('openCard.modal_children') }}</label>
-                    <input type="number" v-model.number="formData.childCount" :min="minChildren" :max="maxChildren" step="1" :class="{ 'input-error': formErrors.childCount }" @input="clearFieldError('childCount')" required />
+                    <div class="booking-child-control" :class="{ 'input-error': formErrors.childCount }">
+                      <div class="booking-child-control__header">
+                        <span>{{ t('openCard.modal_children') }}</span>
+                        <div class="booking-child-stepper">
+                          <button
+                            type="button"
+                            :disabled="Number(formData.childCount) <= minChildren"
+                            @click="decrementBookingChildren"
+                          >
+                            -
+                          </button>
+                          <strong>{{ formData.childCount }}</strong>
+                          <button
+                            type="button"
+                            :disabled="Number(formData.childCount) >= maxChildren"
+                            @click="incrementBookingChildren"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      <div v-if="bookingChildAges.length" class="booking-child-ages">
+                        <div
+                          v-for="(_, index) in bookingChildAges"
+                          :key="index"
+                          class="booking-child-age-row"
+                        >
+                          <span>{{ t('openCard.child_age', { number: index + 1 }) }}</span>
+                          <select
+                            :value="bookingChildAges[index]"
+                            @change="updateBookingChildAge(index, $event.target.value)"
+                          >
+                            <option v-for="age in bookingChildAgeOptions" :key="age" :value="age">
+                              {{ formatAgeLabel(age) }}
+                            </option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
                     <p v-if="formErrors.childCount" class="field-error">{{ formErrors.childCount }}</p>
                   </div>
                 </div>
@@ -2167,8 +2263,7 @@ onUnmounted(() => {
 
 .modal-container {
   position: relative;
-  max-width: 600px;
-  width: 100%;
+  width: min(92vw, 760px);
   max-height: 85vh;
   background: white;
   /* border-radius: 0 15px 15px 15px; */
@@ -2204,7 +2299,7 @@ onUnmounted(() => {
 }
 
 .modal-content {
-  padding: 32px;
+  padding: 32px 34px 36px;
 }
 
 .modal-title {
@@ -2217,13 +2312,13 @@ onUnmounted(() => {
 .modal-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 18px 22px;
 }
 
 .form-group {
@@ -2246,23 +2341,26 @@ onUnmounted(() => {
 
 .form-group input,
 .form-group select {
-  padding: 20px 12px 10px 12px;
-  border: 1px solid #000;
-  border-radius: 15px;
+  width: 100%;
+  min-height: 58px;
+  padding: 22px 16px 10px;
+  border: 1px solid #d6d6da;
+  border-radius: 14px;
   font-size: 16px;
   transition: border 0.2s;
-  background-color: #f6f6f6;
+  background-color: #f8f8f9;
+  box-sizing: border-box;
 }
 
 .form-group textarea {
   min-height: 112px;
-  padding: 24px 12px 12px;
-  border: 1px solid #000;
-  border-radius: 15px;
+  padding: 24px 16px 12px;
+  border: 1px solid #d6d6da;
+  border-radius: 14px;
   font-size: 16px;
   line-height: 1.45;
   resize: vertical;
-  background-color: #f6f6f6;
+  background-color: #f8f8f9;
   transition: border 0.2s;
 }
 
@@ -2271,6 +2369,110 @@ onUnmounted(() => {
 .form-group textarea:focus {
   outline: none;
   border-color: #285aff;
+}
+
+.booking-child-control {
+  min-height: 58px;
+  padding: 12px 14px;
+  border: 1px solid #d6d6da;
+  border-radius: 14px;
+  background: #f8f8f9;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+.booking-child-control:focus-within {
+  border-color: #285aff;
+  box-shadow: 0 0 0 2px rgba(40, 90, 255, 0.1);
+}
+
+.booking-child-control.input-error {
+  border-color: #ff00cc;
+  box-shadow: 0 0 0 1px #ff00cc;
+}
+
+.booking-child-control__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.booking-child-control__header > span {
+  color: #999;
+  font-size: 12px;
+}
+
+.booking-child-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.booking-child-stepper button {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: #285aff;
+  color: #fff;
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.booking-child-stepper button:first-child {
+  background: #fff;
+  color: #285aff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.booking-child-stepper button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.booking-child-stepper button:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+.booking-child-stepper strong {
+  min-width: 20px;
+  color: #111;
+  font-size: 18px;
+  text-align: center;
+}
+
+.booking-child-ages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e6e6e8;
+}
+
+.booking-child-age-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 128px;
+  align-items: center;
+  gap: 14px;
+}
+
+.booking-child-age-row span {
+  color: #333;
+  font-size: 13px;
+}
+
+.booking-child-age-row select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid #d6d6da;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font-size: 14px;
 }
 
 .nationality-dropdown {
@@ -2328,7 +2530,10 @@ onUnmounted(() => {
 }
 
 .traveler-card {
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px;
   border: 1px solid #dedede;
   border-radius: 16px;
   background: #fff;
@@ -2338,8 +2543,7 @@ onUnmounted(() => {
   display: flex;
   gap: 4px;
   overflow-x: auto;
-  padding: 0 0 10px;
-  margin-bottom: 12px;
+  padding: 0 0 14px;
   border-bottom: 1px solid #e7e7e7;
 }
 
@@ -2365,9 +2569,9 @@ onUnmounted(() => {
 }
 
 .traveler-card-title {
-  margin-bottom: 12px;
+  margin: 0;
   color: #111;
-  font-size: 15px;
+  font-size: 20px;
   font-weight: 600;
 }
 
