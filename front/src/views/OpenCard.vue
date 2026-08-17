@@ -11,6 +11,7 @@ import {
   getAuth,
   getCountries,
   getTour,
+  getTourDepartures,
   isApprovedPartnerAuth,
   resolveAssetUrl,
   submitLead,
@@ -195,6 +196,10 @@ const documentTypeOptions = [
 const nationalityOptions = computed(() => getCountryNameOptions(locale.value));
 const nationalityDropdownOpen = ref(false);
 const bookingSubmitting = ref(false);
+const departureLoading = ref(false);
+const departureError = ref('');
+const departureOptions = ref([]);
+const selectedDepartureKey = ref('');
 const travelerCount = computed(
   () => (Number(formData.value.adultCount) || 1) + (Number(formData.value.childCount) || 0),
 );
@@ -223,6 +228,9 @@ const leadForm = ref({
 const leadErrors = ref({});
 const leadSubmitting = ref(false);
 const bookingChildAgeOptions = computed(() => Array.from({ length: 19 }, (_, age) => age));
+const selectedDeparture = computed(
+  () => departureOptions.value.find((option) => option.key === selectedDepartureKey.value) || null,
+);
 
 const formatAgeLabel = (age) => {
   const value = Number(age);
@@ -387,6 +395,62 @@ const buildTravelerPayload = () =>
     documentValidUntil: traveler.validUntil || undefined,
   }));
 
+const buildBookingPayload = (travelDate) => {
+  const primaryTraveler = travelers.value[0] || makeTraveler(0);
+
+  return {
+    tourId: tour.value.id,
+    locale: getApiLocale(locale.value),
+    firstName: primaryTraveler.firstName,
+    lastName: primaryTraveler.lastName,
+    travelDate,
+    adultCount: Number(formData.value.adultCount) || 1,
+    childCount: Number(formData.value.childCount) || 0,
+    childAges: bookingChildAges.value.slice(0, Number(formData.value.childCount) || 0).join(','),
+    email: formData.value.email,
+    phone: formData.value.phone || undefined,
+    sex: primaryTraveler.sex || undefined,
+    birthDate: primaryTraveler.birthDate || undefined,
+    nationality: primaryTraveler.nationality || undefined,
+    documentType: primaryTraveler.idCard || undefined,
+    documentSeries: primaryTraveler.documentSeries || undefined,
+    documentNumber: primaryTraveler.documentNumber || undefined,
+    documentIssuedAt: primaryTraveler.issuedDate || undefined,
+    documentValidUntil: primaryTraveler.validUntil || undefined,
+    travelers: buildTravelerPayload(),
+    sourcePage: route.fullPath,
+    groupSize: (Number(formData.value.adultCount) || 1) + (Number(formData.value.childCount) || 0),
+  };
+};
+
+const formatDepartureDate = (value) => {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(locale.value === 'ru' ? 'ru-RU' : locale.value, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+};
+
+const formatDeparturePrice = (option) => {
+  const price = Number(option?.price);
+  const formatted = Number.isFinite(price)
+    ? new Intl.NumberFormat(locale.value === 'ru' ? 'ru-RU' : locale.value).format(price)
+    : option?.price;
+
+  return [formatted, option?.currency].filter(Boolean).join(' ');
+};
+
+const normalizeDepartureOptions = (items = []) =>
+  items.map((item) => ({
+    ...item,
+    key: [item.date, item.nights, item.roomCode, item.placementCode, item.mealCode].join('|'),
+  }));
+
 const validateTravelers = () => {
   const errors = {};
 
@@ -444,6 +508,9 @@ const openModal = () => {
   }
 
   formErrors.value = {};
+  departureError.value = '';
+  departureOptions.value = [];
+  selectedDepartureKey.value = '';
   formData.value.travelDate = parseSearchDate(when.value || route.query.travelDate) || formData.value.travelDate;
   formData.value.adultCount = adultCount.value;
   formData.value.childCount = childCount.value;
@@ -497,6 +564,7 @@ const openLeadModal = () => {
 const closeModal = () => {
   isModalOpen.value = false;
   formErrors.value = {};
+  departureError.value = '';
   document.body.style.overflow = '';
 };
 
@@ -519,6 +587,7 @@ const submitForm = async () => {
     ...validateBookingFormFields(
       {
         ...formData.value,
+        travelDate: minTravelDate.value,
         sex: primaryTraveler.sex,
         firstName: primaryTraveler.firstName,
         lastName: primaryTraveler.lastName,
@@ -547,32 +616,45 @@ const submitForm = async () => {
     return;
   }
 
+  departureLoading.value = true;
+  departureError.value = '';
+  departureOptions.value = [];
+  selectedDepartureKey.value = '';
+  modalStep.value = 4;
+
+  try {
+    const response = await getTourDepartures(tour.value.slug || route.params.id, {
+      locale: getApiLocale(locale.value),
+      adults: Number(formData.value.adultCount) || 1,
+      children: Number(formData.value.childCount) || 0,
+      childAges: bookingChildAges.value.slice(0, Number(formData.value.childCount) || 0).join(','),
+    });
+    const items = normalizeDepartureOptions(response?.items || []);
+    departureOptions.value = items;
+    selectedDepartureKey.value = items[0]?.key || '';
+  } catch (error) {
+    departureError.value = error.message || t('notifications.loadTourFailed');
+    notifyError(departureError.value, t('notifications.tourUnavailable'));
+  } finally {
+    departureLoading.value = false;
+  }
+};
+
+const confirmBooking = async () => {
+  if (!selectedDeparture.value) {
+    departureError.value = t('openCard.departures_select_required');
+    return;
+  }
+
+  if (bookingSubmitting.value) {
+    return;
+  }
+
   bookingSubmitting.value = true;
   try {
-    await createBooking({
-      tourId: tour.value.id,
-      locale: getApiLocale(locale.value),
-      firstName: primaryTraveler.firstName,
-      lastName: primaryTraveler.lastName,
-      travelDate: formData.value.travelDate,
-      adultCount: Number(formData.value.adultCount) || 1,
-      childCount: Number(formData.value.childCount) || 0,
-      childAges: bookingChildAges.value.slice(0, Number(formData.value.childCount) || 0).join(','),
-      email: formData.value.email,
-      phone: formData.value.phone || undefined,
-      sex: primaryTraveler.sex || undefined,
-      birthDate: primaryTraveler.birthDate || undefined,
-      nationality: primaryTraveler.nationality || undefined,
-      documentType: primaryTraveler.idCard || undefined,
-      documentSeries: primaryTraveler.documentSeries || undefined,
-      documentNumber: primaryTraveler.documentNumber || undefined,
-      documentIssuedAt: primaryTraveler.issuedDate || undefined,
-      documentValidUntil: primaryTraveler.validUntil || undefined,
-      travelers: buildTravelerPayload(),
-      sourcePage: route.fullPath,
-      groupSize: (Number(formData.value.adultCount) || 1) + (Number(formData.value.childCount) || 0),
-    });
+    await createBooking(buildBookingPayload(selectedDeparture.value.date));
     formErrors.value = {};
+    departureError.value = '';
     modalStep.value = 2;
   } catch (error) {
     notifyError(error.message || t('notifications.createBookingFailed'), t('notifications.bookingFailed'));
@@ -1560,12 +1642,6 @@ onUnmounted(() => {
 
             <div v-if="modalStep === 1" class="modal-content">
               <form @submit.prevent="submitForm" class="modal-form">
-                <div class="form-group">
-                  <label>{{ t('openCard.modal_travel_date') }}</label>
-                  <input type="date" v-model="formData.travelDate" :min="minTravelDate" :class="{ 'input-error': formErrors.travelDate }" @input="clearFieldError('travelDate')" required />
-                  <p v-if="formErrors.travelDate" class="field-error">{{ formErrors.travelDate }}</p>
-                </div>
-
                 <div class="form-row">
                   <div class="form-group">
                     <label>{{ t('openCard.modal_adults') }}</label>
@@ -1765,6 +1841,70 @@ onUnmounted(() => {
               <button class="modal-submit" @click="closeModal">
                 {{ t('openCard.modal_close') }}
               </button>
+            </div>
+
+            <div v-else-if="modalStep === 4" class="modal-content">
+              <div class="departures-step">
+                <div class="departures-step__header">
+                  <h2>{{ t('openCard.departures_title') }}</h2>
+                  <p>{{ t('openCard.departures_text') }}</p>
+                </div>
+
+                <div v-if="departureLoading" class="departures-loading">
+                  <span class="button-spinner" aria-hidden="true"></span>
+                  {{ t('openCard.departures_loading') }}
+                </div>
+
+                <div v-else-if="departureOptions.length" class="departure-options">
+                  <label
+                    v-for="option in departureOptions"
+                    :key="option.key"
+                    class="departure-option"
+                    :class="{ active: selectedDepartureKey === option.key }"
+                  >
+                    <input
+                      v-model="selectedDepartureKey"
+                      type="radio"
+                      name="departure"
+                      :value="option.key"
+                    />
+                    <span class="departure-option__main">
+                      <strong>{{ formatDepartureDate(option.date) }}</strong>
+                      <small>{{ option.nights }} {{ t('openCard.nights_short') }} · {{ option.placementName }}</small>
+                    </span>
+                    <span class="departure-option__price">
+                      {{ formatDeparturePrice(option) }}
+                    </span>
+                  </label>
+                </div>
+
+                <p v-else class="manual-booking-note">
+                  {{ t('openCard.departures_empty') }}
+                </p>
+
+                <p v-if="departureError" class="field-error">{{ departureError }}</p>
+
+                <div class="departures-actions">
+                  <button
+                    type="button"
+                    class="modal-secondary"
+                    :disabled="bookingSubmitting || departureLoading"
+                    @click="modalStep = 1"
+                  >
+                    {{ t('openCard.departures_back') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="modal-submit"
+                    :class="{ 'is-loading': bookingSubmitting }"
+                    :disabled="bookingSubmitting || departureLoading || !departureOptions.length"
+                    @click="confirmBooking"
+                  >
+                    <span v-if="bookingSubmitting" class="button-spinner" aria-hidden="true"></span>
+                    {{ bookingSubmitting ? t('openCard.modal_sending') : t('openCard.departures_confirm') }}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2604,6 +2744,29 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
+.modal-secondary {
+  min-height: 48px;
+  padding: 13px 18px;
+  border: 1px solid #d8dbe3;
+  border-radius: 12px;
+  background: #fff;
+  color: #171717;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.modal-secondary:hover {
+  border-color: #aeb4c2;
+  background: #f7f8fb;
+}
+
+.modal-secondary:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .button-spinner {
   width: 16px;
   height: 16px;
@@ -2643,6 +2806,109 @@ onUnmounted(() => {
   font-size: 32px;
   font-weight: 400;
   margin-bottom: 34px;
+}
+
+.departures-step {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.departures-step__header h2 {
+  margin: 0 0 8px;
+  color: #111;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.departures-step__header p {
+  margin: 0;
+  color: #666;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.departures-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 108px;
+  padding: 18px;
+  border: 1px solid #e0e3ea;
+  border-radius: 14px;
+  background: #f8f8f9;
+  color: #333;
+}
+
+.departures-loading .button-spinner {
+  border-color: rgba(40, 90, 255, 0.22);
+  border-top-color: #285aff;
+}
+
+.departure-options {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.departure-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  min-height: 82px;
+  padding: 14px 16px;
+  border: 1px solid #dfe2e8;
+  border-radius: 14px;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.departure-option.active {
+  border-color: #285aff;
+  background: #f3f6ff;
+  box-shadow: 0 0 0 2px rgba(40, 90, 255, 0.08);
+}
+
+.departure-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.departure-option__main {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.departure-option__main strong {
+  color: #111;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.departure-option__main small {
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.departure-option__price {
+  color: #111;
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.departures-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 180px) minmax(0, 1fr);
+  gap: 12px;
 }
 
 .success-text {
@@ -2710,6 +2976,16 @@ onUnmounted(() => {
   .modal-title {
     font-size: 20px;
   }
+
+  .departure-option,
+  .departures-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .departure-option__price {
+    white-space: normal;
+  }
+
   h1 {
     font-size: 20px;
   }

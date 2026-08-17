@@ -102,6 +102,19 @@ export type SamoIncomingPriceQuote = {
   source: 'samo' | 'mapping' | 'none';
 };
 
+export type SamoIncomingDepartureOption = {
+  date: string;
+  price: number;
+  currency: string | null;
+  nights: number;
+  roomCode: string;
+  roomName: string;
+  placementCode: string;
+  placementName: string;
+  mealCode: string;
+  mealName: string;
+};
+
 export type SamoIncomingResult = {
   enabled: boolean;
   sent: boolean;
@@ -247,6 +260,74 @@ export class SamoIncomingService {
       nights: null,
       source,
     };
+  }
+
+  async listTourDepartures(payload: SamoClaimPayload): Promise<SamoIncomingDepartureOption[]> {
+    let config = this.getConfig(payload);
+    if (!config.enabled || !config.hotelCode) {
+      return [];
+    }
+
+    try {
+      const mappings = await this.resolveAdminMappings(config, payload);
+      if (!mappings.placementMapping) {
+        return [];
+      }
+
+      config = this.applyAdminMappings(config, mappings);
+      const expectedAdults = mappings.adults;
+      const expectedChildren = mappings.children;
+      const partnerToken = await this.getPartnerToken(config);
+      const items = await this.fetchHotelPriceItems(config, partnerToken);
+      const prices = this.buildHotelPricePackets(items);
+      const sameRoomPrices = prices.filter((item) => item.roomCode === config.roomCode);
+      const exactMappedPrices = sameRoomPrices.filter(
+        (item) => item.htplaceCode === config.htplaceCode,
+      );
+      const matchingPrices = exactMappedPrices.length
+        ? exactMappedPrices
+        : sameRoomPrices.filter((item) =>
+            this.matchesHtplaceOccupancy(item.raw, expectedAdults, expectedChildren),
+          );
+      const grouped = new Map<string, SamoIncomingDepartureOption>();
+
+      for (const packet of matchingPrices) {
+        const packetDate = packet.checkinDate ?? this.readPricePacketStartDate(packet.raw);
+        const date = this.formatPacketDateForApi(packetDate);
+
+        if (!date) {
+          continue;
+        }
+
+        const option: SamoIncomingDepartureOption = {
+          date,
+          price: packet.price,
+          currency: this.normalizeCurrency(packet.currency),
+          nights: packet.nights,
+          roomCode: packet.roomCode,
+          roomName: this.readPacketRoomName(packet.raw) ?? config.roomName,
+          placementCode: packet.htplaceCode,
+          placementName: this.readPacketPlacementName(packet.raw) ?? config.htplaceName,
+          mealCode: packet.mealCode,
+          mealName: this.readPacketMealName(packet.raw) ?? config.mealName,
+        };
+        const key = [option.date, option.nights, option.roomCode, option.placementCode, option.mealCode].join('|');
+        const existing = grouped.get(key);
+
+        if (!existing || option.price < existing.price) {
+          grouped.set(key, option);
+        }
+      }
+
+      return [...grouped.values()].sort(
+        (a, b) => a.date.localeCompare(b.date) || a.price - b.price,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `SAMO Incoming departures lookup failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [];
+    }
   }
 
   async sendBooking(payload: SamoClaimPayload): Promise<SamoIncomingResult> {
@@ -704,8 +785,16 @@ export class SamoIncomingService {
     partnerToken: string,
     payload: SamoClaimPayload,
   ): Promise<SamoHotelPricePacket | null> {
+    const items = await this.fetchHotelPriceItems(config, partnerToken);
+    return this.pickMinimalHotelPricePacket(items, payload, config);
+  }
+
+  private async fetchHotelPriceItems(
+    config: SamoIncomingConfig,
+    partnerToken: string,
+  ): Promise<Record<string, string>[]> {
     if (!config.endpoint || !config.hotelCode) {
-      return null;
+      return [];
     }
 
     const url = new URL(config.endpoint);
@@ -733,10 +822,10 @@ export class SamoIncomingService {
       const raw = await response.text();
 
       if (!response.ok || /<Error\b/i.test(raw)) {
-        return null;
+        return [];
       }
 
-      return this.pickMinimalHotelPricePacket(this.parseXmlItems(raw), payload, config);
+      return this.parseXmlItems(raw);
     } finally {
       clearTimeout(timeout);
     }
@@ -794,7 +883,26 @@ export class SamoIncomingService {
   ) {
     const expectedAdults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
     const expectedChildren = Math.max(0, payload.childCount ?? 0);
-    const prices = items
+    const prices = this.buildHotelPricePackets(items);
+    const dateFilteredPrices = this.filterPricesByPayloadDate(prices, payload);
+
+    const exactMappedPrices = dateFilteredPrices
+      .filter((item) => item.htplaceCode === config.htplaceCode)
+      .filter((item) => item.roomCode === config.roomCode)
+      .sort((a, b) => a.price - b.price);
+
+    if (exactMappedPrices[0]) {
+      return exactMappedPrices[0];
+    }
+
+    return dateFilteredPrices
+      .filter((item) => this.matchesHtplaceOccupancy(item.raw, expectedAdults, expectedChildren))
+      .filter((item) => item.roomCode === config.roomCode)
+      .sort((a, b) => a.price - b.price)[0] ?? null;
+  }
+
+  private buildHotelPricePackets(items: Record<string, string>[]) {
+    return items
       .filter((item) => item._type?.toLowerCase() === 'hprice')
       .filter((item) => item.status?.trim().toUpperCase() !== 'D')
       .map<SamoHotelPricePacket | null>((item) => {
@@ -867,21 +975,6 @@ export class SamoIncomingService {
         };
       })
       .filter((item): item is SamoHotelPricePacket => Boolean(item));
-    const dateFilteredPrices = this.filterPricesByPayloadDate(prices, payload);
-
-    const exactMappedPrices = dateFilteredPrices
-      .filter((item) => item.htplaceCode === config.htplaceCode)
-      .filter((item) => item.roomCode === config.roomCode)
-      .sort((a, b) => a.price - b.price);
-
-    if (exactMappedPrices[0]) {
-      return exactMappedPrices[0];
-    }
-
-    return dateFilteredPrices
-      .filter((item) => this.matchesHtplaceOccupancy(item.raw, expectedAdults, expectedChildren))
-      .filter((item) => item.roomCode === config.roomCode)
-      .sort((a, b) => a.price - b.price)[0] ?? null;
   }
 
   private filterPricesByPayloadDate(
@@ -954,6 +1047,48 @@ export class SamoIncomingService {
         'date_to',
       ]),
     );
+  }
+
+  private formatPacketDateForApi(value?: string | null) {
+    const normalized = this.normalizeSamoPacketDate(value);
+    if (!normalized) {
+      return null;
+    }
+
+    return `${normalized.slice(0, 4)}-${normalized.slice(4, 6)}-${normalized.slice(6, 8)}`;
+  }
+
+  private readPacketRoomName(item: Record<string, string>) {
+    return this.readFirstTextField(item, [
+      'roomname',
+      'room_name',
+      'roomlname',
+      'room_lname',
+      'roomlongname',
+    ]);
+  }
+
+  private readPacketPlacementName(item: Record<string, string>) {
+    return this.readFirstTextField(item, [
+      'htplacename',
+      'htplace_name',
+      'placename',
+      'place_name',
+      'place',
+      'name',
+      'lname',
+      'longname',
+    ]);
+  }
+
+  private readPacketMealName(item: Record<string, string>) {
+    return this.readFirstTextField(item, [
+      'mealname',
+      'meal_name',
+      'meallname',
+      'meal_lname',
+      'mealdescription',
+    ]);
   }
 
   private normalizeSamoPacketDate(value?: string | null) {

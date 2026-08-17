@@ -76,6 +76,62 @@ export class ToursService {
     return this.mapTourDetail(tour, canViewPrices, locale, linkedPlacements);
   }
 
+  async getTourDepartures(
+    slug: string,
+    query: ToursQueryDto,
+    viewer?: { sub: string; role: string } | null,
+  ) {
+    const canViewPrices = await this.canViewPartnerPrices(viewer);
+    if (!canViewPrices) {
+      return { items: [] };
+    }
+
+    const tour = await this.prisma.tour.findFirst({
+      where: {
+        status: ContentStatus.PUBLISHED,
+        OR: [
+          { slug },
+          ...(this.isUuid(slug) ? [{ id: slug }] : []),
+        ],
+      },
+      include: {
+        translations: true,
+      },
+    });
+
+    if (!tour) {
+      return null;
+    }
+
+    const locale = query.locale ?? Locale.ru;
+    const translation = pickTranslation(tour.translations, locale);
+    const adults = Math.max(1, query.adults ?? 2);
+    const children = Math.max(0, query.children ?? 0);
+    const childAges = this.parseChildAges(query.childAges);
+    const items = await this.samoIncomingService.listTourDepartures({
+      bookingId: tour.id,
+      bookingNumber: `QUOTE-${tour.id}`,
+      createdAt: new Date(),
+      adultCount: adults,
+      childCount: children,
+      childAges,
+      incomingTourId: tour.incomingTourId,
+      incomingHotelCode: tour.incomingHotelCode,
+      incomingHotelName: tour.incomingHotelName,
+      person: {
+        firstName: 'Quote',
+        lastName: 'Request',
+      },
+      tour: {
+        title: translation?.title ?? tour.slug,
+        durationDays: tour.durationDays,
+        includedServices: [],
+      },
+    });
+
+    return { items };
+  }
+
   private buildWhere(
     query: ToursQueryDto,
     locale: Locale,
@@ -474,6 +530,10 @@ export class ToursService {
       .split(',')
       .map((item) => Number(item.trim()))
       .filter((age) => Number.isFinite(age) && age >= 0 && age <= 18);
+  }
+
+  private isUuid(value: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   }
 
   private matchesChildAgeRanges(label: string, childAges: number[], childCount: number) {

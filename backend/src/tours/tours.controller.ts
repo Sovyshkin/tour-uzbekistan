@@ -45,6 +45,24 @@ export class ToursController {
     return this.toursService.getTours(query, req.user);
   }
 
+  @Get(':slug/departures')
+  @ApiOperation({ summary: 'Get Incoming departure dates and prices for a tour' })
+  @ApiParam({ name: 'slug', example: 'weekend-in-uzbekistan' })
+  @ApiOkResponse({ description: 'Incoming departure options' })
+  async getTourDepartures(
+    @Param('slug') slug: string,
+    @Query() query: ToursQueryDto,
+    @Req() req: RequestWithOptionalUser,
+  ) {
+    const result = await this.toursService.getTourDepartures(slug, query, req.user);
+
+    if (!result) {
+      throw new NotFoundException(`Tour with slug "${slug}" not found`);
+    }
+
+    return result;
+  }
+
   @Get(':slug')
   @ApiOperation({ summary: 'Get a published tour by slug' })
   @ApiParam({ name: 'slug', example: 'weekend-in-uzbekistan' })

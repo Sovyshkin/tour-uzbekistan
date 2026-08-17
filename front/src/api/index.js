@@ -444,6 +444,10 @@ export async function getTour(slug, locale) {
   return request(buildUrl(`/tours/${slug}`, { locale }));
 }
 
+export async function getTourDepartures(slug, params) {
+  return request(buildUrl(`/tours/${slug}/departures`, params));
+}
+
 export async function submitLead(payload) {
   return request('/leads', {
     method: 'POST',
