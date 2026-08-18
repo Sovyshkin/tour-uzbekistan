@@ -91,6 +91,12 @@ const hasIncomingPlacementForSelectedTravelers = computed(() => {
   const placements = Array.isArray(tour.value.incomingPlacements)
     ? tour.value.incomingPlacements
     : [];
+  const incomingOccupancy = getIncomingOccupancy(
+    Number(adultCount.value) || 1,
+    Number(childCount.value) || 0,
+    childAges.value.slice(0, Number(childCount.value) || 0),
+    placements,
+  );
 
   if (!isB2BUser.value) {
     return false;
@@ -98,15 +104,25 @@ const hasIncomingPlacementForSelectedTravelers = computed(() => {
 
   return placements.some(
     (placement) =>
-      Number(placement.adultCount) === Number(adultCount.value) &&
-      Number(placement.childCount) === Number(childCount.value) &&
-      matchesChildAgeRanges(placement.label, childAges.value.slice(0, childCount.value), Number(childCount.value)),
+      Number(placement.adultCount) === incomingOccupancy.adults &&
+      Number(placement.childCount) === incomingOccupancy.children &&
+      matchesChildAgeRanges(
+        placement.label,
+        incomingOccupancy.childAges,
+        incomingOccupancy.children,
+      ),
   );
 });
 const hasIncomingPlacementForBookingForm = computed(() => {
   const placements = Array.isArray(tour.value.incomingPlacements)
     ? tour.value.incomingPlacements
     : [];
+  const incomingOccupancy = getIncomingOccupancy(
+    Number(formData.value.adultCount) || 1,
+    Number(formData.value.childCount) || 0,
+    bookingChildAges.value.slice(0, Number(formData.value.childCount) || 0),
+    placements,
+  );
 
   if (!isB2BUser.value) {
     return false;
@@ -114,12 +130,12 @@ const hasIncomingPlacementForBookingForm = computed(() => {
 
   return placements.some(
     (placement) =>
-      Number(placement.adultCount) === Number(formData.value.adultCount) &&
-      Number(placement.childCount) === Number(formData.value.childCount) &&
+      Number(placement.adultCount) === incomingOccupancy.adults &&
+      Number(placement.childCount) === incomingOccupancy.children &&
       matchesChildAgeRanges(
         placement.label,
-        bookingChildAges.value.slice(0, Number(formData.value.childCount) || 0),
-        Number(formData.value.childCount) || 0,
+        incomingOccupancy.childAges,
+        incomingOccupancy.children,
       ),
   );
 });
@@ -296,12 +312,7 @@ const matchesChildAgeRanges = (label, ages, children) => {
     return true;
   }
 
-  const ranges = [...String(label || '').matchAll(/\((\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)\)/g)]
-    .map((match) => ({
-      from: Number(match[1].replace(',', '.')),
-      to: Number(match[2].replace(',', '.')),
-    }))
-    .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to));
+  const ranges = extractChildAgeRanges(label);
 
   if (ranges.length < children) {
     return false;
@@ -318,6 +329,56 @@ const matchesChildAgeRanges = (label, ages, children) => {
     used.add(index);
     return true;
   });
+};
+
+const extractChildAgeRanges = (label) =>
+  [...String(label || '').matchAll(/\((\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)[^)]*\)/g)]
+    .map((match) => ({
+      from: Number(match[1].replace(',', '.')),
+      to: Number(match[2].replace(',', '.')),
+    }))
+    .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to));
+
+const getIncomingOccupancy = (adults, children, ages, placements = []) => {
+  const childAgesForSearch = Array.isArray(ages) ? ages.slice(0, children).map(Number) : [];
+
+  if (
+    !children ||
+    childAgesForSearch.length !== children ||
+    placements.some(
+      (placement) =>
+        Number(placement.adultCount) === adults &&
+        Number(placement.childCount) === children &&
+        matchesChildAgeRanges(placement.label, childAgesForSearch, children),
+    )
+  ) {
+    return { adults, children, childAges: childAgesForSearch };
+  }
+
+  const originalCompositionRanges = placements
+    .filter(
+      (placement) =>
+        Number(placement.adultCount) === adults && Number(placement.childCount) === children,
+    )
+    .flatMap((placement) => extractChildAgeRanges(placement.label));
+
+  if (!originalCompositionRanges.length) {
+    return { adults, children, childAges: childAgesForSearch };
+  }
+
+  const maxChildAge = Math.max(...originalCompositionRanges.map((range) => range.to));
+  const adultLikeChildren = childAgesForSearch.filter((age) => age > maxChildAge).length;
+  const remainingChildAges = childAgesForSearch.filter((age) => age <= maxChildAge);
+
+  if (!adultLikeChildren) {
+    return { adults, children, childAges: childAgesForSearch };
+  }
+
+  return {
+    adults: adults + adultLikeChildren,
+    children: remainingChildAges.length,
+    childAges: remainingChildAges,
+  };
 };
 
 const clearFieldError = (field) => {

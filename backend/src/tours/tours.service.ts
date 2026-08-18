@@ -338,10 +338,20 @@ export class ToursService {
       const adults = query?.adults ?? 2;
       const children = query?.children ?? 0;
       const childAges = this.parseChildAges(query?.childAges);
+      const incomingOccupancy = this.resolveIncomingOccupancyForPlacements(
+        adults,
+        children,
+        childAges,
+        linkedPlacements,
+      );
       const matchingPlacement = linkedPlacements.find((placement) =>
-        placement.adultCount === adults &&
-        placement.childCount === children &&
-        this.matchesChildAgeRanges(placement.label, childAges, children),
+        placement.adultCount === incomingOccupancy.adults &&
+        placement.childCount === incomingOccupancy.children &&
+        this.matchesChildAgeRanges(
+          placement.label,
+          incomingOccupancy.childAges,
+          incomingOccupancy.children,
+        ),
       );
       const shouldQuote = Boolean(
         query?.adults !== undefined ||
@@ -357,6 +367,7 @@ export class ToursService {
           bookingId: tour.id,
           bookingNumber: `QUOTE-${tour.id}`,
           createdAt: new Date(),
+          travelDate: this.parseTravelDate(query?.travelDate),
           adultCount: adults,
           childCount: children,
           childAges,
@@ -532,8 +543,85 @@ export class ToursService {
       .filter((age) => Number.isFinite(age) && age >= 0 && age <= 18);
   }
 
+  private parseTravelDate(value?: string) {
+    const raw = String(value ?? '').trim();
+    if (!raw) {
+      return null;
+    }
+
+    const dottedMatch = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+    if (dottedMatch) {
+      return new Date(
+        Date.UTC(
+          Number(dottedMatch[3]),
+          Number(dottedMatch[2]) - 1,
+          Number(dottedMatch[1]),
+        ),
+      );
+    }
+
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+      return new Date(
+        Date.UTC(
+          Number(isoMatch[1]),
+          Number(isoMatch[2]) - 1,
+          Number(isoMatch[3]),
+        ),
+      );
+    }
+
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
   private isUuid(value: string) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  }
+
+  private resolveIncomingOccupancyForPlacements(
+    adults: number,
+    children: number,
+    childAges: number[],
+    placements: Array<{ adultCount: number; childCount: number; label: string }>,
+  ) {
+    if (
+      children === 0 ||
+      childAges.length !== children ||
+      placements.some(
+        (placement) =>
+          placement.adultCount === adults &&
+          placement.childCount === children &&
+          this.matchesChildAgeRanges(placement.label, childAges, children),
+      )
+    ) {
+      return { adults, children, childAges };
+    }
+
+    const originalCompositionRanges = placements
+      .filter(
+        (placement) =>
+          placement.adultCount === adults && placement.childCount === children,
+      )
+      .flatMap((placement) => this.extractChildAgeRanges(placement.label));
+
+    if (!originalCompositionRanges.length) {
+      return { adults, children, childAges };
+    }
+
+    const maxChildAge = Math.max(...originalCompositionRanges.map((range) => range.to));
+    const adultLikeChildren = childAges.filter((age) => age > maxChildAge).length;
+    const remainingChildAges = childAges.filter((age) => age <= maxChildAge);
+
+    if (!adultLikeChildren) {
+      return { adults, children, childAges };
+    }
+
+    return {
+      adults: adults + adultLikeChildren,
+      children: remainingChildAges.length,
+      childAges: remainingChildAges,
+    };
   }
 
   private matchesChildAgeRanges(label: string, childAges: number[], childCount: number) {
@@ -541,12 +629,7 @@ export class ToursService {
       return true;
     }
 
-    const ranges = [...label.matchAll(/\((\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)\)/g)]
-      .map((match) => ({
-        from: Number(match[1].replace(',', '.')),
-        to: Number(match[2].replace(',', '.')),
-      }))
-      .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to));
+    const ranges = this.extractChildAgeRanges(label);
 
     if (ranges.length < childCount) {
       return false;
@@ -564,5 +647,14 @@ export class ToursService {
       used.add(index);
       return true;
     });
+  }
+
+  private extractChildAgeRanges(label: string) {
+    return [...label.matchAll(/\((\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)[^)]*\)/g)]
+      .map((match) => ({
+        from: Number(match[1].replace(',', '.')),
+        to: Number(match[2].replace(',', '.')),
+      }))
+      .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to));
   }
 }

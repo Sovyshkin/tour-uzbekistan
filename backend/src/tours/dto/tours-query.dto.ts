@@ -48,6 +48,11 @@ export class ToursQueryDto {
   @IsString()
   childAges?: string;
 
+  @ApiPropertyOptional({ example: '2026-08-29' })
+  @IsOptional()
+  @IsString()
+  travelDate?: string;
+
   @ApiPropertyOptional({ example: 1, minimum: 1 })
   @IsOptional()
   @Type(() => Number)

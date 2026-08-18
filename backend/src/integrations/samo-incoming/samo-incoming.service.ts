@@ -158,6 +158,8 @@ type SamoIncomingConfig = {
   mealName: string;
   resolvedPrice?: number;
   resolvedCurrency?: string;
+  resolvedAdultCount?: number;
+  resolvedChildCount?: number;
   nights: number;
   timeoutMs: number;
 };
@@ -530,16 +532,21 @@ export class SamoIncomingService {
   ): Promise<AdminIncomingMappings> {
     const adults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
     const children = Math.max(0, payload.childCount ?? 0);
+    const placement = await this.findPlacementMappingWithAdultAgeFallback(
+      adults,
+      children,
+      payload.childAges ?? [],
+    );
     const [roomMapping, placementMapping] = await Promise.all([
       this.findRoomMapping(config.roomName),
-      this.findPlacementMapping(adults, children, payload.childAges ?? []),
+      Promise.resolve(placement.mapping),
     ]);
 
     return {
       roomMapping,
       placementMapping,
-      adults,
-      children,
+      adults: placement.adults,
+      children: placement.children,
     };
   }
 
@@ -553,6 +560,8 @@ export class SamoIncomingService {
       roomName: mappings.roomMapping?.samoName ?? config.roomName,
       htplaceCode: mappings.placementMapping?.samoCode ?? config.htplaceCode,
       htplaceName: mappings.placementMapping?.samoName ?? config.htplaceName,
+      resolvedAdultCount: mappings.adults,
+      resolvedChildCount: mappings.children,
     };
   }
 
@@ -600,6 +609,95 @@ export class SamoIncomingService {
     );
   }
 
+  private async findPlacementMappingWithAdultAgeFallback(
+    adultCount: number,
+    childCount: number,
+    childAges: number[] = [],
+  ) {
+    const normalizedChildAges = childAges.slice(0, childCount);
+    const exactMapping = await this.findPlacementMapping(
+      adultCount,
+      childCount,
+      normalizedChildAges,
+    );
+
+    if (exactMapping || childCount === 0 || normalizedChildAges.length !== childCount) {
+      return {
+        mapping: exactMapping,
+        adults: adultCount,
+        children: childCount,
+      };
+    }
+
+    const adultLikeChildIndexes = await this.findAdultLikeChildIndexes(
+      adultCount,
+      childCount,
+      normalizedChildAges,
+    );
+
+    if (!adultLikeChildIndexes.size) {
+      return {
+        mapping: null,
+        adults: adultCount,
+        children: childCount,
+      };
+    }
+
+    const remainingChildAges = normalizedChildAges.filter(
+      (_, index) => !adultLikeChildIndexes.has(index),
+    );
+    const fallbackAdults = adultCount + adultLikeChildIndexes.size;
+    const fallbackChildren = remainingChildAges.length;
+    const fallbackMapping = await this.findPlacementMapping(
+      fallbackAdults,
+      fallbackChildren,
+      remainingChildAges,
+    );
+
+    return {
+      mapping: fallbackMapping,
+      adults: fallbackMapping ? fallbackAdults : adultCount,
+      children: fallbackMapping ? fallbackChildren : childCount,
+    };
+  }
+
+  private async findAdultLikeChildIndexes(
+    adultCount: number,
+    childCount: number,
+    childAges: number[],
+  ) {
+    const mappings = await this.prisma.incomingMapping.findMany({
+      where: {
+        type: 'placement',
+        isActive: true,
+        adultCount,
+        childCount,
+      },
+      select: {
+        samoName: true,
+        cmsLabel: true,
+        cmsKey: true,
+      },
+    });
+    const ranges = mappings.flatMap((mapping) =>
+      this.extractChildAgeRanges(
+        [mapping.samoName, mapping.cmsLabel, mapping.cmsKey].filter(Boolean).join(' '),
+      ),
+    );
+
+    if (!ranges.length) {
+      return new Set<number>();
+    }
+
+    const maxChildAge = Math.max(...ranges.map((range) => range.to));
+    return new Set(
+      childAges
+        .map((age, index) => ({ age, index }))
+        .filter(({ age }) => age > maxChildAge)
+        .map(({ index }) => index),
+    );
+  }
+
   private matchesChildAgeRanges(label: string, childAges: number[], childCount: number) {
     if (childCount === 0) {
       return true;
@@ -609,12 +707,7 @@ export class SamoIncomingService {
       return true;
     }
 
-    const ranges = [...label.matchAll(/\((\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)\)/g)]
-      .map((match) => ({
-        from: Number(match[1].replace(',', '.')),
-        to: Number(match[2].replace(',', '.')),
-      }))
-      .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to));
+    const ranges = this.extractChildAgeRanges(label);
 
     if (ranges.length < childCount) {
       return false;
@@ -633,6 +726,15 @@ export class SamoIncomingService {
       used.add(rangeIndex);
       return true;
     });
+  }
+
+  private extractChildAgeRanges(label: string) {
+    return [...label.matchAll(/\((\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)[^)]*\)/g)]
+      .map((match) => ({
+        from: Number(match[1].replace(',', '.')),
+        to: Number(match[2].replace(',', '.')),
+      }))
+      .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to));
   }
 
   private normalizeMappingKey(value: string) {
@@ -881,8 +983,11 @@ export class SamoIncomingService {
     payload: SamoClaimPayload,
     config: SamoIncomingConfig,
   ) {
-    const expectedAdults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
-    const expectedChildren = Math.max(0, payload.childCount ?? 0);
+    const expectedAdults = Math.max(
+      1,
+      config.resolvedAdultCount ?? payload.adultCount ?? payload.groupSize ?? 1,
+    );
+    const expectedChildren = Math.max(0, config.resolvedChildCount ?? payload.childCount ?? 0);
     const prices = this.buildHotelPricePackets(items);
     const dateFilteredPrices = this.filterPricesByPayloadDate(prices, payload);
 
@@ -944,7 +1049,7 @@ export class SamoIncomingService {
           'nightsfrom',
           'duration',
         ]);
-        const price = Number(String(priceValue ?? '').replace(/\s/g, '').replace(',', '.'));
+        const price = this.normalizeSamoAmount(priceValue);
         const nights = Number(nightsValue ?? 1);
         const checkinDate = this.readPricePacketStartDate(item);
 
@@ -987,7 +1092,7 @@ export class SamoIncomingService {
 
     const pricesWithDate = prices.filter((packet) => this.hasPricePacketDate(packet.raw));
     if (!pricesWithDate.length) {
-      return prices;
+      return [];
     }
 
     const targetDate = this.formatSamoPacketDate(this.getIncomingCheckinDate(payload));
@@ -1350,8 +1455,11 @@ export class SamoIncomingService {
     payload: SamoClaimPayload,
     initReservationXml: string,
   ) {
-    const adults = Math.max(1, payload.adultCount ?? payload.groupSize ?? 1);
-    const children = Math.max(0, payload.childCount ?? 0);
+    const adults = Math.max(
+      1,
+      config.resolvedAdultCount ?? payload.adultCount ?? payload.groupSize ?? 1,
+    );
+    const children = Math.max(0, config.resolvedChildCount ?? payload.childCount ?? 0);
     const peopleCount = adults + children;
     const tourists = this.buildTourists(payload, peopleCount, adults);
     const members = tourists
