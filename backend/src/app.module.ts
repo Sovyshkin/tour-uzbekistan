@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { CountriesModule } from './countries/countries.module';
+import { DepartureCitiesModule } from './departure-cities/departure-cities.module';
 import { HealthModule } from './health/health.module';
 import { HomeModule } from './home/home.module';
 import { LeadsModule } from './leads/leads.module';
@@ -27,6 +28,7 @@ import { WhyUsModule } from './why-us/why-us.module';
     AdminModule,
     BookingsModule,
     CountriesModule,
+    DepartureCitiesModule,
     HealthModule,
     HomeModule,
     LeadsModule,

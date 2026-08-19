@@ -10,6 +10,7 @@ import {
   getApiLocale,
   getAuth,
   getCountries,
+  getDepartureCities,
   getTour,
   getTourDepartures,
   isApprovedPartnerAuth,
@@ -49,6 +50,7 @@ const tour = ref({
   comfort: '',
   mapImage: '/assets/icons/map.png',
   country: null,
+  departureCity: null,
   minGroupSize: null,
   maxGroupSize: null,
   minAdultCount: null,
@@ -79,6 +81,7 @@ const breadcrumbs = computed(() => {
 
 // ─── Поисковая панель (как на странице туров) ───
 const where = ref(null);
+const from = ref(null);
 const when = ref('');
 const adultCount = ref(2);
 const childCount = ref(0);
@@ -217,6 +220,8 @@ const departureLoading = ref(false);
 const departureError = ref('');
 const departureOptions = ref([]);
 const incomingDateOptions = ref([]);
+const departureCities = ref([]);
+const calendarAvailability = ref({});
 const selectedDepartureKey = ref('');
 const travelerCount = computed(
   () => (Number(formData.value.adultCount) || 1) + (Number(formData.value.childCount) || 0),
@@ -528,6 +533,7 @@ const normalizeDepartureOptions = (items = []) =>
 
 const buildTourSearchParams = () => ({
   locale: getApiLocale(locale.value),
+  from: from.value?.label || route.query.from || tour.value.departureCity || undefined,
   adults: Number(adultCount.value) || 1,
   children: Number(childCount.value) || 0,
   childAges: childAges.value.slice(0, Number(childCount.value) || 0).join(','),
@@ -633,7 +639,7 @@ const submitPartnerTourRequest = async () => {
       adultCount: Number(adultCount.value) || 1,
       childCount: Number(childCount.value) || 0,
       childAges: childAges.value.slice(0, childCount.value).join(','),
-      departureCity: route.query.from || undefined,
+      departureCity: from.value?.label || route.query.from || undefined,
       message: `Request without confirmed price: ${tour.value.title}`,
     });
     leadStep.value = 2;
@@ -820,6 +826,41 @@ const loadCountries = async () => {
   }
 };
 
+const loadDepartureCities = async () => {
+  try {
+    const data = await getDepartureCities();
+    departureCities.value = (data || []).map((city) => ({
+      id: city.id,
+      label: city.name || city.label,
+    }));
+
+    const requestedFrom = route.query.from || tour.value.departureCity;
+    if (requestedFrom && !from.value) {
+      from.value = departureCities.value.find((city) => city.label === requestedFrom) || null;
+    }
+  } catch {
+    departureCities.value = [];
+  }
+};
+
+const setCalendarAvailabilityFromDepartures = (items = []) => {
+  calendarAvailability.value = Object.fromEntries(
+    items.map((item) => [
+      item.date,
+      {
+        date: item.date,
+        tourCount: 1,
+        minPrice: item.price,
+        currency: item.currency,
+      },
+    ]),
+  );
+};
+
+const performTourSearch = async () => {
+  await loadTour();
+};
+
 const activeImage = ref('/assets/icons/card1.webp');
 const activeIndex = ref(0);
 
@@ -969,6 +1010,7 @@ const loadTour = async () => {
       incomingPlacements: data.incomingPlacements || [],
       priceFrom: data.priceFrom || null,
       currency: data.currency || null,
+      departureCity: data.departureCity || null,
     };
     logIncomingTourDebug(`Incoming quote: ${data.title}`, [
       {
@@ -988,6 +1030,13 @@ const loadTour = async () => {
     }
     if (!route.query.children) {
       childCount.value = minChildren.value;
+    }
+    if (!from.value && data.departureCity) {
+      from.value =
+        departureCities.value.find((city) => city.label === data.departureCity) || {
+          id: data.departureCity,
+          label: data.departureCity,
+        };
     }
     await loadIncomingDateOptions();
     days.value = (data.program || []).map((day, index) => ({
@@ -1012,9 +1061,13 @@ const loadIncomingDateOptions = async () => {
   }
 
   try {
-    const response = await getTourDepartures(tour.value.slug || route.params.id, buildTourSearchParams());
+    const response = await getTourDepartures(tour.value.slug || route.params.id, {
+      ...buildTourSearchParams(),
+      travelDate: undefined,
+    });
     const items = normalizeDepartureOptions(response?.items || []);
     incomingDateOptions.value = items;
+    setCalendarAvailabilityFromDepartures(items);
     logIncomingTourDebug(
       `Incoming dates: ${tour.value.title}`,
       items.map((option) => ({
@@ -1029,13 +1082,20 @@ const loadIncomingDateOptions = async () => {
     );
   } catch (error) {
     incomingDateOptions.value = [];
+    calendarAvailability.value = {};
     console.warn('Incoming dates lookup failed', error);
   }
 };
 
 watch(() => locale.value, async () => {
-  await loadCountries();
+  await Promise.all([loadCountries(), loadDepartureCities()]);
   await loadTour();
+});
+
+watch([from, adultCount, childCount, childAges, when], async () => {
+  if (tour.value.slug) {
+    await loadIncomingDateOptions();
+  }
 });
 
 watch(
@@ -1053,8 +1113,7 @@ watch(childCount, (count) => {
 
 onMounted(() => {
   window.addEventListener('tour-auth-changed', syncAuthState);
-  loadCountries();
-  loadTour();
+  Promise.all([loadCountries(), loadDepartureCities()]).then(() => loadTour());
 });
 
 onUnmounted(() => {
@@ -1107,6 +1166,12 @@ onUnmounted(() => {
         <!-- Десктопная поисковая панель -->
         <div class="hidden lg:flex bg-white rounded-[12px] border px-[0.5px]">
           <CustomSelect
+            v-model="from"
+            :placeholder="t('openCard.search_from')"
+            :options="departureCities"
+            type="list"
+          />
+          <CustomSelect
             v-model="where"
             :placeholder="t('openCard.search_where')"
             :options="countries"
@@ -1116,6 +1181,7 @@ onUnmounted(() => {
             v-model="when"
             :placeholder="t('openCard.search_when')"
             type="calendar"
+            :date-availability="calendarAvailability"
           />
           <CustomSelect
             v-model="adultCount"
@@ -1148,6 +1214,7 @@ onUnmounted(() => {
           />
           <button
             class="bg-[#a6a6aa] text-white px-8 py-3 text-[14px] font-medium hover:bg-[#285aff] transition cursor-pointer rounded-r-[10px] flex-shrink-0"
+            @click="performTourSearch"
           >
             {{ t('openCard.search_button') }}
           </button>

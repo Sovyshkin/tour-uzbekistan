@@ -210,6 +210,12 @@ export class AdminContentCreateDto {
   @IsString()
   departureCity?: string;
 
+  @ApiPropertyOptional({ example: [5, 6], description: 'ISO weekdays: 1 Monday ... 7 Sunday' })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  departureWeekdays?: number[];
+
   @ApiPropertyOptional()
   @IsOptional()
   @Type(() => Number)

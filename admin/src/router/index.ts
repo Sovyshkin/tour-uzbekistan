@@ -6,6 +6,7 @@ import AdminContentPage from '@/views/AdminContentPage.vue';
 import AdminAuditLogsPage from '@/views/AdminAuditLogsPage.vue';
 import AdminIncomingMappingsPage from '@/views/AdminIncomingMappingsPage.vue';
 import AdminIncomingSearchPage from '@/views/AdminIncomingSearchPage.vue';
+import AdminDepartureCitiesPage from '@/views/AdminDepartureCitiesPage.vue';
 import AdminRecordsPage from '@/views/AdminRecordsPage.vue';
 import DashboardPage from '@/views/DashboardPage.vue';
 import LoginPage from '@/views/LoginPage.vue';
@@ -75,6 +76,14 @@ const router = createRouter({
           meta: {
             titleKey: 'nav.tours',
             contentTypes: ['tours'],
+          },
+        },
+        {
+          path: 'departure-cities',
+          name: 'departure-cities',
+          component: AdminDepartureCitiesPage,
+          meta: {
+            titleKey: 'nav.departureCities',
           },
         },
         {

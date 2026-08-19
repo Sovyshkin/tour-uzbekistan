@@ -6,7 +6,7 @@ import AppContainer from '@/components/AppContainer.vue';
 import Button from '@/components/Button.vue';
 import CustomSelect from '@/components/CustomSelect.vue';
 import Card from '@/components/Card.vue';
-import { getApiLocale, getCountries, getSiteSettings, getTours, isB2BAuthenticated, resolveAssetUrl } from '@/api';
+import { getApiLocale, getCountries, getDepartureCities, getSiteSettings, getTours, getToursCalendar, isB2BAuthenticated, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
 const { t, locale } = useI18n();
@@ -44,6 +44,7 @@ const isPriceFilterAvailable = ref(isB2BAuthenticated());
 
 const countries = ref([]);
 const departureCities = ref([]);
+const calendarAvailability = ref({});
 const settings = ref({});
 
 // ─── Фильтры ───
@@ -279,6 +280,50 @@ const loadCountries = async () => {
   }
 };
 
+const loadDepartureCities = async () => {
+  try {
+    const data = await getDepartureCities();
+    departureCities.value = (data || []).map((city) => ({
+      id: city.id,
+      label: city.name || city.label,
+    }));
+
+    const requestedFrom = route.query.from;
+    if (requestedFrom && !from.value) {
+      from.value = departureCities.value.find((city) => city.label === requestedFrom) || null;
+    }
+  } catch {
+    departureCities.value = [];
+  }
+};
+
+const loadCalendarAvailability = async () => {
+  if (!isPriceFilterAvailable.value) {
+    calendarAvailability.value = {};
+    return;
+  }
+
+  try {
+    const response = await getToursCalendar({
+      locale: getApiLocale(locale.value),
+      country: where.value?.slug,
+      from: from.value?.label,
+      adults: adultCount.value,
+      children: childCount.value,
+      childAges: childAges.value.slice(0, childCount.value).join(','),
+      maxDuration: maxDuration.value || (isSearchDurationActive.value ? duration.value : undefined),
+      minStars: comfortFilter.value || undefined,
+      maxStars: comfortFilter.value || undefined,
+      search: searchText.value || undefined,
+    });
+    calendarAvailability.value = Object.fromEntries(
+      (response.items || []).map((item) => [item.date, item]),
+    );
+  } catch {
+    calendarAvailability.value = {};
+  }
+};
+
 const loadSearchOptions = async () => {
   try {
     const data = await getTours({
@@ -288,10 +333,6 @@ const loadSearchOptions = async () => {
       from: from.value?.label,
     });
     const items = data.items || [];
-    const cities = [...new Set(items.map((tour) => tour.departureCity).filter(Boolean))];
-    if (!from.value) {
-      departureCities.value = cities.map((city) => ({ id: city, label: city }));
-    }
     if (from.value) {
       const countryNames = new Set(items.map((tour) => tour.country).filter(Boolean));
       countries.value = countries.value.filter((country) => countryNames.has(country.label));
@@ -324,6 +365,7 @@ const loadTours = async () => {
       maxPrice: isPriceFilterAvailable.value ? maxPrice.value || undefined : undefined,
       search: searchText.value || undefined,
     };
+    await loadCalendarAvailability();
     const data = await getTours(searchParams);
     logIncomingToursDebug(data.items || [], searchParams);
 
@@ -404,7 +446,7 @@ const reloadToursAfterAuthChange = () => {
 };
 
 watch(() => locale.value, async () => {
-  await Promise.all([loadSettings(), loadCountries()]);
+  await Promise.all([loadSettings(), loadCountries(), loadDepartureCities()]);
   await loadSearchOptions();
   await loadTours();
 });
@@ -412,6 +454,7 @@ watch(() => locale.value, async () => {
 watch(from, async () => {
   await loadCountries();
   await loadSearchOptions();
+  await loadCalendarAvailability();
 });
 
 watch(childCount, (count) => {
@@ -431,7 +474,7 @@ watch(perPage, () => {
 onMounted(async () => {
   syncPriceFilterVisibility();
   window.addEventListener('tour-auth-changed', reloadToursAfterAuthChange);
-  await Promise.all([loadSettings(), loadCountries()]);
+  await Promise.all([loadSettings(), loadCountries(), loadDepartureCities()]);
   await loadSearchOptions();
   await loadTours();
 });
@@ -524,6 +567,7 @@ onUnmounted(() => {
             v-model="when"
             :placeholder="t('toursPage.search_when')"
             type="calendar"
+            :date-availability="calendarAvailability"
             class="w-full"
             :border="false"
           />
@@ -588,6 +632,7 @@ onUnmounted(() => {
             v-model="when"
             :placeholder="t('toursPage.search_when')"
             type="calendar"
+            :date-availability="calendarAvailability"
           />
           <CustomSelect
             v-model="adultCount"

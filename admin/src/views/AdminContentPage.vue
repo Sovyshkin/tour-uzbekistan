@@ -43,6 +43,7 @@ type ContentRecord = {
   maxChildCount?: number | null;
   maxTouristCount?: number | null;
   departureCity?: string | null;
+  departureWeekdays?: number[];
   comfortLevel?: number | null;
   priceFrom?: string | null;
   currency?: string | null;
@@ -360,6 +361,16 @@ const drawerOpen = ref(false);
 const isCreating = ref(false);
 const activeLocale = ref<LocaleCode>('ru');
 const countryOptions = ref<Array<{ id: string; title: string; slug: string }>>([]);
+const departureCityOptions = ref<Array<{ id: string; name: string; label: string }>>([]);
+const weekdayOptions = [
+  { value: 1, label: 'Пн' },
+  { value: 2, label: 'Вт' },
+  { value: 3, label: 'Ср' },
+  { value: 4, label: 'Чт' },
+  { value: 5, label: 'Пт' },
+  { value: 6, label: 'Сб' },
+  { value: 7, label: 'Вс' },
+];
 const mediaOptions = ref<ContentRecord[]>([]);
 const contentTableRef = ref();
 const uploadInput = ref<HTMLInputElement | null>(null);
@@ -399,6 +410,7 @@ const form = reactive<{
   maxChildCount?: number;
   maxTouristCount?: number;
   departureCity?: string;
+  departureWeekdays: number[];
   comfortLevel?: number;
   priceFrom?: number;
   currency?: string;
@@ -432,6 +444,7 @@ const form = reactive<{
   maxChildCount: undefined,
   maxTouristCount: undefined,
   departureCity: undefined,
+  departureWeekdays: [],
   comfortLevel: undefined,
   priceFrom: undefined,
   currency: undefined,
@@ -512,6 +525,7 @@ const resetForm = () => {
   form.maxChildCount = undefined;
   form.maxTouristCount = undefined;
   form.departureCity = undefined;
+  form.departureWeekdays = [];
   form.comfortLevel = undefined;
   form.priceFrom = undefined;
   form.currency = undefined;
@@ -1383,6 +1397,19 @@ const loadCountryOptions = async () => {
   }));
 };
 
+const loadDepartureCityOptions = async () => {
+  if (departureCityOptions.value.length) {
+    return;
+  }
+
+  const response = await http.get<Array<{ id: string; name: string; label?: string }>>('/admin/departure-cities');
+  departureCityOptions.value = response.data.map((city) => ({
+    id: city.id,
+    name: city.name,
+    label: city.label ?? city.name,
+  }));
+};
+
 const loadMediaOptions = async (force = false) => {
   if (mediaOptions.value.length && !force) {
     return;
@@ -1430,6 +1457,7 @@ const openEditor = async (record: ContentRecord) => {
   form.maxChildCount = record.maxChildCount ?? 0;
   form.maxTouristCount = record.maxTouristCount ?? record.maxGroupSize ?? undefined;
   form.departureCity = record.departureCity ?? '';
+  form.departureWeekdays = Array.isArray(record.departureWeekdays) ? record.departureWeekdays : [];
   form.comfortLevel = record.comfortLevel ?? undefined;
   form.priceFrom = record.priceFrom ? Number(record.priceFrom) : undefined;
   form.currency = record.currency ?? undefined;
@@ -1452,7 +1480,7 @@ const openEditor = async (record: ContentRecord) => {
   }
 
   if (record.type === 'tours') {
-    await loadCountryOptions();
+    await Promise.all([loadCountryOptions(), loadDepartureCityOptions()]);
     form.tourDays = normalizeTourDays(record.tourDays);
   }
 
@@ -1513,7 +1541,7 @@ const openCreate = async () => {
 
   if (createType === 'tours') {
     try {
-      await loadCountryOptions();
+      await Promise.all([loadCountryOptions(), loadDepartureCityOptions()]);
       form.countryId = '';
       form.durationDays = 1;
       form.durationNights = 0;
@@ -1525,6 +1553,7 @@ const openCreate = async () => {
       form.maxChildCount = 0;
       form.maxTouristCount = 2;
       form.departureCity = '';
+      form.departureWeekdays = [];
       form.comfortLevel = 4;
       form.priceFrom = undefined;
       form.currency = 'USD';
@@ -1596,6 +1625,7 @@ const saveContent = async () => {
       payload.maxChildCount = form.maxChildCount;
       payload.maxTouristCount = form.maxTouristCount;
       payload.departureCity = form.departureCity;
+      payload.departureWeekdays = form.departureWeekdays;
       payload.comfortLevel = form.comfortLevel;
       payload.priceFrom = form.priceFrom;
       payload.currency = form.currency;
@@ -2235,7 +2265,31 @@ watch(
             </el-form-item>
 
             <el-form-item :label="t('content.departureCity')">
-              <el-input v-model="form.departureCity" placeholder="Москва" />
+              <el-select
+                v-model="form.departureCity"
+                filterable
+                clearable
+                :placeholder="t('content.chooseDepartureCity')"
+              >
+                <el-option
+                  v-for="city in departureCityOptions"
+                  :key="city.id"
+                  :label="city.name"
+                  :value="city.name"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item :label="t('content.departureWeekdays')">
+              <el-checkbox-group v-model="form.departureWeekdays">
+                <el-checkbox-button
+                  v-for="day in weekdayOptions"
+                  :key="day.value"
+                  :label="day.value"
+                >
+                  {{ day.label }}
+                </el-checkbox-button>
+              </el-checkbox-group>
             </el-form-item>
 
             <el-form-item :label="t('content.days')">

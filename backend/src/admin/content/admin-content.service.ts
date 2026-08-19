@@ -33,6 +33,7 @@ type AdminContentRecord = {
   maxChildCount?: number | null;
   maxTouristCount?: number | null;
   departureCity?: string | null;
+  departureWeekdays?: number[];
   comfortLevel?: number | null;
   priceFrom?: string | null;
   currency?: string | null;
@@ -1782,6 +1783,7 @@ export class AdminContentService {
         maxChildCount: dto.maxChildCount,
         maxTouristCount: dto.maxTouristCount,
         departureCity: this.readNullableString(dto.departureCity),
+        departureWeekdays: this.normalizeWeekdays(dto.departureWeekdays),
         comfortLevel: dto.comfortLevel,
         priceFrom: dto.priceFrom,
         currency: dto.currency ?? 'USD',
@@ -2147,6 +2149,7 @@ export class AdminContentService {
       maxChildCount: record.maxChildCount,
       maxTouristCount: record.maxTouristCount,
       departureCity: record.departureCity,
+      departureWeekdays: record.departureWeekdays,
       comfortLevel: record.comfortLevel,
       priceFrom: record.priceFrom?.toString() ?? null,
       currency: record.currency,
@@ -2350,6 +2353,9 @@ export class AdminContentService {
         ...(dto.maxTouristCount !== undefined ? { maxTouristCount: dto.maxTouristCount } : {}),
         ...(dto.departureCity !== undefined
           ? { departureCity: this.readNullableString(dto.departureCity) }
+          : {}),
+        ...(dto.departureWeekdays !== undefined
+          ? { departureWeekdays: this.normalizeWeekdays(dto.departureWeekdays) }
           : {}),
         ...(dto.comfortLevel !== undefined ? { comfortLevel: dto.comfortLevel } : {}),
         ...(dto.priceFrom !== undefined ? { priceFrom: dto.priceFrom } : {}),
@@ -2864,6 +2870,16 @@ export class AdminContentService {
 
   private readNullableString(value: unknown) {
     return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  private normalizeWeekdays(value: unknown) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return [...new Set(value.map(Number))]
+      .filter((day) => Number.isInteger(day) && day >= 1 && day <= 7)
+      .sort((a, b) => a - b);
   }
 
   private readJson(value: unknown) {

@@ -45,6 +45,13 @@ export class ToursController {
     return this.toursService.getTours(query, req.user);
   }
 
+  @Get('calendar')
+  @ApiOperation({ summary: 'Get Incoming tour availability aggregated by date' })
+  @ApiOkResponse({ description: 'Calendar availability' })
+  getCalendar(@Query() query: ToursQueryDto, @Req() req: RequestWithOptionalUser) {
+    return this.toursService.getCalendar(query, req.user);
+  }
+
   @Get(':slug/departures')
   @ApiOperation({ summary: 'Get Incoming departure dates and prices for a tour' })
   @ApiParam({ name: 'slug', example: 'weekend-in-uzbekistan' })

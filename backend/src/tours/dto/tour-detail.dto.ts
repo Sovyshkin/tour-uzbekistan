@@ -76,6 +76,9 @@ export class TourDetailDto {
   @ApiProperty({ required: false, nullable: true })
   departureCity!: string | null;
 
+  @ApiProperty({ type: [Number] })
+  departureWeekdays!: number[];
+
   @ApiPropertyOptional()
   priceFrom?: string;
 

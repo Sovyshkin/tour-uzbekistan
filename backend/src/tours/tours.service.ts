@@ -53,6 +53,107 @@ export class ToursService {
     };
   }
 
+  async getCalendar(
+    query: ToursQueryDto,
+    viewer?: { sub: string; role: string } | null,
+  ) {
+    const canViewPrices = await this.canViewPartnerPrices(viewer);
+    if (!canViewPrices) {
+      return { items: [] };
+    }
+
+    const locale = query.locale ?? Locale.ru;
+    const adults = query.adults ?? 2;
+    const children = query.children ?? 0;
+    const childAges = this.parseChildAges(query.childAges);
+    const where = this.buildWhere({ ...query, travelDate: undefined }, locale, false);
+    const [tours, linkedPlacements] = await Promise.all([
+      this.prisma.tour.findMany({
+        where,
+        orderBy: [{ isFeatured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+        take: 100,
+        include: {
+          translations: true,
+        },
+      }),
+      this.getLinkedIncomingPlacements(true),
+    ]);
+    const grouped = new Map<string, { date: string; tourCount: number; minPrice: number | null; currency: string | null }>();
+
+    await Promise.all(
+      tours.map(async (tour) => {
+        const incomingOccupancy = this.resolveIncomingOccupancyForPlacements(
+          adults,
+          children,
+          childAges,
+          linkedPlacements,
+        );
+        const matchingPlacement = linkedPlacements.find((placement) =>
+          placement.adultCount === incomingOccupancy.adults &&
+          placement.childCount === incomingOccupancy.children &&
+          this.matchesChildAgeRanges(
+            placement.label,
+            incomingOccupancy.childAges,
+            incomingOccupancy.children,
+          ),
+        );
+
+        if (!matchingPlacement) {
+          return;
+        }
+
+        const translation = pickTranslation(tour.translations, locale);
+        const departures = await this.samoIncomingService.listTourDepartures({
+          bookingId: tour.id,
+          bookingNumber: `QUOTE-${tour.id}`,
+          createdAt: new Date(),
+          adultCount: incomingOccupancy.adults,
+          childCount: incomingOccupancy.children,
+          childAges: incomingOccupancy.childAges,
+          incomingTourId: tour.incomingTourId,
+          incomingHotelCode: tour.incomingHotelCode,
+          incomingHotelName: tour.incomingHotelName,
+          person: {
+            firstName: 'Quote',
+            lastName: 'Request',
+          },
+          tour: {
+            title: translation?.title ?? tour.slug,
+            durationDays: tour.durationDays,
+            includedServices: [],
+          },
+        });
+
+        for (const option of departures) {
+          if (!this.matchesTourDepartureWeekday(option.date, tour.departureWeekdays)) {
+            continue;
+          }
+
+          const current = grouped.get(option.date);
+          if (!current) {
+            grouped.set(option.date, {
+              date: option.date,
+              tourCount: 1,
+              minPrice: option.price,
+              currency: option.currency ?? tour.currency ?? null,
+            });
+            continue;
+          }
+
+          current.tourCount += 1;
+          if (current.minPrice === null || option.price < current.minPrice) {
+            current.minPrice = option.price;
+            current.currency = option.currency ?? tour.currency ?? current.currency;
+          }
+        }
+      }),
+    );
+
+    return {
+      items: [...grouped.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    };
+  }
+
   async getTourBySlug(
     slug: string,
     query: ToursQueryDto,
@@ -109,13 +210,20 @@ export class ToursService {
     const adults = Math.max(1, query.adults ?? 2);
     const children = Math.max(0, query.children ?? 0);
     const childAges = this.parseChildAges(query.childAges);
+    const linkedPlacements = await this.getLinkedIncomingPlacements(true);
+    const incomingOccupancy = this.resolveIncomingOccupancyForPlacements(
+      adults,
+      children,
+      childAges,
+      linkedPlacements,
+    );
     const items = await this.samoIncomingService.listTourDepartures({
       bookingId: tour.id,
       bookingNumber: `QUOTE-${tour.id}`,
       createdAt: new Date(),
-      adultCount: adults,
-      childCount: children,
-      childAges,
+      adultCount: incomingOccupancy.adults,
+      childCount: incomingOccupancy.children,
+      childAges: incomingOccupancy.childAges,
       incomingTourId: tour.incomingTourId,
       incomingHotelCode: tour.incomingHotelCode,
       incomingHotelName: tour.incomingHotelName,
@@ -130,7 +238,11 @@ export class ToursService {
       },
     });
 
-    return { items };
+    return {
+      items: items.filter((item) =>
+        this.matchesTourDepartureWeekday(item.date, tour.departureWeekdays),
+      ),
+    };
   }
 
   private buildWhere(
@@ -298,6 +410,7 @@ export class ToursService {
       maxChildCount: tour.maxChildCount,
       maxTouristCount: tour.maxTouristCount,
       departureCity: tour.departureCity,
+      departureWeekdays: tour.departureWeekdays,
       country: countryTranslation?.name ?? null,
       heroImage: tour.heroImage,
       mainImage: tour.mainImage,
@@ -359,19 +472,25 @@ export class ToursService {
           query?.children !== undefined ||
           query?.childAges,
       );
+      const requestedTravelDate = this.parseTravelDate(query?.travelDate);
+      const matchesRequestedWeekday = !requestedTravelDate ||
+        this.matchesTourDepartureWeekday(
+          requestedTravelDate.toISOString().slice(0, 10),
+          tour.departureWeekdays,
+        );
 
       payload.incomingPlacements = linkedPlacements;
       payload.hasMatchingPlacement = Boolean(matchingPlacement);
 
-      if (matchingPlacement && shouldQuote) {
+      if (matchingPlacement && shouldQuote && matchesRequestedWeekday) {
         const quote = await this.samoIncomingService.quoteTourPrice({
           bookingId: tour.id,
           bookingNumber: `QUOTE-${tour.id}`,
           createdAt: new Date(),
-          travelDate: this.parseTravelDate(query?.travelDate),
-          adultCount: adults,
-          childCount: children,
-          childAges,
+          travelDate: requestedTravelDate,
+          adultCount: incomingOccupancy.adults,
+          childCount: incomingOccupancy.children,
+          childAges: incomingOccupancy.childAges,
           incomingTourId: tour.incomingTourId,
           incomingHotelCode: tour.incomingHotelCode,
           incomingHotelName: tour.incomingHotelName,
@@ -429,6 +548,7 @@ export class ToursService {
       maxChildCount: tour.maxChildCount,
       maxTouristCount: tour.maxTouristCount,
       departureCity: tour.departureCity,
+      departureWeekdays: tour.departureWeekdays,
       country: countryTranslation?.name ?? null,
       heroImage: tour.heroImage,
       mainImage: tour.mainImage,
@@ -490,16 +610,22 @@ export class ToursService {
       );
 
       payload.hasMatchingPlacement = Boolean(matchingPlacement);
+      const requestedTravelDate = this.parseTravelDate(query?.travelDate);
+      const matchesRequestedWeekday = !requestedTravelDate ||
+        this.matchesTourDepartureWeekday(
+          requestedTravelDate.toISOString().slice(0, 10),
+          tour.departureWeekdays,
+        );
 
-      if (matchingPlacement) {
+      if (matchingPlacement && matchesRequestedWeekday) {
         const quote = await this.samoIncomingService.quoteTourPrice({
           bookingId: tour.id,
           bookingNumber: `QUOTE-${tour.id}`,
           createdAt: new Date(),
-          travelDate: this.parseTravelDate(query?.travelDate),
-          adultCount: adults,
-          childCount: children,
-          childAges,
+          travelDate: requestedTravelDate,
+          adultCount: incomingOccupancy.adults,
+          childCount: incomingOccupancy.children,
+          childAges: incomingOccupancy.childAges,
           incomingTourId: tour.incomingTourId,
           incomingHotelCode: tour.incomingHotelCode,
           incomingHotelName: tour.incomingHotelName,
@@ -706,5 +832,18 @@ export class ToursService {
         to: Number(match[2].replace(',', '.')),
       }))
       .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to));
+  }
+
+  private matchesTourDepartureWeekday(date: string, weekdays: number[] | null | undefined) {
+    if (!Array.isArray(weekdays) || weekdays.length === 0) {
+      return true;
+    }
+
+    const parsed = new Date(`${date}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) {
+      return true;
+    }
+
+    return weekdays.includes(parsed.getUTCDay() || 7);
   }
 }

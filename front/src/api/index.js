@@ -412,6 +412,10 @@ export async function getCountries(locale) {
   return request(buildUrl('/countries', { locale }));
 }
 
+export async function getDepartureCities() {
+  return request('/departure-cities');
+}
+
 export async function getCountry(slug, locale) {
   return request(buildUrl(`/countries/${slug}`, { locale }));
 }
@@ -438,6 +442,10 @@ export async function getNewsItem(slug, locale) {
 
 export async function getTours(params) {
   return request(buildUrl('/tours', params));
+}
+
+export async function getToursCalendar(params) {
+  return request(buildUrl('/tours/calendar', params));
 }
 
 export async function getTour(slug, params) {

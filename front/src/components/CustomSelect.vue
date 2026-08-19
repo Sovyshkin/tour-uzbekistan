@@ -16,6 +16,8 @@ const props = defineProps({
   ageModelValue: { type: Array, default: () => [] },
   childAgeLabel: { type: String, default: '' },
   childAgeUnit: { type: String, default: '' },
+  allowedWeekdays: { type: Array, default: () => [] },
+  dateAvailability: { type: Object, default: () => ({}) },
   border: { type: Boolean, default: true }
 });
 
@@ -69,6 +71,7 @@ const calendarDays = computed(() => {
   const daysInMonth = lastDayOfMonth.getDate();
   const days = [];
   const today = new Date();
+  const allowedWeekdays = props.allowedWeekdays.map(Number).filter((day) => day >= 1 && day <= 7);
 
   // Пустые ячейки
   for (let i = 1; i < startDay; i++) days.push({ type: 'empty' });
@@ -76,12 +79,21 @@ const calendarDays = computed(() => {
   // Дни месяца
   for (let d = 1; d <= daysInMonth; d++) {
     const date = new Date(year, month, d);
+    const isoDate = formatIsoDate(date);
+    const isoWeekday = date.getDay() || 7;
+    const availability = props.dateAvailability?.[isoDate] || null;
+    const isWeekdayDisabled = allowedWeekdays.length > 0 && !allowedWeekdays.includes(isoWeekday);
+    const isUnavailableByIncoming = Object.keys(props.dateAvailability || {}).length > 0 && !availability;
+    const isPast = date < new Date(today.getFullYear(), today.getMonth(), today.getDate());
     days.push({
       type: 'day',
       day: d,
+      isoDate,
+      availability,
       isToday: isSameDay(date, today),
       isSelected: selectedDate.value && isSameDay(date, selectedDate.value),
-      isPast: date < new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+      isPast,
+      isDisabled: isPast || isWeekdayDisabled || isUnavailableByIncoming,
     });
   }
   return days;
@@ -105,6 +117,22 @@ function formatDate(date) {
   return `${d}.${m}.${y}`;
 }
 
+function formatIsoDate(date) {
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${y}-${m}-${d}`;
+}
+
+function formatAvailabilityPrice(availability) {
+  if (!availability?.minPrice) return '';
+  const price = Number(availability.minPrice);
+  const formatted = Number.isFinite(price)
+    ? price.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+    : availability.minPrice;
+  return `от ${formatted} ${availability.currency || ''}`.trim();
+}
+
 function isSameDay(a, b) {
   return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
 }
@@ -118,7 +146,7 @@ function nextMonth() {
 }
 
 function selectDay(dayObj) {
-  if (dayObj.isPast) return;
+  if (dayObj.isDisabled) return;
   const date = new Date(currentDate.value.getFullYear(), currentDate.value.getMonth(), dayObj.day);
   selectedDate.value = date;
   emit('update:modelValue', formatDate(date));
@@ -285,8 +313,25 @@ watch(() => props.modelValue, (val) => {
       <div class="grid grid-cols-7 gap-1">
         <template v-for="(item, idx) in calendarDays" :key="idx">
           <div v-if="item.type === 'empty'" class="h-9"></div>
-          <button v-else @click="selectDay(item)" :disabled="item.isPast" class="h-9 w-9 mx-auto flex items-center justify-center rounded-lg text-[13px] transition" :class="{ 'text-[#ccc] cursor-not-allowed': item.isPast, 'ring-1 ring-[#285aff] text-[#285aff] font-medium': item.isToday && !item.isSelected, 'bg-[#285aff] text-white font-medium': item.isSelected, 'hover:bg-[#f0f4ff] hover:text-[#285aff]': !item.isPast && !item.isSelected }">
-            {{ item.day }}
+          <button
+            v-else
+            @click="selectDay(item)"
+            :disabled="item.isDisabled"
+            class="calendar-day mx-auto flex flex-col items-center justify-center rounded-lg transition"
+            :class="{
+              'calendar-day--disabled': item.isDisabled,
+              'calendar-day--today': item.isToday && !item.isSelected && !item.isDisabled,
+              'calendar-day--selected': item.isSelected,
+              'calendar-day--available': item.availability && !item.isDisabled && !item.isSelected,
+            }"
+          >
+            <span class="calendar-day__number">{{ item.day }}</span>
+            <span v-if="item.availability && !item.isDisabled" class="calendar-day__count">
+              {{ item.availability.tourCount }}
+            </span>
+            <span v-if="item.availability && !item.isDisabled" class="calendar-day__price">
+              {{ formatAvailabilityPrice(item.availability) }}
+            </span>
           </button>
         </template>
       </div>
@@ -337,6 +382,61 @@ watch(() => props.modelValue, (val) => {
 .custom-select:first-child .trigger { border-radius: 8px 0 0 8px; }
 .custom-select:last-child .trigger { border-radius: 0 8px 8px 0; border-right: none; }
 .dropdown { animation: fadeIn 0.15s ease; }
+.calendar-day {
+  width: 40px;
+  min-height: 40px;
+  padding: 3px 2px;
+  color: #222;
+  font-size: 12px;
+}
+.calendar-day--available {
+  background: #f0f6ff;
+  color: #285aff;
+}
+.calendar-day--available:hover {
+  background: #e3edff;
+}
+.calendar-day--today {
+  box-shadow: inset 0 0 0 1px #285aff;
+  color: #285aff;
+  font-weight: 600;
+}
+.calendar-day--selected {
+  background: #285aff;
+  color: #fff;
+  font-weight: 600;
+}
+.calendar-day--disabled {
+  color: #c9c9cc;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.calendar-day__number {
+  line-height: 1;
+}
+.calendar-day__count {
+  margin-top: 2px;
+  min-width: 16px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: currentColor;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1.1;
+}
+.calendar-day--selected .calendar-day__count {
+  background: #fff;
+  color: #285aff;
+}
+.calendar-day__price {
+  max-width: 38px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1.1;
+}
 .counter-dropdown {
   min-width: 200px;
 }

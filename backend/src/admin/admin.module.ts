@@ -11,6 +11,8 @@ import { AdminContentController } from './content/admin-content.controller';
 import { AdminContentService } from './content/admin-content.service';
 import { AdminDashboardController } from './dashboard/admin-dashboard.controller';
 import { AdminDashboardService } from './dashboard/admin-dashboard.service';
+import { AdminDepartureCitiesController } from './departure-cities/admin-departure-cities.controller';
+import { AdminDepartureCitiesService } from './departure-cities/admin-departure-cities.service';
 import { AdminIncomingSearchController } from './incoming-search/admin-incoming-search.controller';
 import { AdminIncomingSearchService } from './incoming-search/admin-incoming-search.service';
 import { AdminIncomingMappingsController } from './incoming-mappings/admin-incoming-mappings.controller';
@@ -27,6 +29,7 @@ import { AdminRecordsService } from './records/admin-records.service';
     AdminAuditController,
     AdminContentController,
     AdminDashboardController,
+    AdminDepartureCitiesController,
     AdminIncomingMappingsController,
     AdminIncomingSearchController,
     AdminMediaController,
@@ -37,6 +40,7 @@ import { AdminRecordsService } from './records/admin-records.service';
     AdminAuditService,
     AdminContentService,
     AdminDashboardService,
+    AdminDepartureCitiesService,
     AdminIncomingMappingsService,
     AdminIncomingSearchService,
     AdminMediaService,
