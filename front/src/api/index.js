@@ -440,8 +440,9 @@ export async function getTours(params) {
   return request(buildUrl('/tours', params));
 }
 
-export async function getTour(slug, locale) {
-  return request(buildUrl(`/tours/${slug}`, { locale }));
+export async function getTour(slug, params) {
+  const query = typeof params === 'string' ? { locale: params } : params;
+  return request(buildUrl(`/tours/${slug}`, query));
 }
 
 export async function getTourDepartures(slug, params) {

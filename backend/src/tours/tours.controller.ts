@@ -75,7 +75,7 @@ export class ToursController {
   ) {
     const tour = await this.toursService.getTourBySlug(
       slug,
-      query.locale,
+      query,
       req.user,
     );
 

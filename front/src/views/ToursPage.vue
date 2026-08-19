@@ -198,6 +198,29 @@ const getIncomingOccupancy = (adults, children, ages, placements = []) => {
   };
 };
 
+const logIncomingToursDebug = (items = [], params = {}) => {
+  if (typeof console === 'undefined') {
+    return;
+  }
+
+  console.groupCollapsed('Incoming tour prices');
+  console.table(
+    items.map((tour) => ({
+      tour: tour.title,
+      selectedDate: params.travelDate || 'not selected',
+      amount: tour.priceQuote?.amount ?? tour.priceFrom ?? null,
+      currency: tour.priceQuote?.currency ?? tour.currency ?? null,
+      source: tour.priceQuote?.source ?? 'none',
+      room: tour.priceQuote?.roomName ?? null,
+      placement: tour.priceQuote?.placementName ?? null,
+      meal: tour.priceQuote?.mealName ?? null,
+      nights: tour.priceQuote?.nights ?? null,
+      hasMatchingPlacement: tour.hasMatchingPlacement ?? null,
+    })),
+  );
+  console.groupEnd();
+};
+
 const setComfortFilter = (stars) => {
   comfortFilter.value = comfortFilter.value === stars ? null : stars;
   applyRangeFilters();
@@ -285,7 +308,7 @@ const loadSearchOptions = async () => {
 
 const loadTours = async () => {
   try {
-    const data = await getTours({
+    const searchParams = {
       locale: getApiLocale(locale.value),
       page: currentPage.value,
       pageSize: perPage.value,
@@ -300,7 +323,9 @@ const loadTours = async () => {
       maxStars: comfortFilter.value || undefined,
       maxPrice: isPriceFilterAvailable.value ? maxPrice.value || undefined : undefined,
       search: searchText.value || undefined,
-    });
+    };
+    const data = await getTours(searchParams);
+    logIncomingToursDebug(data.items || [], searchParams);
 
     const nextTours = (data.items || []).map((tour) => {
       const incomingPlacements = Array.isArray(tour.incomingPlacements)

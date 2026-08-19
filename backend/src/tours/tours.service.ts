@@ -55,9 +55,10 @@ export class ToursService {
 
   async getTourBySlug(
     slug: string,
-    locale: Locale = Locale.ru,
+    query: ToursQueryDto,
     viewer?: { sub: string; role: string } | null,
   ) {
+    const locale = query.locale ?? Locale.ru;
     const canViewPrices = await this.canViewPartnerPrices(viewer);
     const tour = await this.prisma.tour.findFirst({
       where: {
@@ -73,7 +74,7 @@ export class ToursService {
 
     const linkedPlacements = await this.getLinkedIncomingPlacements(canViewPrices);
 
-    return this.mapTourDetail(tour, canViewPrices, locale, linkedPlacements);
+    return this.mapTourDetail(tour, canViewPrices, locale, linkedPlacements, query);
   }
 
   async getTourDepartures(
@@ -399,11 +400,12 @@ export class ToursService {
     return payload;
   }
 
-  private mapTourDetail(
+  private async mapTourDetail(
     tour: Prisma.TourGetPayload<{ include: ReturnType<ToursService['buildInclude']> }>,
     isAuthorized: boolean,
     locale: Locale,
     linkedPlacements: Array<{ adultCount: number; childCount: number; label: string }>,
+    query?: ToursQueryDto,
   ) {
     const translation = pickTranslation(tour.translations, locale);
     const countryTranslation = pickTranslation(tour.country.translations, locale);
@@ -466,10 +468,58 @@ export class ToursService {
       }),
     } as Record<string, unknown>;
 
-    if (isAuthorized && tour.priceFrom) {
-      payload.priceFrom = tour.priceFrom.toString();
-      payload.currency = tour.currency ?? null;
+    if (isAuthorized) {
       payload.incomingPlacements = linkedPlacements;
+      const adults = query?.adults ?? 2;
+      const children = query?.children ?? 0;
+      const childAges = this.parseChildAges(query?.childAges);
+      const incomingOccupancy = this.resolveIncomingOccupancyForPlacements(
+        adults,
+        children,
+        childAges,
+        linkedPlacements,
+      );
+      const matchingPlacement = linkedPlacements.find((placement) =>
+        placement.adultCount === incomingOccupancy.adults &&
+        placement.childCount === incomingOccupancy.children &&
+        this.matchesChildAgeRanges(
+          placement.label,
+          incomingOccupancy.childAges,
+          incomingOccupancy.children,
+        ),
+      );
+
+      payload.hasMatchingPlacement = Boolean(matchingPlacement);
+
+      if (matchingPlacement) {
+        const quote = await this.samoIncomingService.quoteTourPrice({
+          bookingId: tour.id,
+          bookingNumber: `QUOTE-${tour.id}`,
+          createdAt: new Date(),
+          travelDate: this.parseTravelDate(query?.travelDate),
+          adultCount: adults,
+          childCount: children,
+          childAges,
+          incomingTourId: tour.incomingTourId,
+          incomingHotelCode: tour.incomingHotelCode,
+          incomingHotelName: tour.incomingHotelName,
+          person: {
+            firstName: 'Quote',
+            lastName: 'Request',
+          },
+          tour: {
+            title: translation?.title ?? '',
+            durationDays: tour.durationDays,
+            includedServices: [],
+          },
+        });
+
+        payload.priceQuote = quote;
+        if (quote.amount) {
+          payload.priceFrom = String(quote.amount);
+          payload.currency = quote.currency ?? tour.currency ?? null;
+        }
+      }
     }
 
     return payload;

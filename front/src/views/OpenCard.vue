@@ -30,6 +30,7 @@ const router = useRouter();
 const selectedCountry = computed(() => route.query.country || null);
 const tour = ref({
   id: null,
+  slug: null,
   title: '',
   subtitle: '',
   route: '',
@@ -215,6 +216,7 @@ const bookingSubmitting = ref(false);
 const departureLoading = ref(false);
 const departureError = ref('');
 const departureOptions = ref([]);
+const incomingDateOptions = ref([]);
 const selectedDepartureKey = ref('');
 const travelerCount = computed(
   () => (Number(formData.value.adultCount) || 1) + (Number(formData.value.childCount) || 0),
@@ -247,6 +249,18 @@ const bookingChildAgeOptions = computed(() => Array.from({ length: 19 }, (_, age
 const selectedDeparture = computed(
   () => departureOptions.value.find((option) => option.key === selectedDepartureKey.value) || null,
 );
+const selectedSearchDate = computed(() => parseSearchDate(when.value || route.query.travelDate));
+const currentIncomingDateOption = computed(() => {
+  if (!incomingDateOptions.value.length) {
+    return null;
+  }
+
+  if (selectedSearchDate.value) {
+    return incomingDateOptions.value.find((option) => option.date === selectedSearchDate.value) || null;
+  }
+
+  return [...incomingDateOptions.value].sort((a, b) => Number(a.price) - Number(b.price))[0] || null;
+});
 
 const formatAgeLabel = (age) => {
   const value = Number(age);
@@ -512,6 +526,24 @@ const normalizeDepartureOptions = (items = []) =>
     key: [item.date, item.nights, item.roomCode, item.placementCode, item.mealCode].join('|'),
   }));
 
+const buildTourSearchParams = () => ({
+  locale: getApiLocale(locale.value),
+  adults: Number(adultCount.value) || 1,
+  children: Number(childCount.value) || 0,
+  childAges: childAges.value.slice(0, Number(childCount.value) || 0).join(','),
+  travelDate: when.value || route.query.travelDate || undefined,
+});
+
+const logIncomingTourDebug = (label, rows) => {
+  if (typeof console === 'undefined') {
+    return;
+  }
+
+  console.groupCollapsed(label);
+  console.table(rows);
+  console.groupEnd();
+};
+
 const validateTravelers = () => {
   const errors = {};
 
@@ -563,7 +595,7 @@ const openModal = () => {
     return;
   }
 
-  if (!tour.value.priceFrom || !hasIncomingPlacementForSelectedTravelers.value || route.query.request === '1') {
+  if (!currentIncomingDateOption.value || !hasIncomingPlacementForSelectedTravelers.value || route.query.request === '1') {
     submitPartnerTourRequest();
     return;
   }
@@ -844,13 +876,12 @@ const notIncluded = ref([]);
 
 // ─── Другие даты ───
 const otherDates = computed(() =>
-  isB2BUser.value && tour.value.priceFrom && hasIncomingPlacementForSelectedTravelers.value
-    ? [
-        {
-          date: '',
-          price: `${tour.value.priceFrom}${tour.value.currency ? ` ${tour.value.currency}` : ''}`,
-        },
-      ]
+  isB2BUser.value && hasIncomingPlacementForSelectedTravelers.value
+    ? incomingDateOptions.value.map((option) => ({
+        date: formatDepartureDate(option.date),
+        price: formatDeparturePrice(option),
+        rawDate: option.date,
+      }))
     : [],
 );
 
@@ -898,9 +929,12 @@ const scrollToDetails = async () => {
 
 const loadTour = async () => {
   try {
-    const data = await getTour(route.params.id, getApiLocale(locale.value));
+    applyRouteSearchParams();
+    const searchParams = buildTourSearchParams();
+    const data = await getTour(route.params.id, searchParams);
     tour.value = {
       id: data.id,
+      slug: data.slug,
       title: data.title,
       subtitle: `(${data.durationDays} ${t('openCard.days')} / ${data.durationNights} ${t('openCard.nights', data.durationNights)})`,
       mainImage: resolveAssetUrl(data.mainImage || data.heroImage || data.images?.[0]?.imageUrl) || '/assets/icons/card1.webp',
@@ -936,13 +970,26 @@ const loadTour = async () => {
       priceFrom: data.priceFrom || null,
       currency: data.currency || null,
     };
+    logIncomingTourDebug(`Incoming quote: ${data.title}`, [
+      {
+        tour: data.title,
+        selectedDate: searchParams.travelDate || 'not selected',
+        amount: data.priceQuote?.amount ?? data.priceFrom ?? null,
+        currency: data.priceQuote?.currency ?? data.currency ?? null,
+        source: data.priceQuote?.source ?? 'none',
+        room: data.priceQuote?.roomName ?? null,
+        placement: data.priceQuote?.placementName ?? null,
+        meal: data.priceQuote?.mealName ?? null,
+        nights: data.priceQuote?.nights ?? null,
+      },
+    ]);
     if (!route.query.adults) {
       adultCount.value = minAdults.value;
     }
     if (!route.query.children) {
       childCount.value = minChildren.value;
     }
-    applyRouteSearchParams();
+    await loadIncomingDateOptions();
     days.value = (data.program || []).map((day, index) => ({
       id: day.id,
       title: day.title,
@@ -955,6 +1002,34 @@ const loadTour = async () => {
     currentIndex.value = 0;
   } catch (error) {
     notifyError(error.message || t('notifications.loadTourFailed'), t('notifications.tourUnavailable'));
+  }
+};
+
+const loadIncomingDateOptions = async () => {
+  if (!isB2BUser.value || !tour.value.slug) {
+    incomingDateOptions.value = [];
+    return;
+  }
+
+  try {
+    const response = await getTourDepartures(tour.value.slug || route.params.id, buildTourSearchParams());
+    const items = normalizeDepartureOptions(response?.items || []);
+    incomingDateOptions.value = items;
+    logIncomingTourDebug(
+      `Incoming dates: ${tour.value.title}`,
+      items.map((option) => ({
+        date: option.date,
+        price: option.price,
+        currency: option.currency,
+        nights: option.nights,
+        room: option.roomName,
+        placement: option.placementName,
+        meal: option.mealName,
+      })),
+    );
+  } catch (error) {
+    incomingDateOptions.value = [];
+    console.warn('Incoming dates lookup failed', error);
   }
 };
 
@@ -1608,18 +1683,18 @@ onUnmounted(() => {
                   class="flex items-center justify-between mb-[10px] border-b border-b-[#e3e3e4] pb-[10px]"
                 >
                   <span class="text-[12px] sm:text-[16px] text-[#000]"
-                    >{{ otherDates[0]?.date || t('openCard.date_on_request') }}</span
+                    >{{ currentIncomingDateOption ? formatDepartureDate(currentIncomingDateOption.date) : t('openCard.date_on_request') }}</span
                   >
                   <span
                     class="text-[18px] sm:text-[20px] font-medium text-[#FF00E7]"
-                    >{{ otherDates[0]?.price || t('openCard.price_on_request') }}</span
+                    >{{ currentIncomingDateOption ? formatDeparturePrice(currentIncomingDateOption) : t('openCard.price_on_request') }}</span
                   >
                 </div>
                 <button
                   @click="openModal"
                   class="w-full bg-[#ff00e7] text-white rounded-[12px] py-3 text-[15px] font-medium hover:bg-[#eb02d3] transition cursor-pointer"
                 >
-                  {{ isB2BUser && (!tour.priceFrom || !hasIncomingPlacementForSelectedTravelers || route.query.request === '1') ? t('openCard.leave_request') : t('openCard.buy') }}
+                  {{ isB2BUser && (!currentIncomingDateOption || !hasIncomingPlacementForSelectedTravelers || route.query.request === '1') ? t('openCard.leave_request') : t('openCard.buy') }}
                 </button>
               </div>
 
@@ -2113,7 +2188,7 @@ onUnmounted(() => {
                 <span class="text-[16px] text-[#000]">{{ d.date }}</span>
                 <div class="flex items-center gap-2">
                   <span class="text-[16px] font-medium text-[#FF00E7]"
-                    >{{ d.price }}$</span
+                    >{{ d.price }}</span
                   >
                 </div>
               </div>
