@@ -41,6 +41,9 @@ const maxPrice = ref(null);
 const maxDuration = ref(null);
 const isSearchDurationActive = ref(false);
 const isPriceFilterAvailable = ref(isB2BAuthenticated());
+const isTravelerSearchActive = ref(
+  Boolean(route.query.adults || route.query.children || route.query.childAges),
+);
 
 const countries = ref([]);
 const departureCities = ref([]);
@@ -84,6 +87,7 @@ const heroImage = computed(() =>
 // Функция поиска (обновляет пагинацию)
 const performSearch = () => {
   isSearchDurationActive.value = Boolean(duration.value);
+  isTravelerSearchActive.value = true;
   currentPage.value = 1;
   loadTours();
 };
@@ -114,6 +118,7 @@ const resetFilters = () => {
   maxPrice.value = null;
   maxDuration.value = null;
   isSearchDurationActive.value = false;
+  isTravelerSearchActive.value = false;
   seasons.value.forEach((s) => (s.checked = false));
   tourTypes.value.forEach((t) => (t.checked = false));
   currentPage.value = 1;
@@ -391,6 +396,12 @@ const loadTours = async () => {
               ),
           )
         : false;
+      const shouldEnforcePlacement = isTravelerSearchActive.value || Boolean(when.value);
+      const visiblePrice = shouldEnforcePlacement
+        ? hasLinkedPlacement
+          ? tour.priceFrom || null
+          : null
+        : tour.priceFrom || null;
 
       return {
         id: tour.id,
@@ -405,8 +416,8 @@ const loadTours = async () => {
         },
         country: tour.country,
         comfort: tour.comfortLevel,
-        priceFrom: hasLinkedPlacement ? tour.priceFrom || null : null,
-        priceOnRequest: isPriceFilterAvailable.value && (!hasLinkedPlacement || !tour.priceFrom),
+        priceFrom: visiblePrice,
+        priceOnRequest: isPriceFilterAvailable.value && shouldEnforcePlacement && (!hasLinkedPlacement || !tour.priceFrom),
         currency: tour.currency || null,
       };
     });
@@ -910,9 +921,9 @@ onUnmounted(() => {
                 :country="where?.slug"
                 :search-query="{
                   from: from?.label,
-                  adults: adultCount,
-                  children: childCount,
-                  childAges: childAges.slice(0, childCount).join(','),
+                  adults: isTravelerSearchActive ? adultCount : undefined,
+                  children: isTravelerSearchActive ? childCount : undefined,
+                  childAges: isTravelerSearchActive ? childAges.slice(0, childCount).join(',') : undefined,
                   travelDate: when,
                   request: tour.priceOnRequest ? '1' : undefined,
                 }"

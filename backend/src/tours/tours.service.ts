@@ -510,7 +510,7 @@ export class ToursService {
           payload.priceFrom = String(quote.amount);
           payload.currency = quote.currency ?? tour.currency ?? null;
         }
-      } else if (matchingPlacement && tour.priceFrom) {
+      } else if ((!shouldQuote || matchingPlacement) && tour.priceFrom) {
         payload.priceFrom = tour.priceFrom.toString();
         payload.currency = tour.currency ?? null;
       }
@@ -610,6 +610,11 @@ export class ToursService {
       );
 
       payload.hasMatchingPlacement = Boolean(matchingPlacement);
+      const shouldQuote = Boolean(
+        query?.adults !== undefined ||
+          query?.children !== undefined ||
+          query?.childAges,
+      );
       const requestedTravelDate = this.parseTravelDate(query?.travelDate);
       const matchesRequestedWeekday = !requestedTravelDate ||
         this.matchesTourDepartureWeekday(
@@ -617,7 +622,7 @@ export class ToursService {
           tour.departureWeekdays,
         );
 
-      if (matchingPlacement && matchesRequestedWeekday) {
+      if (matchingPlacement && shouldQuote && matchesRequestedWeekday) {
         const quote = await this.samoIncomingService.quoteTourPrice({
           bookingId: tour.id,
           bookingNumber: `QUOTE-${tour.id}`,
@@ -645,6 +650,9 @@ export class ToursService {
           payload.priceFrom = String(quote.amount);
           payload.currency = quote.currency ?? tour.currency ?? null;
         }
+      } else if ((!shouldQuote || matchingPlacement) && tour.priceFrom) {
+        payload.priceFrom = tour.priceFrom.toString();
+        payload.currency = tour.currency ?? null;
       }
     }
 

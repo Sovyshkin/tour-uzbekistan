@@ -86,6 +86,9 @@ const when = ref('');
 const adultCount = ref(2);
 const childCount = ref(0);
 const childAges = ref([]);
+const isTourSearchApplied = ref(
+  Boolean(route.query.adults || route.query.children || route.query.childAges || route.query.travelDate || route.query.request),
+);
 const totalPeople = computed(() => adultCount.value + childCount.value);
 const minAdults = computed(() => tour.value.minAdultCount || 1);
 const maxAdults = computed(() => tour.value.maxAdultCount || 20);
@@ -266,6 +269,29 @@ const currentIncomingDateOption = computed(() => {
 
   return [...incomingDateOptions.value].sort((a, b) => Number(a.price) - Number(b.price))[0] || null;
 });
+const displayedB2BDate = computed(() =>
+  currentIncomingDateOption.value
+    ? formatDepartureDate(currentIncomingDateOption.value.date)
+    : t('openCard.date_on_request'),
+);
+const displayedB2BPrice = computed(() => {
+  if (currentIncomingDateOption.value) {
+    return formatDeparturePrice(currentIncomingDateOption.value);
+  }
+
+  if (!isTourSearchApplied.value && tour.value.priceFrom) {
+    return [tour.value.priceFrom, tour.value.currency].filter(Boolean).join(' ');
+  }
+
+  return t('openCard.price_on_request');
+});
+const shouldShowRequestFlow = computed(() =>
+  isB2BUser.value &&
+  (
+    route.query.request === '1' ||
+    (isTourSearchApplied.value && (!currentIncomingDateOption.value || !hasIncomingPlacementForSelectedTravelers.value))
+  ),
+);
 
 const formatAgeLabel = (age) => {
   const value = Number(age);
@@ -534,9 +560,11 @@ const normalizeDepartureOptions = (items = []) =>
 const buildTourSearchParams = () => ({
   locale: getApiLocale(locale.value),
   from: from.value?.label || route.query.from || tour.value.departureCity || undefined,
-  adults: Number(adultCount.value) || 1,
-  children: Number(childCount.value) || 0,
-  childAges: childAges.value.slice(0, Number(childCount.value) || 0).join(','),
+  adults: isTourSearchApplied.value ? Number(adultCount.value) || 1 : undefined,
+  children: isTourSearchApplied.value ? Number(childCount.value) || 0 : undefined,
+  childAges: isTourSearchApplied.value
+    ? childAges.value.slice(0, Number(childCount.value) || 0).join(',')
+    : undefined,
   travelDate: when.value || route.query.travelDate || undefined,
 });
 
@@ -601,7 +629,7 @@ const openModal = () => {
     return;
   }
 
-  if (!currentIncomingDateOption.value || !hasIncomingPlacementForSelectedTravelers.value || route.query.request === '1') {
+  if (shouldShowRequestFlow.value) {
     submitPartnerTourRequest();
     return;
   }
@@ -858,6 +886,7 @@ const setCalendarAvailabilityFromDepartures = (items = []) => {
 };
 
 const performTourSearch = async () => {
+  isTourSearchApplied.value = true;
   await loadTour();
 };
 
@@ -1750,18 +1779,18 @@ onUnmounted(() => {
                   class="flex items-center justify-between mb-[10px] border-b border-b-[#e3e3e4] pb-[10px]"
                 >
                   <span class="text-[12px] sm:text-[16px] text-[#000]"
-                    >{{ currentIncomingDateOption ? formatDepartureDate(currentIncomingDateOption.date) : t('openCard.date_on_request') }}</span
+                    >{{ displayedB2BDate }}</span
                   >
                   <span
                     class="text-[18px] sm:text-[20px] font-medium text-[#FF00E7]"
-                    >{{ currentIncomingDateOption ? formatDeparturePrice(currentIncomingDateOption) : t('openCard.price_on_request') }}</span
+                    >{{ displayedB2BPrice }}</span
                   >
                 </div>
                 <button
                   @click="openModal"
                   class="w-full bg-[#ff00e7] text-white rounded-[12px] py-3 text-[15px] font-medium hover:bg-[#eb02d3] transition cursor-pointer"
                 >
-                  {{ isB2BUser && (!currentIncomingDateOption || !hasIncomingPlacementForSelectedTravelers || route.query.request === '1') ? t('openCard.leave_request') : t('openCard.buy') }}
+                  {{ shouldShowRequestFlow ? t('openCard.leave_request') : t('openCard.buy') }}
                 </button>
               </div>
 
