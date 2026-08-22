@@ -578,6 +578,16 @@ const logIncomingTourDebug = (label, rows) => {
   console.groupEnd();
 };
 
+const logIncomingPayloadDebug = (label, payload) => {
+  if (typeof console === 'undefined') {
+    return;
+  }
+
+  console.groupCollapsed(label);
+  console.log(payload);
+  console.groupEnd();
+};
+
 const validateTravelers = () => {
   const errors = {};
 
@@ -750,15 +760,27 @@ const submitForm = async () => {
   modalStep.value = 4;
 
   try {
-    const response = await getTourDepartures(tour.value.slug || route.params.id, {
+    const requestParams = {
       locale: getApiLocale(locale.value),
+      from: from.value?.label || route.query.from || tour.value.departureCity || undefined,
       adults: Number(formData.value.adultCount) || 1,
       children: Number(formData.value.childCount) || 0,
       childAges: bookingChildAges.value.slice(0, Number(formData.value.childCount) || 0).join(','),
+    };
+    logIncomingPayloadDebug('Incoming departures request', {
+      tour: tour.value.title,
+      slug: tour.value.slug || route.params.id,
+      params: requestParams,
     });
+    const response = await getTourDepartures(tour.value.slug || route.params.id, requestParams);
     const items = normalizeDepartureOptions(response?.items || []);
     departureOptions.value = items;
     selectedDepartureKey.value = items[0]?.key || '';
+    logIncomingPayloadDebug('Incoming departures response', {
+      count: items.length,
+      items,
+      debug: response?.debug || null,
+    });
   } catch (error) {
     departureError.value = error.message || t('notifications.loadTourFailed');
     notifyError(departureError.value, t('notifications.tourUnavailable'));
@@ -1097,6 +1119,7 @@ const loadIncomingDateOptions = async () => {
     const items = normalizeDepartureOptions(response?.items || []);
     incomingDateOptions.value = items;
     setCalendarAvailabilityFromDepartures(items);
+    logIncomingPayloadDebug('Incoming dates response debug', response?.debug || null);
     logIncomingTourDebug(
       `Incoming dates: ${tour.value.title}`,
       items.map((option) => ({

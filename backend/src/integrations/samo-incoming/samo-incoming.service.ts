@@ -175,6 +175,35 @@ type SamoHotelPricePacket = {
   raw: Record<string, string>;
 };
 
+type SamoIncomingDeparturesDebug = {
+  enabled: boolean;
+  hotelCode?: string;
+  roomCode?: string;
+  roomName?: string;
+  htplaceCode?: string;
+  htplaceName?: string;
+  requestedAdults?: number;
+  requestedChildren?: number;
+  requestedChildAges?: number[];
+  resolvedAdults?: number;
+  resolvedChildren?: number;
+  roomMapping?: IncomingMappingRecord;
+  placementMapping?: IncomingMappingRecord;
+  totalItems?: number;
+  totalPricePackets?: number;
+  sameRoomPriceCount?: number;
+  exactMappedPriceCount?: number;
+  matchingPriceCount?: number;
+  groupedCount?: number;
+  skippedReason?: string;
+  error?: string;
+};
+
+type SamoIncomingDeparturesLookup = {
+  items: SamoIncomingDepartureOption[];
+  debug: SamoIncomingDeparturesDebug;
+};
+
 type IncomingMappingRecord = {
   samoCode: string;
   samoName: string;
@@ -265,18 +294,56 @@ export class SamoIncomingService {
   }
 
   async listTourDepartures(payload: SamoClaimPayload): Promise<SamoIncomingDepartureOption[]> {
+    const lookup = await this.listTourDeparturesWithDebug(payload);
+    return lookup.items;
+  }
+
+  async listTourDeparturesWithDebug(payload: SamoClaimPayload): Promise<SamoIncomingDeparturesLookup> {
     let config = this.getConfig(payload);
+    const debug: SamoIncomingDeparturesDebug = {
+      enabled: config.enabled,
+      hotelCode: config.hotelCode,
+      roomCode: config.roomCode,
+      roomName: config.roomName,
+      htplaceCode: config.htplaceCode,
+      htplaceName: config.htplaceName,
+      requestedAdults: Math.max(1, payload.adultCount ?? payload.groupSize ?? 1),
+      requestedChildren: Math.max(0, payload.childCount ?? 0),
+      requestedChildAges: payload.childAges ?? [],
+    };
+
     if (!config.enabled || !config.hotelCode) {
-      return [];
+      return {
+        items: [],
+        debug: {
+          ...debug,
+          skippedReason: !config.enabled ? 'SAMO Incoming disabled' : 'Hotel code is missing',
+        },
+      };
     }
 
     try {
       const mappings = await this.resolveAdminMappings(config, payload);
+      debug.roomMapping = mappings.roomMapping;
+      debug.placementMapping = mappings.placementMapping;
+      debug.resolvedAdults = mappings.adults;
+      debug.resolvedChildren = mappings.children;
+
       if (!mappings.placementMapping) {
-        return [];
+        return {
+          items: [],
+          debug: {
+            ...debug,
+            skippedReason: 'Placement mapping not found for requested tourists',
+          },
+        };
       }
 
       config = this.applyAdminMappings(config, mappings);
+      debug.roomCode = config.roomCode;
+      debug.roomName = config.roomName;
+      debug.htplaceCode = config.htplaceCode;
+      debug.htplaceName = config.htplaceName;
       const expectedAdults = mappings.adults;
       const expectedChildren = mappings.children;
       const partnerToken = await this.getPartnerToken(config);
@@ -292,6 +359,11 @@ export class SamoIncomingService {
             this.matchesHtplaceOccupancy(item.raw, expectedAdults, expectedChildren),
           );
       const grouped = new Map<string, SamoIncomingDepartureOption>();
+      debug.totalItems = items.length;
+      debug.totalPricePackets = prices.length;
+      debug.sameRoomPriceCount = sameRoomPrices.length;
+      debug.exactMappedPriceCount = exactMappedPrices.length;
+      debug.matchingPriceCount = matchingPrices.length;
 
       for (const packet of matchingPrices) {
         const packetDate = packet.checkinDate ?? this.readPricePacketStartDate(packet.raw);
@@ -321,14 +393,23 @@ export class SamoIncomingService {
         }
       }
 
-      return [...grouped.values()].sort(
+      const result = [...grouped.values()].sort(
         (a, b) => a.date.localeCompare(b.date) || a.price - b.price,
       );
+      debug.groupedCount = result.length;
+      return { items: result, debug };
     } catch (error) {
       this.logger.warn(
         `SAMO Incoming departures lookup failed: ${error instanceof Error ? error.message : String(error)}`,
       );
-      return [];
+      return {
+        items: [],
+        debug: {
+          ...debug,
+          skippedReason: 'Lookup failed',
+          error: error instanceof Error ? error.message : String(error),
+        },
+      };
     }
   }
 

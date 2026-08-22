@@ -217,7 +217,7 @@ export class ToursService {
       childAges,
       linkedPlacements,
     );
-    const items = await this.samoIncomingService.listTourDepartures({
+    const lookup = await this.samoIncomingService.listTourDeparturesWithDebug({
       bookingId: tour.id,
       bookingNumber: `QUOTE-${tour.id}`,
       createdAt: new Date(),
@@ -237,11 +237,18 @@ export class ToursService {
         includedServices: [],
       },
     });
+    const filteredItems = lookup.items.filter((item) =>
+      this.matchesTourDepartureWeekday(item.date, tour.departureWeekdays),
+    );
 
     return {
-      items: items.filter((item) =>
-        this.matchesTourDepartureWeekday(item.date, tour.departureWeekdays),
-      ),
+      items: filteredItems,
+      debug: {
+        ...lookup.debug,
+        tourDepartureWeekdays: tour.departureWeekdays,
+        beforeWeekdayFilterCount: lookup.items.length,
+        afterWeekdayFilterCount: filteredItems.length,
+      },
     };
   }
 
