@@ -237,17 +237,14 @@ export class ToursService {
         includedServices: [],
       },
     });
-    const filteredItems = lookup.items.filter((item) =>
-      this.matchesTourDepartureWeekday(item.date, tour.departureWeekdays),
-    );
-
     return {
-      items: filteredItems,
+      items: lookup.items,
       debug: {
         ...lookup.debug,
         tourDepartureWeekdays: tour.departureWeekdays,
         beforeWeekdayFilterCount: lookup.items.length,
-        afterWeekdayFilterCount: filteredItems.length,
+        afterWeekdayFilterCount: lookup.items.length,
+        weekdayFilterSkippedForBooking: true,
       },
     };
   }
