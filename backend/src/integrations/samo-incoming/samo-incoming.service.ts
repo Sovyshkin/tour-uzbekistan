@@ -396,7 +396,7 @@ export class SamoIncomingService {
           date,
           price: packet.price,
           currency: this.normalizeCurrency(packet.currency),
-          nights: packet.nights ?? tourNights ?? config.nights,
+          nights: tourNights ?? config.nights,
           roomCode: packet.roomCode,
           roomName: this.readPacketRoomName(packet.raw) ?? config.roomName,
           placementCode: packet.htplaceCode,
@@ -1065,7 +1065,7 @@ export class SamoIncomingService {
       roomCode: packet.roomCode,
       htplaceCode: packet.htplaceCode,
       mealCode: packet.mealCode,
-      nights: packet.nights ?? config.nights,
+      nights: config.nights,
     };
   }
 
