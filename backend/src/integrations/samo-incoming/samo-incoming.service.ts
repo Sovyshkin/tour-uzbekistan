@@ -25,6 +25,7 @@ type SamoClaimTraveler = SamoClaimPerson & {
 type SamoClaimTour = {
   title: string;
   durationDays: number;
+  durationNights?: number | null;
   price?: string | null;
   currency?: string | null;
   transport?: string | null;
@@ -168,7 +169,7 @@ type SamoHotelPricePacket = {
   roomCode: string;
   htplaceCode: string;
   mealCode: string;
-  nights: number;
+  nights: number | null;
   price: number;
   currency?: string;
   checkinDate?: string;
@@ -195,6 +196,11 @@ type SamoIncomingDeparturesDebug = {
   exactMappedPriceCount?: number;
   matchingPriceCount?: number;
   groupedCount?: number;
+  samoRequestUrl?: string;
+  samoRawResponse?: string;
+  samoParsedItems?: Record<string, string>[];
+  samoPricePackets?: Array<Omit<SamoHotelPricePacket, 'raw'> & { raw: Record<string, string> }>;
+  samoMatchingPricePackets?: Array<Omit<SamoHotelPricePacket, 'raw'> & { raw: Record<string, string> }>;
   skippedReason?: string;
   error?: string;
 };
@@ -202,6 +208,12 @@ type SamoIncomingDeparturesDebug = {
 type SamoIncomingDeparturesLookup = {
   items: SamoIncomingDepartureOption[];
   debug: SamoIncomingDeparturesDebug;
+};
+
+type SamoHotelPriceLookup = {
+  requestUrl?: string;
+  raw: string;
+  items: Record<string, string>[];
 };
 
 type IncomingMappingRecord = {
@@ -347,7 +359,8 @@ export class SamoIncomingService {
       const expectedAdults = mappings.adults;
       const expectedChildren = mappings.children;
       const partnerToken = await this.getPartnerToken(config);
-      const items = await this.fetchHotelPriceItems(config, partnerToken);
+      const hotelPrices = await this.fetchHotelPriceLookup(config, partnerToken);
+      const items = hotelPrices.items;
       const prices = this.buildHotelPricePackets(items);
       const sameRoomPrices = prices.filter((item) => item.roomCode === config.roomCode);
       const exactMappedPrices = sameRoomPrices.filter(
@@ -359,11 +372,17 @@ export class SamoIncomingService {
             this.matchesHtplaceOccupancy(item.raw, expectedAdults, expectedChildren),
           );
       const grouped = new Map<string, SamoIncomingDepartureOption>();
+      const tourNights = this.resolveTourNights(payload);
       debug.totalItems = items.length;
       debug.totalPricePackets = prices.length;
       debug.sameRoomPriceCount = sameRoomPrices.length;
       debug.exactMappedPriceCount = exactMappedPrices.length;
       debug.matchingPriceCount = matchingPrices.length;
+      debug.samoRequestUrl = hotelPrices.requestUrl;
+      debug.samoRawResponse = hotelPrices.raw;
+      debug.samoParsedItems = items;
+      debug.samoPricePackets = prices;
+      debug.samoMatchingPricePackets = matchingPrices;
 
       for (const packet of matchingPrices) {
         const packetDate = packet.checkinDate ?? this.readPricePacketStartDate(packet.raw);
@@ -377,7 +396,7 @@ export class SamoIncomingService {
           date,
           price: packet.price,
           currency: this.normalizeCurrency(packet.currency),
-          nights: packet.nights,
+          nights: packet.nights ?? tourNights ?? config.nights,
           roomCode: packet.roomCode,
           roomName: this.readPacketRoomName(packet.raw) ?? config.roomName,
           placementCode: packet.htplaceCode,
@@ -976,8 +995,16 @@ export class SamoIncomingService {
     config: SamoIncomingConfig,
     partnerToken: string,
   ): Promise<Record<string, string>[]> {
+    const lookup = await this.fetchHotelPriceLookup(config, partnerToken);
+    return lookup.items;
+  }
+
+  private async fetchHotelPriceLookup(
+    config: SamoIncomingConfig,
+    partnerToken: string,
+  ): Promise<SamoHotelPriceLookup> {
     if (!config.endpoint || !config.hotelCode) {
-      return [];
+      return { raw: '', items: [] };
     }
 
     const url = new URL(config.endpoint);
@@ -991,6 +1018,7 @@ export class SamoIncomingService {
     if (config.aesKey) {
       url.searchParams.set('AES KEY', config.aesKey);
     }
+    const debugUrl = this.maskSensitiveUrl(url);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
@@ -1005,13 +1033,23 @@ export class SamoIncomingService {
       const raw = await response.text();
 
       if (!response.ok || /<Error\b/i.test(raw)) {
-        return [];
+        return { requestUrl: debugUrl, raw, items: [] };
       }
 
-      return this.parseXmlItems(raw);
+      return { requestUrl: debugUrl, raw, items: this.parseXmlItems(raw) };
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private maskSensitiveUrl(url: URL) {
+    const copy = new URL(url.toString());
+    for (const key of ['partner_token', 'AES KEY', 'password', 'pass']) {
+      if (copy.searchParams.has(key)) {
+        copy.searchParams.set(key, '***');
+      }
+    }
+    return copy.toString();
   }
 
   private applyHotelPricePacket(
@@ -1027,8 +1065,13 @@ export class SamoIncomingService {
       roomCode: packet.roomCode,
       htplaceCode: packet.htplaceCode,
       mealCode: packet.mealCode,
-      nights: packet.nights,
+      nights: packet.nights ?? config.nights,
     };
+  }
+
+  private resolveTourNights(payload: SamoClaimPayload) {
+    const nights = Number(payload.tour.durationNights);
+    return Number.isFinite(nights) && nights > 0 ? nights : null;
   }
 
   private applyInitReservationData(
@@ -1124,14 +1167,8 @@ export class SamoIncomingService {
           'totalprice',
           'saleprice',
         ]);
-        const nightsValue = this.readFirstTextField(item, [
-          'nights',
-          'night',
-          'nightsfrom',
-          'duration',
-        ]);
         const price = this.normalizeSamoAmount(priceValue);
-        const nights = Number(nightsValue ?? 1);
+        const nights = this.resolvePacketNights(item);
         const checkinDate = this.readPricePacketStartDate(item);
 
         if (
@@ -1148,7 +1185,7 @@ export class SamoIncomingService {
           roomCode,
           htplaceCode,
           mealCode,
-          nights: Number.isFinite(nights) && nights > 0 ? nights : 1,
+          nights,
           price,
           currency: this.readFirstTextField(item, [
             'currency',
@@ -1178,6 +1215,82 @@ export class SamoIncomingService {
 
     const targetDate = this.formatSamoPacketDate(this.getIncomingCheckinDate(payload));
     return pricesWithDate.filter((packet) => this.pricePacketMatchesDate(packet.raw, targetDate));
+  }
+
+  private resolvePacketNights(item: Record<string, string>) {
+    const nightsValue = this.readFirstTextField(item, [
+      'nights',
+      'night',
+      'nightsfrom',
+      'nights_from',
+      'nightfrom',
+      'night_from',
+      'nightsamount',
+      'nights_amount',
+      'durationnights',
+      'duration_nights',
+      'staynights',
+      'stay_nights',
+      'hnights',
+      'nt',
+    ]);
+    const parsedNights = this.parsePositiveInteger(nightsValue);
+    if (parsedNights !== null) {
+      return parsedNights;
+    }
+
+    const daysValue = this.readFirstTextField(item, [
+      'days',
+      'day',
+      'daysfrom',
+      'days_from',
+      'durationdays',
+      'duration_days',
+      'staydays',
+      'stay_days',
+    ]);
+    const parsedDays = this.parsePositiveInteger(daysValue);
+    if (parsedDays !== null && parsedDays > 1) {
+      return parsedDays - 1;
+    }
+
+    const startDate = this.normalizeSamoPacketDate(
+      this.readFirstTextField(item, ['checkin', 'arrival', 'datebeg', 'date_beg']),
+    );
+    const endDate = this.normalizeSamoPacketDate(
+      this.readFirstTextField(item, ['checkout', 'departure', 'dateend', 'date_end']),
+    );
+    const dateDiff = this.diffSamoDatesInDays(startDate, endDate);
+    return dateDiff && dateDiff > 0 ? dateDiff : null;
+  }
+
+  private parsePositiveInteger(value?: string | null) {
+    const match = String(value ?? '').match(/\d+/);
+    if (!match) {
+      return null;
+    }
+
+    const number = Number(match[0]);
+    return Number.isInteger(number) && number > 0 ? number : null;
+  }
+
+  private diffSamoDatesInDays(startDate?: string | null, endDate?: string | null) {
+    if (!startDate || !endDate) {
+      return null;
+    }
+
+    const start = Date.UTC(
+      Number(startDate.slice(0, 4)),
+      Number(startDate.slice(4, 6)) - 1,
+      Number(startDate.slice(6, 8)),
+    );
+    const end = Date.UTC(
+      Number(endDate.slice(0, 4)),
+      Number(endDate.slice(4, 6)) - 1,
+      Number(endDate.slice(6, 8)),
+    );
+    const diff = Math.round((end - start) / 86_400_000);
+    return Number.isFinite(diff) ? diff : null;
   }
 
   private hasPricePacketDate(item: Record<string, string>) {

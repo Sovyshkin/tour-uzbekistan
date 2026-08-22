@@ -120,6 +120,7 @@ export class ToursService {
           tour: {
             title: translation?.title ?? tour.slug,
             durationDays: tour.durationDays,
+            durationNights: tour.durationNights,
             includedServices: [],
           },
         });
@@ -234,6 +235,7 @@ export class ToursService {
       tour: {
         title: translation?.title ?? tour.slug,
         durationDays: tour.durationDays,
+        durationNights: tour.durationNights,
         includedServices: [],
       },
     });
@@ -505,6 +507,7 @@ export class ToursService {
           tour: {
             title: translation?.title ?? '',
             durationDays: tour.durationDays,
+            durationNights: tour.durationNights,
             includedServices: [],
           },
         });
@@ -645,6 +648,7 @@ export class ToursService {
           tour: {
             title: translation?.title ?? '',
             durationDays: tour.durationDays,
+            durationNights: tour.durationNights,
             includedServices: [],
           },
         });
