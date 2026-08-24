@@ -385,30 +385,27 @@ export class SamoIncomingService {
       debug.samoMatchingPricePackets = matchingPrices;
 
       for (const packet of matchingPrices) {
-        const packetDate = packet.checkinDate ?? this.readPricePacketStartDate(packet.raw);
-        const date = this.formatPacketDateForApi(packetDate);
+        const dates = this.buildDepartureDatesForPacket(packet, payload);
 
-        if (!date) {
-          continue;
-        }
+        for (const date of dates) {
+          const option: SamoIncomingDepartureOption = {
+            date,
+            price: packet.price,
+            currency: this.normalizeCurrency(packet.currency),
+            nights: tourNights ?? config.nights,
+            roomCode: packet.roomCode,
+            roomName: this.readPacketRoomName(packet.raw) ?? config.roomName,
+            placementCode: packet.htplaceCode,
+            placementName: this.readPacketPlacementName(packet.raw) ?? config.htplaceName,
+            mealCode: packet.mealCode,
+            mealName: this.readPacketMealName(packet.raw) ?? config.mealName,
+          };
+          const key = [option.date, option.nights, option.roomCode, option.placementCode, option.mealCode].join('|');
+          const existing = grouped.get(key);
 
-        const option: SamoIncomingDepartureOption = {
-          date,
-          price: packet.price,
-          currency: this.normalizeCurrency(packet.currency),
-          nights: tourNights ?? config.nights,
-          roomCode: packet.roomCode,
-          roomName: this.readPacketRoomName(packet.raw) ?? config.roomName,
-          placementCode: packet.htplaceCode,
-          placementName: this.readPacketPlacementName(packet.raw) ?? config.htplaceName,
-          mealCode: packet.mealCode,
-          mealName: this.readPacketMealName(packet.raw) ?? config.mealName,
-        };
-        const key = [option.date, option.nights, option.roomCode, option.placementCode, option.mealCode].join('|');
-        const existing = grouped.get(key);
-
-        if (!existing || option.price < existing.price) {
-          grouped.set(key, option);
+          if (!existing || option.price < existing.price) {
+            grouped.set(key, option);
+          }
         }
       }
 
@@ -1217,6 +1214,46 @@ export class SamoIncomingService {
     return pricesWithDate.filter((packet) => this.pricePacketMatchesDate(packet.raw, targetDate));
   }
 
+  private buildDepartureDatesForPacket(
+    packet: SamoHotelPricePacket,
+    payload: SamoClaimPayload,
+  ) {
+    const startDate = packet.checkinDate ?? this.readPricePacketStartDate(packet.raw);
+    const endDate = this.readPricePacketEndDate(packet.raw);
+    const formattedStart = this.formatPacketDateForApi(startDate);
+
+    if (!formattedStart) {
+      return [];
+    }
+
+    if (!endDate || !startDate || endDate < startDate) {
+      return [formattedStart];
+    }
+
+    return this.expandSamoDateRange(startDate, endDate);
+  }
+
+  private expandSamoDateRange(startDate: string, endDate: string) {
+    const start = this.samoDateToUtcMs(startDate);
+    const end = this.samoDateToUtcMs(endDate);
+
+    if (start === null || end === null || end < start) {
+      const formattedStart = this.formatPacketDateForApi(startDate);
+      return formattedStart ? [formattedStart] : [];
+    }
+
+    const result: string[] = [];
+    const maxDays = 370;
+
+    for (let current = start, index = 0; current <= end && index < maxDays; current += 86_400_000, index += 1) {
+      const date = new Date(current);
+
+      result.push(date.toISOString().slice(0, 10));
+    }
+
+    return result;
+  }
+
   private resolvePacketNights(item: Record<string, string>) {
     const nightsValue = this.readFirstTextField(item, [
       'nights',
@@ -1279,18 +1316,32 @@ export class SamoIncomingService {
       return null;
     }
 
-    const start = Date.UTC(
-      Number(startDate.slice(0, 4)),
-      Number(startDate.slice(4, 6)) - 1,
-      Number(startDate.slice(6, 8)),
-    );
-    const end = Date.UTC(
-      Number(endDate.slice(0, 4)),
-      Number(endDate.slice(4, 6)) - 1,
-      Number(endDate.slice(6, 8)),
-    );
+    const start = this.samoDateToUtcMs(startDate);
+    const end = this.samoDateToUtcMs(endDate);
+
+    if (start === null || end === null) {
+      return null;
+    }
+
     const diff = Math.round((end - start) / 86_400_000);
     return Number.isFinite(diff) ? diff : null;
+  }
+
+  private samoDateToUtcMs(date: string) {
+    if (!/^\d{8}$/.test(date)) {
+      return null;
+    }
+
+    const year = Number(date.slice(0, 4));
+    const month = Number(date.slice(4, 6));
+    const day = Number(date.slice(6, 8));
+
+    if (!year || month < 1 || month > 12 || day < 1 || day > 31) {
+      return null;
+    }
+
+    const value = Date.UTC(year, month - 1, day);
+    return Number.isFinite(value) ? value : null;
   }
 
   private hasPricePacketDate(item: Record<string, string>) {

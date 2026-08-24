@@ -126,10 +126,6 @@ export class ToursService {
         });
 
         for (const option of departures) {
-          if (!this.matchesTourDepartureWeekday(option.date, tour.departureWeekdays)) {
-            continue;
-          }
-
           const current = grouped.get(option.date);
           if (!current) {
             grouped.set(option.date, {
