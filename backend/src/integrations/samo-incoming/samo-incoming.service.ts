@@ -26,6 +26,7 @@ type SamoClaimTour = {
   title: string;
   durationDays: number;
   durationNights?: number | null;
+  departureWeekdays?: number[] | null;
   price?: string | null;
   currency?: string | null;
   transport?: string | null;
@@ -1230,10 +1231,14 @@ export class SamoIncomingService {
       return [formattedStart];
     }
 
-    return this.expandSamoDateRange(startDate, endDate);
+    return this.expandSamoDateRange(startDate, endDate, payload.tour.departureWeekdays);
   }
 
-  private expandSamoDateRange(startDate: string, endDate: string) {
+  private expandSamoDateRange(
+    startDate: string,
+    endDate: string,
+    weekdays?: number[] | null,
+  ) {
     const start = this.samoDateToUtcMs(startDate);
     const end = this.samoDateToUtcMs(endDate);
 
@@ -1243,10 +1248,18 @@ export class SamoIncomingService {
     }
 
     const result: string[] = [];
+    const allowedWeekdays = Array.isArray(weekdays) && weekdays.length
+      ? new Set(weekdays)
+      : null;
     const maxDays = 370;
 
     for (let current = start, index = 0; current <= end && index < maxDays; current += 86_400_000, index += 1) {
       const date = new Date(current);
+      const weekday = date.getUTCDay() || 7;
+
+      if (allowedWeekdays && !allowedWeekdays.has(weekday)) {
+        continue;
+      }
 
       result.push(date.toISOString().slice(0, 10));
     }

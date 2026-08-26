@@ -121,6 +121,7 @@ export class ToursService {
             title: translation?.title ?? tour.slug,
             durationDays: tour.durationDays,
             durationNights: tour.durationNights,
+            departureWeekdays: tour.departureWeekdays,
             includedServices: [],
           },
         });
@@ -232,6 +233,7 @@ export class ToursService {
         title: translation?.title ?? tour.slug,
         durationDays: tour.durationDays,
         durationNights: tour.durationNights,
+        departureWeekdays: tour.departureWeekdays,
         includedServices: [],
       },
     });
@@ -504,6 +506,7 @@ export class ToursService {
             title: translation?.title ?? '',
             durationDays: tour.durationDays,
             durationNights: tour.durationNights,
+            departureWeekdays: tour.departureWeekdays,
             includedServices: [],
           },
         });
@@ -645,6 +648,7 @@ export class ToursService {
             title: translation?.title ?? '',
             durationDays: tour.durationDays,
             durationNights: tour.durationNights,
+            departureWeekdays: tour.departureWeekdays,
             includedServices: [],
           },
         });

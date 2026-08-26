@@ -551,6 +551,31 @@ const formatDeparturePrice = (option) => {
   return [formatted, option?.currency].filter(Boolean).join(' ');
 };
 
+const formatCompactDeparturePrice = (option) => {
+  const price = Number(option?.price);
+  if (!Number.isFinite(price)) {
+    return option?.currency || '';
+  }
+
+  const formatted = new Intl.NumberFormat(locale.value === 'ru' ? 'ru-RU' : locale.value, {
+    notation: price >= 10000 ? 'compact' : 'standard',
+    maximumFractionDigits: 0,
+  }).format(price);
+
+  return [formatted, option?.currency].filter(Boolean).join(' ');
+};
+
+const selectIncomingDate = (option) => {
+  if (!option?.date) {
+    return;
+  }
+
+  when.value = option.date;
+};
+
+const isIncomingDateActive = (option) =>
+  Boolean(option?.date && option.date === currentIncomingDateOption.value?.date);
+
 const normalizeDepartureOptions = (items = []) =>
   items.map((item) => ({
     ...item,
@@ -967,15 +992,75 @@ const included = ref([]);
 const notIncluded = ref([]);
 
 // ─── Другие даты ───
-const otherDates = computed(() =>
-  isB2BUser.value && hasIncomingPlacementForSelectedTravelers.value
-    ? incomingDateOptions.value.map((option) => ({
-        date: formatDepartureDate(option.date),
-        price: formatDeparturePrice(option),
-        rawDate: option.date,
-      }))
-    : [],
-);
+const otherDateWeekdays = computed(() => {
+  const formatter = new Intl.DateTimeFormat(locale.value === 'ru' ? 'ru-RU' : locale.value, {
+    weekday: 'short',
+  });
+  const monday = new Date('2026-06-01T00:00:00');
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    return formatter.format(date).replace('.', '');
+  });
+});
+const otherDateMonths = computed(() => {
+  if (!isB2BUser.value || !hasIncomingPlacementForSelectedTravelers.value) {
+    return [];
+  }
+
+  const byDate = new Map();
+  for (const option of incomingDateOptions.value) {
+    if (!option.date) {
+      continue;
+    }
+
+    const existing = byDate.get(option.date);
+    if (!existing || Number(option.price) < Number(existing.price)) {
+      byDate.set(option.date, option);
+    }
+  }
+
+  const months = new Map();
+  for (const option of [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))) {
+    const date = new Date(`${option.date}T00:00:00`);
+    if (Number.isNaN(date.getTime())) {
+      continue;
+    }
+
+    const monthKey = option.date.slice(0, 7);
+    if (!months.has(monthKey)) {
+      const firstDay = new Date(Date.UTC(date.getFullYear(), date.getMonth(), 1));
+      const leadingDays = firstDay.getUTCDay() === 0 ? 6 : firstDay.getUTCDay() - 1;
+      const daysInMonth = new Date(Date.UTC(date.getFullYear(), date.getMonth() + 1, 0)).getUTCDate();
+
+      months.set(monthKey, {
+        key: monthKey,
+        label: new Intl.DateTimeFormat(locale.value === 'ru' ? 'ru-RU' : locale.value, {
+          month: 'long',
+          year: 'numeric',
+        }).format(date),
+        cells: [
+          ...Array.from({ length: leadingDays }, (_, index) => ({
+            key: `${monthKey}-empty-${index}`,
+            empty: true,
+          })),
+          ...Array.from({ length: daysInMonth }, (_, index) => {
+            const day = String(index + 1).padStart(2, '0');
+            const isoDate = `${monthKey}-${day}`;
+            return {
+              key: isoDate,
+              day: index + 1,
+              option: byDate.get(isoDate) || null,
+            };
+          }),
+        ],
+      });
+    }
+  }
+
+  return [...months.values()];
+});
 
 // ─── Табы ───
 const activeTab = ref('details');
@@ -1842,25 +1927,45 @@ onUnmounted(() => {
                   v-if="isB2BUser"
                   class="tour-dates-panel hidden lg:block"
                 >
-                  <div
-                    v-for="(d, i) in otherDates"
-                    :key="i"
-                    class="flex items-center justify-between py-2 border-b border-[#eaeaea] last:border-0"
-                  >
-                    <span class="text-[12px] sm:text-[16px] text-[#000]">{{
-                      d.date
-                    }}</span>
-                    <div class="flex items-center gap-2">
-                      <span
-                        class="text-[14px] sm:text-[16px] font-medium text-[#FF00E7]"
-                        >{{ d.price }}</span
-                      >
+                  <div v-if="otherDateMonths.length" class="other-dates-calendar">
+                    <section
+                      v-for="month in otherDateMonths"
+                      :key="month.key"
+                      class="other-dates-month"
+                    >
+                      <h5 class="other-dates-month__title">{{ month.label }}</h5>
+                      <div class="other-dates-weekdays">
+                        <span v-for="day in otherDateWeekdays" :key="day">{{ day }}</span>
+                      </div>
+                      <div class="other-dates-grid">
+                        <div
+                          v-for="cell in month.cells"
+                          :key="cell.key"
+                          class="other-date-cell"
+                          :class="{
+                            'other-date-cell--empty': cell.empty,
+                            'other-date-cell--available': cell.option,
+                            'other-date-cell--active': isIncomingDateActive(cell.option),
+                          }"
+                          @click="cell.option && selectIncomingDate(cell.option)"
+                        >
+                          <template v-if="!cell.empty">
+                            <span class="other-date-cell__day">{{ cell.day }}</span>
+                            <span v-if="cell.option" class="other-date-cell__price">
+                              {{ formatCompactDeparturePrice(cell.option) }}
+                            </span>
+                          </template>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                    <div v-else class="other-dates-empty">
+                      {{ t('openCard.departures_empty') }}
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
         </div>
       </AppContainer>
     </section>
@@ -2297,19 +2402,41 @@ onUnmounted(() => {
           </div>
 
           <div class="px-4 sm:px-5 py-4">
-            <!-- Цена -->
-            <div v-if="isB2BUser" class="lg:px-[40px] py-[15px] rounded-b-[15px]">
-              <div
-                v-for="(d, i) in otherDates"
-                :key="i"
-                class="flex items-center justify-between py-2 border-b border-[#eaeaea] last:border-0"
-              >
-                <span class="text-[16px] text-[#000]">{{ d.date }}</span>
-                <div class="flex items-center gap-2">
-                  <span class="text-[16px] font-medium text-[#FF00E7]"
-                    >{{ d.price }}</span
-                  >
-                </div>
+            <div v-if="isB2BUser" class="mobile-other-dates-calendar">
+              <div v-if="otherDateMonths.length" class="other-dates-calendar">
+                <section
+                  v-for="month in otherDateMonths"
+                  :key="month.key"
+                  class="other-dates-month"
+                >
+                  <h5 class="other-dates-month__title">{{ month.label }}</h5>
+                  <div class="other-dates-weekdays">
+                    <span v-for="day in otherDateWeekdays" :key="day">{{ day }}</span>
+                  </div>
+                  <div class="other-dates-grid">
+                    <div
+                      v-for="cell in month.cells"
+                      :key="cell.key"
+                      class="other-date-cell"
+                      :class="{
+                        'other-date-cell--empty': cell.empty,
+                        'other-date-cell--available': cell.option,
+                        'other-date-cell--active': isIncomingDateActive(cell.option),
+                      }"
+                      @click="cell.option && selectIncomingDate(cell.option)"
+                    >
+                      <template v-if="!cell.empty">
+                        <span class="other-date-cell__day">{{ cell.day }}</span>
+                        <span v-if="cell.option" class="other-date-cell__price">
+                          {{ formatCompactDeparturePrice(cell.option) }}
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <div v-else class="other-dates-empty">
+                {{ t('openCard.departures_empty') }}
               </div>
             </div>
           </div>
@@ -3158,6 +3285,116 @@ onUnmounted(() => {
   font-size: 18px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.tour-dates-panel {
+  max-height: 520px;
+  overflow-y: auto;
+  padding: 18px 18px 20px;
+}
+
+.other-dates-calendar {
+  display: grid;
+  gap: 18px;
+}
+
+.other-dates-month {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e6e7eb;
+}
+
+.other-dates-month:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.other-dates-month__title {
+  margin: 0 0 12px;
+  color: #111;
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.other-dates-weekdays,
+.other-dates-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.other-dates-weekdays {
+  margin-bottom: 6px;
+}
+
+.other-dates-weekdays span {
+  color: #8b8f99;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.other-date-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 3px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #babdc5;
+  text-align: center;
+}
+
+.other-date-cell--available {
+  border-color: #e0e3ea;
+  background: #fff;
+  color: #111;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.other-date-cell--available:hover {
+  border-color: #ff00e7;
+  background: #fff8fe;
+}
+
+.other-date-cell--active {
+  border-color: #285aff;
+  background: #f3f6ff;
+  box-shadow: 0 0 0 2px rgba(40, 90, 255, 0.08);
+}
+
+.other-date-cell--empty {
+  min-height: 48px;
+}
+
+.other-date-cell__day {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.other-date-cell__price {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: #ff00e7;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.other-dates-empty {
+  padding: 18px;
+  color: #777;
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .departures-actions {
