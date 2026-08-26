@@ -560,6 +560,7 @@ const formatCompactDeparturePrice = (option) => {
   const formatted = new Intl.NumberFormat(locale.value === 'ru' ? 'ru-RU' : locale.value, {
     notation: price >= 10000 ? 'compact' : 'standard',
     maximumFractionDigits: 0,
+    useGrouping: false,
   }).format(price);
 
   return [formatted, option?.currency].filter(Boolean).join(' ');
@@ -3320,7 +3321,7 @@ onUnmounted(() => {
 .other-dates-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
+  gap: 4px;
 }
 
 .other-dates-weekdays {
@@ -3340,8 +3341,8 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: center;
   min-width: 0;
-  min-height: 48px;
-  padding: 6px 3px;
+  min-height: 56px;
+  padding: 6px 1px;
   border: 1px solid transparent;
   border-radius: 8px;
   color: #babdc5;
@@ -3368,7 +3369,7 @@ onUnmounted(() => {
 }
 
 .other-date-cell--empty {
-  min-height: 48px;
+  min-height: 56px;
 }
 
 .other-date-cell__day {
@@ -3380,12 +3381,10 @@ onUnmounted(() => {
 .other-date-cell__price {
   display: block;
   margin-top: 5px;
-  overflow: hidden;
   color: #ff00e7;
-  font-size: 10px;
+  font-size: clamp(7px, 0.58vw, 9px);
   font-weight: 700;
-  line-height: 1.1;
-  text-overflow: ellipsis;
+  line-height: 1.05;
   white-space: nowrap;
 }
 
