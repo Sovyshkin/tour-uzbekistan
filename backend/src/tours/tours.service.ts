@@ -287,15 +287,25 @@ export class ToursService {
     }
 
     if (query.minDuration !== undefined || query.maxDuration !== undefined) {
-      where.durationDays = {};
+      const durationFilter: Prisma.IntFilter = {};
 
       if (query.minDuration !== undefined) {
-        where.durationDays.gte = query.minDuration;
+        durationFilter.gte = query.minDuration;
       }
 
       if (query.maxDuration !== undefined) {
-        where.durationDays.lte = query.maxDuration;
+        durationFilter.lte = query.maxDuration;
       }
+
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        {
+          OR: [
+            { durationDays: durationFilter },
+            { durationNights: durationFilter },
+          ],
+        },
+      ];
     }
 
     if (query.minStars !== undefined || query.maxStars !== undefined) {

@@ -163,13 +163,19 @@ const closeMobileFilter = () => {
 };
 
 const applyRouteSearchParams = () => {
-  adultCount.value = Number(route.query.adults) || adultCount.value;
-  childCount.value = Number(route.query.children) || childCount.value;
+  if (route.query.adults !== undefined) {
+    adultCount.value = Number(route.query.adults) || adultCount.value;
+  }
+  if (route.query.children !== undefined) {
+    childCount.value = Math.max(0, Number(route.query.children) || 0);
+  }
   childAges.value = String(route.query.childAges || '')
     .split(',')
     .map((age) => Number(age))
     .filter((age) => Number.isFinite(age) && age >= 0 && age <= 18);
-  when.value = route.query.travelDate || when.value;
+  if (route.query.travelDate !== undefined) {
+    when.value = route.query.travelDate || '';
+  }
 };
 
 const authState = ref(getAuth());
@@ -289,7 +295,7 @@ const shouldShowRequestFlow = computed(() =>
   isB2BUser.value &&
   (
     route.query.request === '1' ||
-    (isTourSearchApplied.value && (!currentIncomingDateOption.value || !hasIncomingPlacementForSelectedTravelers.value))
+    (isTourSearchApplied.value && !currentIncomingDateOption.value)
   ),
 );
 
@@ -935,6 +941,18 @@ const setCalendarAvailabilityFromDepartures = (items = []) => {
 
 const performTourSearch = async () => {
   isTourSearchApplied.value = true;
+  await router.replace({
+    path: route.path,
+    query: {
+      ...route.query,
+      from: from.value?.label || route.query.from || tour.value.departureCity || undefined,
+      adults: Number(adultCount.value) || 1,
+      children: Number(childCount.value) || 0,
+      childAges: childAges.value.slice(0, Number(childCount.value) || 0).join(',') || undefined,
+      travelDate: when.value || undefined,
+      request: undefined,
+    },
+  });
   await loadTour();
 };
 
