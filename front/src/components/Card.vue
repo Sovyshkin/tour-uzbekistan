@@ -24,6 +24,18 @@ const buildTourQuery = (country, searchQuery) => ({
     Object.entries(searchQuery || {}).filter(([, value]) => value !== undefined && value !== null && value !== ''),
   ),
 });
+
+const formatPrice = (value) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) {
+    return value;
+  }
+
+  return amount.toLocaleString('ru-RU', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+};
 </script>
 
 <template>
@@ -113,7 +125,7 @@ const buildTourQuery = (country, searchQuery) => ({
           v-if="tour.priceFrom"
           class="text-[14px] sm:text-[16px] font-medium text-[#FF00E7]"
         >
-          {{ tour.priceFrom }}{{ tour.currency ? ` ${tour.currency}` : '' }}
+          {{ formatPrice(tour.priceFrom) }}{{ tour.currency ? ` ${tour.currency}` : '' }}
         </p>
         <p v-else class="text-[13px] sm:text-[14px] font-medium text-[#9a6413]">
           Стоимость по запросу

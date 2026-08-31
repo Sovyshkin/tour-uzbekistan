@@ -246,13 +246,14 @@ export class SamoIncomingService {
 
     try {
       const mappings = await this.resolveAdminMappings(config, payload);
-      if (!mappings.placementMapping) {
-        return this.emptyPriceQuote('none');
-      }
-
       config = this.applyAdminMappings(config, mappings);
       const partnerToken = await this.getPartnerToken(config);
-      const pricePacket = await this.resolveHotelPricePacket(config, partnerToken, payload);
+      const pricePacket = await this.resolveHotelPricePacket(
+        config,
+        partnerToken,
+        payload,
+        Boolean(mappings.placementMapping),
+      );
 
       if (!pricePacket) {
         return {
@@ -269,10 +270,14 @@ export class SamoIncomingService {
       }
 
       config = this.applyHotelPricePacket(config, pricePacket);
+      const initXml = await this.initReservation(config, payload, partnerToken);
+      config = this.applyInitReservationData(config, initXml);
+      const amount = config.resolvedPrice ?? pricePacket.price;
+
       return {
         available: true,
-        amount: pricePacket.price,
-        currency: this.normalizeCurrency(pricePacket.currency),
+        amount,
+        currency: config.resolvedCurrency ?? this.normalizeCurrency(pricePacket.currency),
         roomCode: config.roomCode,
         roomName: config.roomName,
         placementCode: config.htplaceCode,
@@ -342,16 +347,6 @@ export class SamoIncomingService {
       debug.resolvedAdults = mappings.adults;
       debug.resolvedChildren = mappings.children;
 
-      if (!mappings.placementMapping) {
-        return {
-          items: [],
-          debug: {
-            ...debug,
-            skippedReason: 'Placement mapping not found for requested tourists',
-          },
-        };
-      }
-
       config = this.applyAdminMappings(config, mappings);
       debug.roomCode = config.roomCode;
       debug.roomName = config.roomName;
@@ -364,13 +359,18 @@ export class SamoIncomingService {
       const items = hotelPrices.items;
       const prices = this.buildHotelPricePackets(items);
       const sameRoomPrices = prices.filter((item) => item.roomCode === config.roomCode);
-      const exactMappedPrices = sameRoomPrices.filter(
-        (item) => item.htplaceCode === config.htplaceCode,
-      );
+      const exactMappedPrices = mappings.placementMapping
+        ? sameRoomPrices.filter((item) => item.htplaceCode === config.htplaceCode)
+        : [];
       const matchingPrices = exactMappedPrices.length
         ? exactMappedPrices
         : sameRoomPrices.filter((item) =>
-            this.matchesHtplaceOccupancy(item.raw, expectedAdults, expectedChildren),
+            this.matchesHtplaceOccupancy(
+              item.raw,
+              expectedAdults,
+              expectedChildren,
+              payload.childAges ?? [],
+            ),
           );
       const grouped = new Map<string, SamoIncomingDepartureOption>();
       const tourNights = this.resolveTourNights(payload);
@@ -984,9 +984,10 @@ export class SamoIncomingService {
     config: SamoIncomingConfig,
     partnerToken: string,
     payload: SamoClaimPayload,
+    preferConfiguredPlacement = true,
   ): Promise<SamoHotelPricePacket | null> {
     const items = await this.fetchHotelPriceItems(config, partnerToken);
-    return this.pickMinimalHotelPricePacket(items, payload, config);
+    return this.pickMinimalHotelPricePacket(items, payload, config, preferConfiguredPlacement);
   }
 
   private async fetchHotelPriceItems(
@@ -1104,6 +1105,7 @@ export class SamoIncomingService {
     items: Record<string, string>[],
     payload: SamoClaimPayload,
     config: SamoIncomingConfig,
+    preferConfiguredPlacement = true,
   ) {
     const expectedAdults = Math.max(
       1,
@@ -1113,17 +1115,26 @@ export class SamoIncomingService {
     const prices = this.buildHotelPricePackets(items);
     const dateFilteredPrices = this.filterPricesByPayloadDate(prices, payload);
 
-    const exactMappedPrices = dateFilteredPrices
-      .filter((item) => item.htplaceCode === config.htplaceCode)
-      .filter((item) => item.roomCode === config.roomCode)
-      .sort((a, b) => a.price - b.price);
+    const exactMappedPrices = preferConfiguredPlacement
+      ? dateFilteredPrices
+          .filter((item) => item.htplaceCode === config.htplaceCode)
+          .filter((item) => item.roomCode === config.roomCode)
+          .sort((a, b) => a.price - b.price)
+      : [];
 
     if (exactMappedPrices[0]) {
       return exactMappedPrices[0];
     }
 
     return dateFilteredPrices
-      .filter((item) => this.matchesHtplaceOccupancy(item.raw, expectedAdults, expectedChildren))
+      .filter((item) =>
+        this.matchesHtplaceOccupancy(
+          item.raw,
+          expectedAdults,
+          expectedChildren,
+          payload.childAges ?? [],
+        ),
+      )
       .filter((item) => item.roomCode === config.roomCode)
       .sort((a, b) => a.price - b.price)[0] ?? null;
   }
@@ -1165,7 +1176,7 @@ export class SamoIncomingService {
           'totalprice',
           'saleprice',
         ]);
-        const price = this.normalizeSamoAmount(priceValue);
+        const price = this.normalizeHotelSalePrice(priceValue);
         const nights = this.resolvePacketNights(item);
         const checkinDate = this.readPricePacketStartDate(item);
 
@@ -1487,16 +1498,16 @@ export class SamoIncomingService {
     return /Prices for this packet not found|price packet|packet not found/i.test(message);
   }
 
-  private matchesHtplaceOccupancy(item: Record<string, string>, adults: number, children: number) {
+  private matchesHtplaceOccupancy(
+    item: Record<string, string>,
+    adults: number,
+    children: number,
+    childAges: number[] = [],
+  ) {
     const adultFields = ['adult', 'adults', 'adultcnt', 'adultcount', 'paxadult', 'adl'];
     const childFields = ['child', 'children', 'childcnt', 'childcount', 'paxchild', 'chd'];
     const explicitAdults = this.readFirstNumericField(item, adultFields);
     const explicitChildren = this.readFirstNumericField(item, childFields);
-
-    if (explicitAdults !== null || explicitChildren !== null) {
-      return (explicitAdults ?? adults) === adults && (explicitChildren ?? children) === children;
-    }
-
     const text = [
       item.htplacename,
       item.htplace_name,
@@ -1507,16 +1518,40 @@ export class SamoIncomingService {
       item.longname,
     ]
       .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
+      .join(' ');
+
+    if (explicitAdults !== null || explicitChildren !== null) {
+      const countsMatch =
+        (explicitAdults ?? adults) === adults && (explicitChildren ?? children) === children;
+      return countsMatch && this.matchesChildAgeRangesWhenPresent(text, childAges, children);
+    }
 
     if (!text) {
       return false;
     }
 
-    const containsChildren = /\b(chd|child|children|kid|kids|реб|дет)/i.test(text);
-    const adultMatch = text.match(/(\d+)\s*(adl|adult|adults|взр)/i);
-    return !containsChildren && Number(adultMatch?.[1]) === adults;
+    const adultMatch = text.match(/(\d+)\s*(?:adl|adult|adults|взр)/i);
+    const childMatch = text.match(/(\d+)\s*(?:chd|child|children|kid|kids|реб|дет)/i);
+
+    if (adultMatch || childMatch) {
+      return (
+        (adultMatch ? Number(adultMatch[1]) : 0) === adults &&
+        (childMatch ? Number(childMatch[1]) : 0) === children &&
+        this.matchesChildAgeRangesWhenPresent(text, childAges, children)
+      );
+    }
+
+    return !/\b(chd|child|children|kid|kids|реб|дет)/i.test(text) && adults > 0 && children === 0;
+  }
+
+  private matchesChildAgeRangesWhenPresent(label: string, childAges: number[], childCount: number) {
+    if (childCount === 0 || childAges.length !== childCount) {
+      return true;
+    }
+
+    return this.extractChildAgeRanges(label).length > 0
+      ? this.matchesChildAgeRanges(label, childAges, childCount)
+      : true;
   }
 
   private readFirstNumericField(item: Record<string, string>, keys: string[]) {
@@ -1988,6 +2023,10 @@ export class SamoIncomingService {
     }
 
     return rawAmount;
+  }
+
+  private normalizeHotelSalePrice(value?: string | number | null) {
+    return Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'));
   }
 
   private normalizeCurrency(value?: string | null) {
