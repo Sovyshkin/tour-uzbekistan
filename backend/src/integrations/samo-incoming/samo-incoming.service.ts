@@ -807,6 +807,10 @@ export class SamoIncomingService {
 
     const ranges = this.extractChildAgeRanges(label);
 
+    if (ranges.length === 1) {
+      return childAges.every((age) => age >= ranges[0].from && age <= ranges[0].to);
+    }
+
     if (ranges.length < childCount) {
       return false;
     }

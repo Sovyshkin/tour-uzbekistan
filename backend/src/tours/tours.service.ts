@@ -276,13 +276,23 @@ export class ToursService {
       const adults = query.adults ?? 1;
       const children = query.children ?? 0;
       const totalTourists = adults + children;
-      where.AND = [
-        ...(Array.isArray(where.AND) ? where.AND : []),
+      const travelerConstraints: Prisma.TourWhereInput[] = [
         { OR: [{ minAdultCount: null }, { minAdultCount: { lte: adults } }] },
         { OR: [{ maxAdultCount: null }, { maxAdultCount: { gte: adults } }] },
         { OR: [{ minChildCount: null }, { minChildCount: { lte: children } }] },
         { OR: [{ maxChildCount: null }, { maxChildCount: { gte: children } }] },
         { OR: [{ maxTouristCount: null }, { maxTouristCount: { gte: totalTourists } }] },
+      ];
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        canFilterByPrice
+          ? {
+              OR: [
+                { incomingHotelCode: { not: null } },
+                { AND: travelerConstraints },
+              ],
+            }
+          : { AND: travelerConstraints },
       ];
     }
 
@@ -496,7 +506,9 @@ export class ToursService {
       payload.incomingPlacements = linkedPlacements;
       payload.hasMatchingPlacement = Boolean(matchingPlacement);
 
-      if (matchingPlacement && shouldQuote && matchesRequestedWeekday) {
+      const hasIncomingHotel = Boolean(tour.incomingHotelCode);
+
+      if ((matchingPlacement || hasIncomingHotel) && shouldQuote && matchesRequestedWeekday) {
         const quote = await this.samoIncomingService.quoteTourPrice({
           bookingId: tour.id,
           bookingNumber: `QUOTE-${tour.id}`,
@@ -526,7 +538,7 @@ export class ToursService {
           payload.priceFrom = String(quote.amount);
           payload.currency = quote.currency ?? tour.currency ?? null;
         }
-      } else if ((!shouldQuote || matchingPlacement) && tour.priceFrom) {
+      } else if ((!shouldQuote || matchingPlacement || hasIncomingHotel) && tour.priceFrom) {
         payload.priceFrom = tour.priceFrom.toString();
         payload.currency = tour.currency ?? null;
       }
@@ -638,7 +650,9 @@ export class ToursService {
           tour.departureWeekdays,
         );
 
-      if (matchingPlacement && shouldQuote && matchesRequestedWeekday) {
+      const hasIncomingHotel = Boolean(tour.incomingHotelCode);
+
+      if ((matchingPlacement || hasIncomingHotel) && shouldQuote && matchesRequestedWeekday) {
         const quote = await this.samoIncomingService.quoteTourPrice({
           bookingId: tour.id,
           bookingNumber: `QUOTE-${tour.id}`,
@@ -668,7 +682,7 @@ export class ToursService {
           payload.priceFrom = String(quote.amount);
           payload.currency = quote.currency ?? tour.currency ?? null;
         }
-      } else if ((!shouldQuote || matchingPlacement) && tour.priceFrom) {
+      } else if ((!shouldQuote || matchingPlacement || hasIncomingHotel) && tour.priceFrom) {
         payload.priceFrom = tour.priceFrom.toString();
         payload.currency = tour.currency ?? null;
       }
