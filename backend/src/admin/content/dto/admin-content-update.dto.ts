@@ -12,7 +12,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ContentStatus, Locale, TourType } from '@prisma/client';
+import { ContentStatus, Locale, Season, TourType } from '@prisma/client';
 
 class AdminContentTranslationUpdateDto {
   @ApiPropertyOptional({ enum: Locale })
@@ -159,6 +159,11 @@ export class AdminContentUpdateDto {
   @IsOptional()
   @IsEnum(TourType)
   type?: TourType;
+
+  @ApiPropertyOptional({ enum: Season })
+  @IsOptional()
+  @IsEnum(Season)
+  season?: Season;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -100,6 +100,22 @@ export class ToursQueryDto {
   @IsString()
   search?: string;
 
+  @ApiPropertyOptional({
+    example: 'SHORT,MULTI_DAY',
+    description: 'Comma-separated tour types',
+  })
+  @IsOptional()
+  @IsString()
+  types?: string;
+
+  @ApiPropertyOptional({
+    example: 'WINTER,SPRING',
+    description: 'Comma-separated tour seasons',
+  })
+  @IsOptional()
+  @IsString()
+  seasons?: string;
+
   @ApiPropertyOptional({ example: 1, default: 1, minimum: 1 })
   @IsOptional()
   @Type(() => Number)

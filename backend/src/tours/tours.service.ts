@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ContentStatus, Locale, Prisma, UserRole, UserStatus } from '@prisma/client';
+import { ContentStatus, Locale, Prisma, Season, TourType, UserRole, UserStatus } from '@prisma/client';
 
 import { pickTranslation } from '../common/translation.util';
 import { SamoIncomingService } from '../integrations/samo-incoming/samo-incoming.service';
@@ -272,6 +272,16 @@ export class ToursService {
       };
     }
 
+    const tourTypes = this.parseTourTypes(query.types);
+    if (tourTypes.length) {
+      where.type = { in: tourTypes };
+    }
+
+    const seasons = this.parseSeasons(query.seasons);
+    if (seasons.length) {
+      where.season = { in: [...seasons, Season.ALL_YEAR] };
+    }
+
     if (query.adults !== undefined || query.children !== undefined) {
       const adults = query.adults ?? 1;
       const children = query.children ?? 0;
@@ -386,6 +396,35 @@ export class ToursService {
     }
 
     return where;
+  }
+
+  private parseTourTypes(value?: string): TourType[] {
+    if (!value) {
+      return [];
+    }
+
+    const validTypes = new Set(Object.values(TourType));
+    return value
+      .split(',')
+      .map((type) => type.trim())
+      .filter((type): type is TourType => validTypes.has(type as TourType));
+  }
+
+  private parseSeasons(value?: string): Season[] {
+    if (!value) {
+      return [];
+    }
+
+    const validSeasons = new Set<Season>([
+      Season.WINTER,
+      Season.SPRING,
+      Season.SUMMER,
+      Season.AUTUMN,
+    ]);
+    return value
+      .split(',')
+      .map((season) => season.trim())
+      .filter((season): season is Season => validSeasons.has(season as Season));
   }
 
   private buildInclude() {

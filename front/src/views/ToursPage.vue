@@ -54,19 +54,25 @@ const settings = ref({});
 const comfortFilter = ref(null);
 
 const tourTypes = ref([
-  { id: 'short', label: t('toursPage.short'), checked: true },
-  { id: 'oneday', label: t('toursPage.oneday'), checked: false },
-  { id: 'multiday', label: t('toursPage.multiday'), checked: false },
+  { id: 'SHORT', label: t('toursPage.short'), checked: true },
+  { id: 'ONE_DAY', label: t('toursPage.oneday'), checked: false },
+  { id: 'MULTI_DAY', label: t('toursPage.multiday'), checked: false },
 ]);
 
 const seasons = ref([
-  { id: 'winter', label: t('toursPage.winter'), checked: true },
-  { id: 'spring', label: t('toursPage.spring'), checked: false },
-  { id: 'summer', label: t('toursPage.summer'), checked: false },
-  { id: 'autumn', label: t('toursPage.autumn'), checked: false },
+  { id: 'WINTER', label: t('toursPage.winter'), checked: true },
+  { id: 'SPRING', label: t('toursPage.spring'), checked: false },
+  { id: 'SUMMER', label: t('toursPage.summer'), checked: false },
+  { id: 'AUTUMN', label: t('toursPage.autumn'), checked: false },
 ]);
 
 const tours = ref([]);
+const selectedTourTypes = computed(() =>
+  tourTypes.value.filter((tourType) => tourType.checked).map((tourType) => tourType.id),
+);
+const selectedSeasons = computed(() =>
+  seasons.value.filter((season) => season.checked).map((season) => season.id),
+);
 const meta = ref({
   page: 1,
   pageSize: 9,
@@ -295,6 +301,8 @@ const loadTours = async () => {
       maxStars: comfortFilter.value || undefined,
       maxPrice: isPriceFilterAvailable.value ? maxPrice.value || undefined : undefined,
       search: searchText.value || undefined,
+      types: selectedTourTypes.value.length ? selectedTourTypes.value.join(',') : undefined,
+      seasons: selectedSeasons.value.length ? selectedSeasons.value.join(',') : undefined,
     };
     await loadCalendarAvailability();
     const data = await getTours(searchParams);
@@ -661,6 +669,7 @@ onUnmounted(() => {
                           type="checkbox"
                           class="peer sr-only"
                           v-model="s.checked"
+                          @change="applyRangeFilters"
                         />
                         <div
                           class="w-3.5 h-3.5 xl:w-4 xl:h-4 border border-[#ccc] rounded peer-checked:bg-[#285aff] peer-checked:border-[#285aff] transition"
@@ -702,6 +711,7 @@ onUnmounted(() => {
                           type="checkbox"
                           class="peer sr-only"
                           v-model="t.checked"
+                          @change="applyRangeFilters"
                         />
                         <div
                           class="w-3.5 h-3.5 xl:w-4 xl:h-4 border border-[#ccc] rounded peer-checked:bg-[#285aff] peer-checked:border-[#285aff] transition"
@@ -964,6 +974,7 @@ onUnmounted(() => {
                         type="checkbox"
                         class="peer sr-only"
                         v-model="s.checked"
+                        @change="applyRangeFilters"
                       />
                       <div
                         class="w-4 h-4 border border-[#ccc] rounded peer-checked:bg-[#285aff] peer-checked:border-[#285aff] transition"
@@ -1003,6 +1014,7 @@ onUnmounted(() => {
                         type="checkbox"
                         class="peer sr-only"
                         v-model="t.checked"
+                        @change="applyRangeFilters"
                       />
                       <div
                         class="w-4 h-4 border border-[#ccc] rounded peer-checked:bg-[#285aff] peer-checked:border-[#285aff] transition"

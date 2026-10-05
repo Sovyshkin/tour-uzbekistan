@@ -48,6 +48,7 @@ type ContentRecord = {
   priceFrom?: string | null;
   currency?: string | null;
   tourType?: string;
+  season?: string;
   incomingTourId?: string | null;
   incomingHotelCode?: string | null;
   incomingHotelName?: string | null;
@@ -415,6 +416,7 @@ const form = reactive<{
   priceFrom?: number;
   currency?: string;
   tourType?: string;
+  season?: string;
   incomingTourId?: string;
   incomingHotelCode?: string;
   incomingHotelName?: string;
@@ -449,6 +451,7 @@ const form = reactive<{
   priceFrom: undefined,
   currency: undefined,
   tourType: undefined,
+  season: undefined,
   incomingTourId: undefined,
   incomingHotelCode: undefined,
   incomingHotelName: undefined,
@@ -1462,6 +1465,7 @@ const openEditor = async (record: ContentRecord) => {
   form.priceFrom = record.priceFrom ? Number(record.priceFrom) : undefined;
   form.currency = record.currency ?? undefined;
   form.tourType = record.tourType;
+  form.season = record.season;
   form.incomingTourId = record.incomingTourId ?? '';
   form.incomingHotelCode = record.incomingHotelCode ?? '';
   form.incomingHotelName = record.incomingHotelName ?? '';
@@ -1558,6 +1562,7 @@ const openCreate = async () => {
       form.priceFrom = undefined;
       form.currency = 'USD';
       form.tourType = 'PRIVATE';
+      form.season = 'ALL_YEAR';
       form.incomingTourId = '';
       form.incomingHotelCode = '';
       form.incomingHotelName = '';
@@ -1630,6 +1635,7 @@ const saveContent = async () => {
       payload.priceFrom = form.priceFrom;
       payload.currency = form.currency;
       payload.type = form.tourType;
+      payload.season = form.season;
       payload.incomingHotelCode = form.incomingHotelCode;
       payload.incomingHotelName = form.incomingHotelName;
       payload.tourDays = form.tourDays.map((day, index) => ({
@@ -2261,6 +2267,16 @@ watch(
                 <el-option label="SHORT" value="SHORT" />
                 <el-option label="MULTI_DAY" value="MULTI_DAY" />
                 <el-option label="MICE" value="MICE" />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item :label="t('content.season')">
+              <el-select v-model="form.season">
+                <el-option label="ALL_YEAR" value="ALL_YEAR" />
+                <el-option label="WINTER" value="WINTER" />
+                <el-option label="SPRING" value="SPRING" />
+                <el-option label="SUMMER" value="SUMMER" />
+                <el-option label="AUTUMN" value="AUTUMN" />
               </el-select>
             </el-form-item>
 

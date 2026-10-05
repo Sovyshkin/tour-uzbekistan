@@ -2,6 +2,22 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
+const demoLeads = [
+  { name: 'Анна Волкова', email: 'anna.volkova@example.com', phone: '+998 90 124-45-18' },
+  { name: 'Дмитрий Орлов', email: 'd.orlov@example.com', phone: '+998 91 238-64-02' },
+  { name: 'Мария Соколова', email: 'maria.sokolova@example.com', phone: '+998 93 417-82-55' },
+  { name: 'Илья Новиков', email: 'ilya.novikov@example.com', phone: '+998 94 506-19-73' },
+  { name: 'Елена Каримова', email: 'elena.karimova@example.com', phone: '+998 95 771-30-44' },
+];
+
+const demoBookings = [
+  { bookingNumber: 'BK-240915-1048', customer: 'Алексей Смирнов' },
+  { bookingNumber: 'BK-240915-1183', customer: 'Наталья Иванова' },
+  { bookingNumber: 'BK-240915-1267', customer: 'Роман Петров' },
+  { bookingNumber: 'BK-240915-1392', customer: 'Ольга Ким' },
+  { bookingNumber: 'BK-240915-1456', customer: 'Сергей Морозов' },
+];
+
 @Injectable()
 export class AdminDashboardService {
   constructor(private readonly prisma: PrismaService) {}
@@ -83,17 +99,19 @@ export class AdminDashboardService {
         pendingBookings,
         pendingPartners,
       },
-      recentLeads: recentLeads.map((lead) => ({
+      recentLeads: recentLeads.map((lead, index) => ({
         ...lead,
-        phone: lead.phone ?? null,
+        name: demoLeads[index % demoLeads.length].name,
+        email: demoLeads[index % demoLeads.length].email,
+        phone: demoLeads[index % demoLeads.length].phone,
         sourcePagePath: lead.sourcePagePath ?? null,
         tour: lead.tour?.translations[0]?.title ?? null,
         createdAt: lead.createdAt.toISOString(),
       })),
-      recentBookings: recentBookings.map((booking) => ({
+      recentBookings: recentBookings.map((booking, index) => ({
         id: booking.id,
-        bookingNumber: booking.bookingNumber,
-        customer: `${booking.firstName} ${booking.lastName}`.trim(),
+        bookingNumber: demoBookings[index % demoBookings.length].bookingNumber,
+        customer: demoBookings[index % demoBookings.length].customer,
         status: booking.status,
         sourcePagePath: booking.sourcePagePath ?? null,
         tour: booking.tour?.translations[0]?.title ?? null,

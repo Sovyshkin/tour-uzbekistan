@@ -38,6 +38,7 @@ type AdminContentRecord = {
   priceFrom?: string | null;
   currency?: string | null;
   tourType?: string;
+  season?: string;
   incomingTourId?: string | null;
   incomingHotelCode?: string | null;
   incomingHotelName?: string | null;
@@ -1772,6 +1773,7 @@ export class AdminContentService {
         countryId: dto.countryId,
         slug: dto.slug,
         type: dto.type ?? 'PRIVATE',
+        season: dto.season ?? 'ALL_YEAR',
         durationDays: dto.durationDays ?? 1,
         durationNights: dto.durationNights ?? 0,
         sortOrder: dto.sortOrder ?? 0,
@@ -2154,6 +2156,7 @@ export class AdminContentService {
       priceFrom: record.priceFrom?.toString() ?? null,
       currency: record.currency,
       tourType: record.type,
+      season: record.season,
       incomingTourId: record.incomingTourId,
       incomingHotelCode: record.incomingHotelCode,
       incomingHotelName: record.incomingHotelName,
@@ -2340,6 +2343,7 @@ export class AdminContentService {
       data: {
         ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
+        ...(dto.season !== undefined ? { season: dto.season } : {}),
         ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
         ...(dto.durationDays !== undefined ? { durationDays: dto.durationDays } : {}),
         ...(dto.durationNights !== undefined ? { durationNights: dto.durationNights } : {}),
