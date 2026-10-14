@@ -306,6 +306,11 @@ export class AdminContentCreateDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @ValidateNested()
   @Type(() => AdminImageSettingsDto)
   imageSettings?: AdminImageSettingsDto;

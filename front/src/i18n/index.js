@@ -435,7 +435,6 @@ const messages = {
       },
     },
     countryPage: {
-      welcome_prefix: 'Добро пожаловать в',
       search_where: 'Куда',
       search_when: 'Когда',
       search_people: 'Кол-во',
@@ -445,6 +444,7 @@ const messages = {
       search_days: 'Дни',
       search_duration: 'Длительность',
       search_button: 'Поиск',
+      back_to_country: 'Назад к стране',
       search_days_unit: 'дн',
       search_people_unit: 'чел',
       search_adults_unit: 'взр',
@@ -924,7 +924,6 @@ const messages = {
       },
     },
     countryPage: {
-      welcome_prefix: 'Welcome to',
       search_where: 'Where to',
       search_when: 'When',
       search_people: 'People',
@@ -934,6 +933,7 @@ const messages = {
       search_days: 'Days',
       search_duration: 'Duration',
       search_button: 'Search',
+      back_to_country: 'Back to country',
       search_days_unit: 'days',
       search_people_unit: 'pers',
       search_adults_unit: 'adl',
@@ -1417,7 +1417,6 @@ const messages = {
       },
     },
     countryPage: {
-      welcome_prefix: 'Xush kelibsiz',
       search_where: 'Qayerga',
       search_when: 'Qachon',
       search_people: 'Odamlar',
@@ -1427,6 +1426,7 @@ const messages = {
       search_days: 'Kunlar',
       search_duration: 'Davomiyligi',
       search_button: 'Qidirish',
+      back_to_country: 'Davlatga qaytish',
       search_days_unit: 'kun',
       search_people_unit: 'kishi',
       search_adults_unit: 'kishi',

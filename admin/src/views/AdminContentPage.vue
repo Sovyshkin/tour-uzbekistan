@@ -474,6 +474,7 @@ const routeTypes = computed<ContentType[]>(() => {
 const creatableTypes: ContentType[] = [
   'pages',
   'siteSettings',
+  'homeBanners',
   'countries',
   'tours',
   'services',
@@ -1523,10 +1524,12 @@ const openCreate = async () => {
   activeType.value = createType;
   form.type = createType;
   form.slug = `new-${createType}-${Date.now()}`;
-  form.status = createType === 'media' || createType === 'siteSettings' ? undefined : 'DRAFT';
-  form.sortOrder = ['countries', 'tours', 'services'].includes(createType) ? 0 : undefined;
+  form.status = ['media', 'siteSettings', 'homeBanners'].includes(createType) ? undefined : 'DRAFT';
+  form.sortOrder = createType === 'homeBanners'
+    ? Math.max(0, ...contentByType.homeBanners.map((banner) => banner.sortOrder ?? 0)) + 1
+    : ['countries', 'tours', 'services'].includes(createType) ? 0 : undefined;
   form.isFeatured = ['countries', 'tours', 'services'].includes(createType) ? false : undefined;
-  form.isActive = createType === 'siteSettings' ? true : undefined;
+  form.isActive = ['siteSettings', 'homeBanners'].includes(createType) ? true : undefined;
   form.syncToB2B = createType === 'news' ? true : undefined;
   form.syncToB2C = createType === 'news' ? true : undefined;
 
@@ -1587,6 +1590,11 @@ const openCreate = async () => {
 };
 
 const saveContent = async () => {
+  if (form.type === 'homeBanners' && !form.media.imageUrl?.trim()) {
+    ElMessage.warning(t('content.bannerImageRequired'));
+    return;
+  }
+
   saving.value = true;
   try {
     const payload: Record<string, unknown> = {
@@ -2001,7 +2009,7 @@ watch(
           {{ t('content.syncNewsB2BB2C') }}
         </el-button>
         <el-button v-if="isCreatableType" type="primary" @click="openCreate">
-          {{ t('common.create') }}
+          {{ normalizedActiveType === 'homeBanners' ? t('content.addBanner') : t('common.create') }}
         </el-button>
         <template v-if="selectedCount > 0">
           <el-tag class="selection-count" type="info">{{ t('common.selected', { count: selectedCount }) }}</el-tag>
@@ -2685,10 +2693,10 @@ watch(
                     />
                   </div>
                   <div class="page-block-subsection">
-                    <span>{{ t('content.fields.welcomeTitle') }}</span>
+                    <span>{{ t('content.fields.cityWelcomeTitle') }}</span>
                     <el-input
                       v-model="getCountryCities(locale.code)[cityIndex].welcomeTitle"
-                      :placeholder="t('content.fields.welcomeTitle')"
+                      :placeholder="t('content.fields.cityWelcomeTitle')"
                     />
                   </div>
                   <div class="page-block-subsection">

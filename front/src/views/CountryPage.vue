@@ -1,5 +1,5 @@
 <script setup>
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -10,6 +10,7 @@ import { useNotifications } from '@/composables/useNotifications';
 
 const { t, locale } = useI18n();
 const route = useRoute();
+const router = useRouter();
 const countryCode = computed(() => route.params.country || 'uzbekistan');
 const countryData = ref(null);
 const countryLoaded = ref(false);
@@ -18,7 +19,9 @@ const { error: notifyError } = useNotifications();
 
 const showScrollTop = ref(false);
 const isCityModalOpen = ref(false);
-const selectedCity = ref('');
+const selectedCity = computed(() =>
+  typeof route.query.city === 'string' ? route.query.city : '',
+);
 
 const onScroll = () => {
   showScrollTop.value = window.scrollY > 400;
@@ -40,7 +43,11 @@ const closeCityModal = () => {
   isCityModalOpen.value = false;
 };
 const selectCity = (cityCode) => {
-  selectedCity.value = cityCode;
+  router.push({
+    name: 'country',
+    params: { country: countryCode.value },
+    query: { ...route.query, city: cityCode },
+  });
   closeCityModal();
 };
 
@@ -123,7 +130,8 @@ const pageTitle = computed(() => {
   return (
     selectedCityData.value?.welcomeTitle ||
     selectedCityData.value?.name ||
-    `${t('countryPage.welcome_prefix')} ${data.value.name}`
+    data.value.welcomeTitle ||
+    data.value.name
   );
 });
 
@@ -146,8 +154,16 @@ const heroStyle = computed(() => {
 // Хлебные крошки (переведены)
 const breadcrumbs = computed(() => [
   { label: t('breadcrumbs.main'), path: '/' },
-  { label: t('breadcrumbs.countries'), path: null },
-  { label: selectedCityData.value?.name || data.value.welcomeTitle, path: null },
+  { label: t('breadcrumbs.countries'), path: '/countries' },
+  ...(selectedCityData.value
+    ? [
+        {
+          label: data.value.name,
+          path: { name: 'country', params: { country: countryCode.value } },
+        },
+        { label: selectedCityData.value.name, path: null },
+      ]
+    : [{ label: data.value.name, path: null }]),
 ]);
 
 const filters = ref({
@@ -169,7 +185,6 @@ const loadCountry = async () => {
       heroImageSettings: payload.heroImageSettings,
       flagImage: resolveAssetUrl(payload.flagImage),
     };
-    selectedCity.value = '';
   } catch (error) {
     countryData.value = null;
     notifyError(error.message || t('notifications.loadCountryFailed'), t('notifications.countryUnavailable'));
@@ -363,6 +378,14 @@ onMounted(() => {
       <div class="flex flex-col lg:flex-row gap-[30px] lg:gap-[40px]">
         <!-- Левая колонка -->
         <div class="flex-1 min-w-0">
+          <router-link
+            v-if="selectedCityData"
+            :to="{ name: 'country', params: { country: countryCode } }"
+            class="mb-5 inline-flex items-center gap-2 rounded-[8px] border border-[#285aff] px-4 py-2.5 text-[14px] font-medium text-[#285aff] transition hover:bg-[#285aff] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#285aff]"
+          >
+            <span aria-hidden="true">←</span>
+            {{ t('countryPage.back_to_country') }}
+          </router-link>
           <h1
             class="text-[28px] sm:text-[36px] lg:text-[42px] font-normal text-black mb-[20px] leading-tight"
           >

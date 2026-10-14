@@ -106,6 +106,11 @@ const router = createRouter({
     },
     // Для стран (динамический маршрут)
     {
+      path: '/countries',
+      name: 'countries',
+      component: () => import('@/views/CountriesPage.vue'),
+    },
+    {
       path: '/countries/:country',
       name: 'country',
       component: () => import('@/views/CountryPage.vue'),

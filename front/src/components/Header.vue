@@ -272,12 +272,15 @@ onBeforeUnmount(() => {
         }}</router-link>
 
         <!-- Countries Dropdown Desktop -->
-        <div class="relative">
+        <div class="relative flex items-center gap-1">
+          <router-link class="nav-link" to="/countries">
+            {{ $t('nav.countries') }}
+          </router-link>
           <button
             @click="isCountriesOpen = !isCountriesOpen"
-            class="flex items-center gap-1 nav-link"
+            class="flex items-center"
+            :aria-label="$t('nav.countries')"
           >
-            {{ $t('nav.countries') }}
             <svg
               class="w-4 h-4 transition-transform"
               :class="{ 'rotate-180': isCountriesOpen }"
@@ -550,8 +553,15 @@ onBeforeUnmount(() => {
                 />
               </svg>
             </button>
-            <div v-if="isCountriesOpen" class="pl-4 pb-2 flex flex-col gap-2">
-              <router-link
+          <div v-if="isCountriesOpen" class="pl-4 pb-2 flex flex-col gap-2">
+            <router-link
+              to="/countries"
+              class="text-sm text-gray-600 py-2"
+              @click="closeMobileMenu"
+            >
+              {{ $t('nav.countries') }}
+            </router-link>
+            <router-link
                 v-for="c in countriesList"
                 :key="c.id"
                 :to="`/countries/${c.slug}`"

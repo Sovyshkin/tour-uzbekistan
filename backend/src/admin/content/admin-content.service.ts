@@ -1619,6 +1619,8 @@ export class AdminContentService {
         return this.createPage(dto);
       case AdminContentType.SITE_SETTINGS:
         return this.createSiteSetting(dto);
+      case AdminContentType.HOME_BANNERS:
+        return this.createHomeBanner(dto);
       case AdminContentType.COUNTRIES:
         return this.createCountry(dto);
       case AdminContentType.TOURS:
@@ -1686,6 +1688,38 @@ export class AdminContentService {
     });
 
     const items = await this.list(AdminContentType.SITE_SETTINGS);
+    return items.find((item) => item.id === record.id);
+  }
+
+  private async createHomeBanner(dto: AdminContentCreateDto) {
+    const imageUrl = this.readNullableString(dto.imageUrl);
+    if (!imageUrl) {
+      throw new BadRequestException('Banner image is required');
+    }
+
+    const record = await this.prisma.homeBanner.create({
+      data: {
+        slug: dto.slug,
+        imageUrl,
+        sortOrder: dto.sortOrder ?? 0,
+        isActive: dto.isActive ?? true,
+        translations: {
+          create: LOCALES.map((locale) => {
+            const fields = this.getCreateFields(dto, locale);
+
+            return {
+              locale,
+              title: this.readString(fields.title, dto.slug),
+              subtitle: this.readNullableString(fields.subtitle),
+              buttonLabel: this.readNullableString(fields.buttonLabel),
+              altText: this.readNullableString(fields.altText),
+            };
+          }),
+        },
+      },
+    });
+
+    const items = await this.list(AdminContentType.HOME_BANNERS);
     return items.find((item) => item.id === record.id);
   }
 

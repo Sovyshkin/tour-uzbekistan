@@ -64,13 +64,17 @@ const tour = ref({
 
 // Хлебные крошки с учётом страны
 const breadcrumbs = computed(() => {
-  const crumbs = [{ label: t('breadcrumbs.main'), path: '/' }];
+  const crumbs = [
+    { label: t('breadcrumbs.main'), path: '/' },
+    { label: t('breadcrumbs.tours'), path: '/tours' },
+  ];
   const countryLabel = tour.value.country || selectedCountry.value;
+  const country = countries.value.find((item) => item.label === countryLabel);
 
   if (countryLabel) {
     crumbs.push({
       label: countryLabel,
-      path: null,
+      path: country ? `/countries/${country.id}` : '/countries',
     });
   }
 
