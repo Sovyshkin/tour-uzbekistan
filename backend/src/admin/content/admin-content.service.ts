@@ -2377,6 +2377,7 @@ export class AdminContentService {
       data: {
         ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
         ...(dto.status !== undefined ? { status: dto.status } : {}),
+        ...(dto.type !== undefined ? { type: dto.type } : {}),
         ...(dto.season !== undefined ? { season: dto.season } : {}),
         ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
         ...(dto.durationDays !== undefined ? { durationDays: dto.durationDays } : {}),

@@ -38,6 +38,15 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @Post('login/partner')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login to the partner site' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Partner account required' })
+  loginPartner(@Body() dto: LoginDto) {
+    return this.authService.loginPartner(dto);
+  }
+
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access and refresh tokens' })

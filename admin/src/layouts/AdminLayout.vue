@@ -47,14 +47,16 @@ const menuItems = [
   { labelKey: 'nav.news', icon: Reading, routeName: 'admin-news' },
   { labelKey: 'nav.leads', icon: Memo, routeName: 'admin-leads' },
   { labelKey: 'nav.bookings', icon: Tickets, routeName: 'admin-bookings' },
-  { labelKey: 'nav.incomingSearch', icon: Search, routeName: 'incoming-search' },
-  { labelKey: 'nav.incomingMappings', icon: Link, routeName: 'incoming-mappings' },
-  { labelKey: 'nav.partners', icon: UserFilled, routeName: 'partners' },
-  { labelKey: 'nav.users', icon: User, routeName: 'users' },
+  { labelKey: 'nav.incomingSearch', icon: Search, routeName: 'incoming-search', adminOnly: true },
+  { labelKey: 'nav.incomingMappings', icon: Link, routeName: 'incoming-mappings', adminOnly: true },
+  { labelKey: 'nav.partners', icon: UserFilled, routeName: 'partners', adminOnly: true },
+  { labelKey: 'nav.users', icon: User, routeName: 'users', adminOnly: true },
   { labelKey: 'nav.media', icon: Picture, routeName: 'media' },
-  { labelKey: 'nav.logs', icon: Document, routeName: 'admin-logs' },
-  { labelKey: 'nav.settings', icon: Setting, routeName: 'settings' },
+  { labelKey: 'nav.logs', icon: Document, routeName: 'admin-logs', adminOnly: true },
+  { labelKey: 'nav.settings', icon: Setting, routeName: 'settings', adminOnly: true },
 ];
+
+const visibleMenuItems = computed(() => menuItems.filter((item) => !item.adminOnly || authStore.user?.role === 'ADMIN'));
 
 const pageTitle = computed(() =>
   route.meta.titleKey ? t(String(route.meta.titleKey)) : String(route.meta.title ?? t('common.dashboard')),
@@ -138,7 +140,7 @@ onBeforeUnmount(() => {
 
       <nav class="menu-list">
         <RouterLink
-          v-for="item in menuItems"
+          v-for="item in visibleMenuItems"
           :key="item.labelKey"
           :to="{ name: item.routeName }"
           class="menu-item"
@@ -173,7 +175,7 @@ onBeforeUnmount(() => {
 
         <nav class="menu-list">
           <RouterLink
-            v-for="item in menuItems"
+            v-for="item in visibleMenuItems"
             :key="`mobile-${item.labelKey}`"
             :to="{ name: item.routeName }"
             class="menu-item"

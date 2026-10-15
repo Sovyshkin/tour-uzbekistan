@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -31,7 +31,8 @@ export class AdminContentController {
   @Get()
   @ApiOperation({ summary: 'List editable content records by type' })
   @ApiOkResponse({ description: 'Editable content records' })
-  list(@Query() query: AdminContentQueryDto) {
+  list(@Query() query: AdminContentQueryDto, @Req() req: Request & { user: { role: UserRole } }) {
+    this.ensureContentAccess(query.type, req.user.role);
     return this.adminContentService.list(query.type);
   }
 
@@ -43,6 +44,7 @@ export class AdminContentController {
     @Body() dto: AdminContentCreateDto,
     @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
   ) {
+    this.ensureContentAccess(type, req.user.role);
     const result = await this.adminContentService.create(type, dto);
     await this.adminAuditService.log({
       user: req.user,
@@ -65,6 +67,7 @@ export class AdminContentController {
     @Body() dto: AdminContentUpdateDto,
     @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
   ) {
+    this.ensureContentAccess(type, req.user.role);
     const result = await this.adminContentService.update(type, id, dto);
     await this.adminAuditService.log({
       user: req.user,
@@ -86,6 +89,7 @@ export class AdminContentController {
     @Param('id') id: string,
     @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
   ) {
+    this.ensureContentAccess(type, req.user.role);
     const result = await this.adminContentService.archive(type, id);
     await this.adminAuditService.log({
       user: req.user,
@@ -95,5 +99,11 @@ export class AdminContentController {
       entityId: id,
     });
     return result;
+  }
+
+  private ensureContentAccess(type: AdminContentType, role: UserRole) {
+    if (type === AdminContentType.SITE_SETTINGS && role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Admin access only');
+    }
   }
 }

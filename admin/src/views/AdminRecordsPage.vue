@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 import http from '@/lib/http';
@@ -13,6 +13,7 @@ type RecordType = 'users' | 'partners' | 'leads' | 'bookings';
 type AnyRecord = Record<string, any> & { id: string; title: string };
 
 const route = useRoute();
+const router = useRouter();
 const authStore = useAuthStore();
 const dashboardStore = useDashboardStore();
 const { t } = useAdminI18n();
@@ -27,13 +28,16 @@ const editingTarget = ref<AnyRecord | null>(null);
 const passwordDialogOpen = ref(false);
 const passwordSaving = ref(false);
 const passwordTarget = ref<AnyRecord | null>(null);
-const passwordForm = ref({ password: '' });
+const passwordForm = ref({ currentPassword: '', password: '' });
 const passwordError = ref('');
 const records = ref<AnyRecord[]>([]);
 const partnerOptions = ref<AnyRecord[]>([]);
 const recordsTableRef = ref();
 const selectedRecords = ref<AnyRecord[]>([]);
 const createForm = ref<Record<string, any>>({});
+const handleRoleChange = (role: string) => {
+  if (role !== 'PARTNER') createForm.value.partnerId = '';
+};
 const createError = ref('');
 const partnerCabinetOpen = ref(false);
 const partnerCabinetTarget = ref<AnyRecord | null>(null);
@@ -141,7 +145,7 @@ const partnerResetUser = (row: AnyRecord) => {
     return null;
   }
 
-  return row.users.find((user: AnyRecord) => user.role === 'PARTNER') ?? row.users[0] ?? null;
+  return row.users.find((user: AnyRecord) => user.role === 'PARTNER') ?? null;
 };
 
 const formatMoney = (value: unknown, currency?: unknown) => {
@@ -353,10 +357,13 @@ const loadPartnerOptions = async () => {
   partnerOptions.value = response.data;
 };
 
-const canCreate = computed(() => ['users', 'partners'].includes(recordType.value));
+const canCreate = computed(() => authStore.user?.role === 'ADMIN' && ['users', 'partners'].includes(recordType.value));
 const canResetPartnerPassword = computed(() => authStore.user?.role === 'ADMIN');
 const canManageUserSecurity = computed(() => recordType.value === 'users' && canResetPartnerPassword.value);
 const canManagePartnerSecurity = computed(() => recordType.value === 'partners' && canResetPartnerPassword.value);
+const canEditUser = (row: AnyRecord) => row.role !== 'ADMIN';
+const canChangeUserPassword = (row: AnyRecord) => canEditUser(row) || row.id === authStore.user?.id;
+const canSelectRecord = (row: AnyRecord) => recordType.value !== 'users' || canEditUser(row);
 const selectedCount = computed(() => selectedRecords.value.length);
 
 const resetSelection = () => {
@@ -668,7 +675,7 @@ const archiveRecord = async (row: AnyRecord) => {
 
 const openPasswordDialog = (row: AnyRecord) => {
   passwordTarget.value = row;
-  passwordForm.value = { password: '' };
+  passwordForm.value = { currentPassword: '', password: '' };
   passwordError.value = '';
   passwordDialogOpen.value = true;
 };
@@ -688,6 +695,7 @@ const changeUserPassword = async () => {
 
   passwordSaving.value = true;
   try {
+    const changingOwnPassword = passwordTarget.value.id === authStore.user?.id;
     const response = await http.patch<AnyRecord[]>(
       `/admin/records/users/${passwordTarget.value.id}/password`,
       passwordForm.value,
@@ -695,6 +703,10 @@ const changeUserPassword = async () => {
     records.value = response.data;
     passwordDialogOpen.value = false;
     ElMessage.success(t('records.passwordChanged'));
+    if (changingOwnPassword) {
+      authStore.logout();
+      await router.push({ name: 'login' });
+    }
   } catch (error: any) {
     passwordError.value = getApiErrorMessage(error, t('records.passwordChangeFailed'));
     ElMessage.error({
@@ -934,7 +946,7 @@ watch(
         @selection-change="handleSelectionChange"
         @row-click="handleRowClick"
       >
-        <el-table-column type="selection" width="48" />
+        <el-table-column type="selection" width="48" :selectable="canSelectRecord" />
         <el-table-column v-if="recordType === 'leads' || recordType === 'bookings'" type="expand" width="48">
           <template #default="{ row }">
             <div class="record-details">
@@ -1093,7 +1105,7 @@ watch(
           <template #default="{ row }">
             <div class="record-row-actions">
               <el-button
-                v-if="recordType === 'users' || recordType === 'partners'"
+                v-if="recordType === 'partners' || (recordType === 'users' && canEditUser(row))"
                 type="primary"
                 plain
                 size="small"
@@ -1102,7 +1114,7 @@ watch(
                 {{ t('common.edit') }}
               </el-button>
               <el-select
-                v-if="recordType === 'users'"
+                v-if="recordType === 'users' && canEditUser(row)"
                 :model-value="row.status"
                 :loading="savingId === row.id"
                 size="small"
@@ -1174,7 +1186,7 @@ watch(
                 <el-option :label="leadStatusLabels.SPAM" value="SPAM" />
               </el-select>
               <el-select
-                v-else
+                v-else-if="recordType === 'bookings'"
                 :model-value="row.status"
                 :loading="savingId === row.id"
                 size="small"
@@ -1187,6 +1199,7 @@ watch(
                 <el-option :label="bookingStatusLabels.COMPLETED" value="COMPLETED" />
               </el-select>
               <el-button
+                v-if="recordType !== 'users' || canEditUser(row)"
                 type="danger"
                 plain
                 size="small"
@@ -1197,6 +1210,7 @@ watch(
               </el-button>
               <template v-if="canManageUserSecurity">
                 <el-button
+                  v-if="canChangeUserPassword(row)"
                   type="primary"
                   plain
                   size="small"
@@ -1215,7 +1229,7 @@ watch(
                   {{ t('records.resetPasswordEmail') }}
                 </el-button>
                 <el-button
-                  v-if="row.id !== authStore.user?.id"
+                  v-if="canEditUser(row)"
                   type="danger"
                   size="small"
                   :loading="archivingId === row.id"
@@ -1443,7 +1457,7 @@ watch(
                 />
               </el-select>
             </el-form-item>
-            <el-form-item :label="t('common.partner')">
+            <el-form-item v-if="createForm.role === 'PARTNER'" :label="t('common.partner')">
               <el-select
                 v-model="createForm.partnerId"
                 clearable
@@ -1462,7 +1476,7 @@ watch(
           </div>
           <div class="dialog-grid">
             <el-form-item :label="t('common.role')">
-              <el-select v-model="createForm.role">
+              <el-select v-model="createForm.role" @change="handleRoleChange">
                 <el-option :label="roleLabels.ADMIN" value="ADMIN" />
                 <el-option :label="roleLabels.MANAGER" value="MANAGER" />
                 <el-option :label="roleLabels.CUSTOMER" value="CUSTOMER" />
@@ -1554,6 +1568,9 @@ watch(
 
         <el-form-item :label="t('common.user')">
           <el-input :model-value="passwordTarget?.title ?? ''" disabled />
+        </el-form-item>
+        <el-form-item v-if="passwordTarget?.role === 'ADMIN'" :label="t('records.currentPassword')">
+          <el-input v-model="passwordForm.currentPassword" type="password" show-password autocomplete="current-password" />
         </el-form-item>
         <el-form-item :label="t('records.newPassword')">
           <el-input

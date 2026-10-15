@@ -9,6 +9,7 @@ import { PartnerType, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { createAuthTag } from './auth-tag.util';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterPartnerDto } from './dto/register-partner.dto';
@@ -17,6 +18,7 @@ type AuthJwtPayload = {
   sub: string;
   email: string;
   role: UserRole;
+  authTag: string;
 };
 
 @Injectable()
@@ -89,6 +91,19 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    const user = await this.authenticateUser(dto);
+    return this.issueTokens(user.id, user.email, user.role);
+  }
+
+  async loginPartner(dto: LoginDto) {
+    const user = await this.authenticateUser(dto);
+    if (user.role !== UserRole.PARTNER) {
+      throw new UnauthorizedException('Partner account required');
+    }
+    return this.issueTokens(user.id, user.email, user.role);
+  }
+
+  private async authenticateUser(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
     });
@@ -103,7 +118,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    return this.issueTokens(user.id, user.email, user.role);
+    if (user.status === UserStatus.SUSPENDED) {
+      throw new UnauthorizedException('Account is suspended');
+    }
+
+    return user;
   }
 
   async refreshToken(dto: RefreshTokenDto) {
@@ -113,7 +132,8 @@ export class AuthService {
       where: { id: payload.sub },
     });
 
-    if (!user || !user.refreshTokenHash) {
+    if (!user || !user.refreshTokenHash || user.status === UserStatus.SUSPENDED ||
+      payload.authTag !== createAuthTag(user.passwordHash, this.configService.getOrThrow<string>('JWT_SECRET'))) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
@@ -133,6 +153,9 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
+        email: true,
+        role: true,
+        passwordHash: true,
         status: true,
         partner: {
           select: {
@@ -143,6 +166,14 @@ export class AuthService {
       },
     });
 
+    if (!user || user.status === UserStatus.SUSPENDED ||
+      ((user.role === UserRole.ADMIN || user.role === UserRole.MANAGER) && user.status !== UserStatus.ACTIVE)) {
+      throw new UnauthorizedException('Account is unavailable');
+    }
+
+    role = user.role;
+    email = user.email;
+
     const isApproved =
       role !== UserRole.PARTNER ||
       (user?.status === UserStatus.ACTIVE && user.partner?.isActive === true);
@@ -151,6 +182,7 @@ export class AuthService {
       sub: userId,
       email,
       role,
+      authTag: createAuthTag(user.passwordHash, this.configService.getOrThrow<string>('JWT_SECRET')),
     };
 
     const accessToken = await this.jwtService.signAsync(payload, {
@@ -178,7 +210,7 @@ export class AuthService {
         id: userId,
         email,
         role,
-        status: user?.status ?? UserStatus.PENDING,
+        status: user.status,
         isApproved,
         managerPhone: user?.partner?.managerPhone ?? null,
       },

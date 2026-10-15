@@ -137,6 +137,7 @@ const router = createRouter({
           component: AdminIncomingSearchPage,
           meta: {
             titleKey: 'nav.incomingSearch',
+            adminOnly: true,
           },
         },
         {
@@ -145,6 +146,7 @@ const router = createRouter({
           component: AdminIncomingMappingsPage,
           meta: {
             titleKey: 'nav.incomingMappings',
+            adminOnly: true,
           },
         },
         {
@@ -154,6 +156,7 @@ const router = createRouter({
           meta: {
             titleKey: 'nav.partners',
             recordType: 'partners',
+            adminOnly: true,
           },
         },
         {
@@ -163,6 +166,7 @@ const router = createRouter({
           meta: {
             titleKey: 'nav.users',
             recordType: 'users',
+            adminOnly: true,
           },
         },
         {
@@ -180,6 +184,7 @@ const router = createRouter({
           component: AdminAuditLogsPage,
           meta: {
             titleKey: 'nav.logs',
+            adminOnly: true,
           },
         },
         {
@@ -189,6 +194,7 @@ const router = createRouter({
           meta: {
             titleKey: 'nav.settings',
             contentTypes: ['siteSettings'],
+            adminOnly: true,
           },
         },
       ],
@@ -209,6 +215,10 @@ router.beforeEach(async (to) => {
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } };
+  }
+
+  if (to.meta.adminOnly && authStore.user?.role !== 'ADMIN') {
+    return { name: 'dashboard' };
   }
 
   if (to.meta.guestOnly && authStore.isAuthenticated) {

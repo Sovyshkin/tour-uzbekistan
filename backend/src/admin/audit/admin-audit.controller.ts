@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Request } from 'express';
@@ -26,6 +26,7 @@ export class AdminAuditController {
   constructor(private readonly adminAuditService: AdminAuditService) {}
 
   @Get()
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'List admin audit logs' })
   @ApiOkResponse({ description: 'Admin audit log list' })
   list(@Query() query: AdminAuditQueryDto) {
@@ -37,12 +38,15 @@ export class AdminAuditController {
   @ApiOperation({ summary: 'Write admin audit event' })
   @ApiOkResponse({ description: 'Admin audit event written' })
   async event(@Body() dto: AdminAuditEventDto, @Req() req: AuthenticatedRequest) {
+    if (dto.action !== 'LOGOUT' || (dto.entityType && dto.entityType !== 'auth')) {
+      throw new BadRequestException('Only logout events may be submitted by clients');
+    }
     await this.adminAuditService.log({
       user: req.user,
       request: req,
-      action: dto.action,
-      entityType: dto.entityType ?? 'admin',
-      entityTitle: dto.entityTitle,
+      action: 'LOGOUT',
+      entityType: 'auth',
+      entityTitle: req.user.email,
     });
   }
 }

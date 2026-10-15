@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Request } from 'express';
@@ -27,7 +27,11 @@ export class AdminRecordsController {
   @Get()
   @ApiOperation({ summary: 'List admin operational records' })
   @ApiOkResponse({ description: 'Admin records list' })
-  list(@Query() query: AdminRecordsQueryDto) {
+  list(
+    @Query() query: AdminRecordsQueryDto,
+    @Req() req: Request & { user: { role: UserRole } },
+  ) {
+    this.ensureRecordAccess(query.type, req.user.role);
     return this.adminRecordsService.list(query.type);
   }
 
@@ -39,7 +43,7 @@ export class AdminRecordsController {
     @Body() dto: AdminRecordCreateDto,
     @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
   ) {
-    const result = await this.adminRecordsService.create(type, dto);
+    const result = await this.adminRecordsService.create(type, dto, req.user);
     await this.adminAuditService.log({
       user: req.user,
       request: req,
@@ -59,7 +63,7 @@ export class AdminRecordsController {
     @Body() dto: AdminUserPasswordUpdateDto,
     @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
   ) {
-    const result = await this.adminRecordsService.updateUserPassword(id, dto.password, req.user);
+    const result = await this.adminRecordsService.updateUserPassword(id, dto.password, req.user, dto.currentPassword);
     await this.adminAuditService.log({
       user: req.user,
       request: req,
@@ -140,7 +144,7 @@ export class AdminRecordsController {
     @Body() dto: AdminRecordUpdateDto,
     @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
   ) {
-    const result = await this.adminRecordsService.update(type, id, dto);
+    const result = await this.adminRecordsService.update(type, id, dto, req.user);
     await this.adminAuditService.log({
       user: req.user,
       request: req,
@@ -160,7 +164,7 @@ export class AdminRecordsController {
     @Param('id') id: string,
     @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
   ) {
-    const result = await this.adminRecordsService.archive(type, id);
+    const result = await this.adminRecordsService.archive(type, id, req.user);
     await this.adminAuditService.log({
       user: req.user,
       request: req,
@@ -169,5 +173,11 @@ export class AdminRecordsController {
       entityId: id,
     });
     return result;
+  }
+
+  private ensureRecordAccess(type: AdminRecordType, role: UserRole) {
+    if ((type === AdminRecordType.USERS || type === AdminRecordType.PARTNERS) && role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Admin access only');
+    }
   }
 }

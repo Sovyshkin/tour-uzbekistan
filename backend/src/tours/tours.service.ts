@@ -22,7 +22,41 @@ export class ToursService {
     const pageSize = query.pageSize ?? 9;
     const skip = (page - 1) * pageSize;
     const canViewPrices = await this.canViewPartnerPrices(viewer);
-    const where = this.buildWhere(query, locale, canViewPrices);
+    const filterQuotedPrice = canViewPrices &&
+      (query.minPrice !== undefined || query.maxPrice !== undefined) &&
+      (query.adults !== undefined || query.children !== undefined || Boolean(query.childAges));
+    const where = this.buildWhere(query, locale, canViewPrices, filterQuotedPrice);
+
+    if (filterQuotedPrice) {
+      const [tours, linkedPlacements] = await Promise.all([
+        this.prisma.tour.findMany({
+          where,
+          orderBy: [{ isFeatured: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+          include: this.buildInclude(),
+        }),
+        this.getLinkedIncomingPlacements(canViewPrices),
+      ]);
+      const matchingItems: Awaited<ReturnType<ToursService['mapTourSummary']>>[] = [];
+
+      for (let offset = 0; offset < tours.length; offset += 10) {
+        const batch = await Promise.all(
+          tours.slice(offset, offset + 10).map((tour) =>
+            this.mapTourSummary(tour, canViewPrices, locale, linkedPlacements, query),
+          ),
+        );
+        matchingItems.push(...batch.filter((item) => {
+          const price = Number(item.priceFrom);
+          return item.priceFrom !== undefined && Number.isFinite(price) &&
+            (query.minPrice === undefined || price >= query.minPrice) &&
+            (query.maxPrice === undefined || price <= query.maxPrice);
+        }));
+      }
+
+      return {
+        items: matchingItems.slice(skip, skip + pageSize),
+        meta: { page, pageSize, total: matchingItems.length, totalPages: Math.ceil(matchingItems.length / pageSize) },
+      };
+    }
 
     const [total, tours, linkedPlacements] = await Promise.all([
       this.prisma.tour.count({ where }),
@@ -253,6 +287,7 @@ export class ToursService {
     query: ToursQueryDto,
     locale: Locale,
     canFilterByPrice: boolean,
+    skipStoredPrice = false,
   ): Prisma.TourWhereInput {
     const where: Prisma.TourWhereInput = {
       status: ContentStatus.PUBLISHED,
@@ -270,6 +305,15 @@ export class ToursService {
         equals: query.from,
         mode: 'insensitive',
       };
+    }
+
+    const travelDate = this.parseTravelDate(query.travelDate);
+    if (travelDate && !Number.isNaN(travelDate.getTime())) {
+      const weekday = travelDate.getUTCDay() || 7;
+      where.OR = [
+        { departureWeekdays: { isEmpty: true } },
+        { departureWeekdays: { has: weekday } },
+      ];
     }
 
     const tourTypes = this.parseTourTypes(query.types);
@@ -317,15 +361,7 @@ export class ToursService {
         durationFilter.lte = query.maxDuration;
       }
 
-      where.AND = [
-        ...(Array.isArray(where.AND) ? where.AND : []),
-        {
-          OR: [
-            { durationDays: durationFilter },
-            { durationNights: durationFilter },
-          ],
-        },
-      ];
+      where.durationDays = durationFilter;
     }
 
     if (query.minStars !== undefined || query.maxStars !== undefined) {
@@ -341,7 +377,7 @@ export class ToursService {
     }
 
     if (
-      canFilterByPrice &&
+      canFilterByPrice && !skipStoredPrice &&
       (query.minPrice !== undefined || query.maxPrice !== undefined)
     ) {
       where.priceFrom = {};
@@ -358,7 +394,7 @@ export class ToursService {
     if (query.search) {
       const searchLocales = locale === Locale.ru ? [locale] : [locale, Locale.ru];
 
-      where.OR = [
+      const searchMatches: Prisma.TourWhereInput[] = [
         {
           translations: {
             some: {
@@ -392,6 +428,10 @@ export class ToursService {
             },
           },
         },
+      ];
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        { OR: searchMatches },
       ];
     }
 

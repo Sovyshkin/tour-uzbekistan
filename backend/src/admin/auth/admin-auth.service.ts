@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { UserRole, UserStatus } from '@prisma/client';
 
 import { AuthService } from '../../auth/auth.service';
 import { LoginDto } from '../../auth/dto/login.dto';
@@ -17,13 +17,13 @@ export class AdminAuthService {
 
   async login(dto: LoginDto) {
     const response = await this.authService.login(dto);
-    this.ensureAdminRole(response.user.role);
+    this.ensureAdminRole(response.user.role, response.user.status);
     return response;
   }
 
   async refresh(dto: RefreshTokenDto) {
     const response = await this.authService.refreshToken(dto);
-    this.ensureAdminRole(response.user.role);
+    this.ensureAdminRole(response.user.role, response.user.status);
     return response;
   }
 
@@ -44,7 +44,7 @@ export class AdminAuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    this.ensureAdminRole(user.role);
+    this.ensureAdminRole(user.role, user.status);
 
     return {
       id: user.id,
@@ -59,8 +59,8 @@ export class AdminAuthService {
     };
   }
 
-  private ensureAdminRole(role: UserRole) {
-    if (!ALLOWED_ADMIN_ROLES.includes(role)) {
+  private ensureAdminRole(role: UserRole, status: UserStatus) {
+    if (!ALLOWED_ADMIN_ROLES.includes(role) || status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException('Admin access only');
     }
   }

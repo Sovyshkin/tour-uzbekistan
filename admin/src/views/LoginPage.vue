@@ -58,7 +58,7 @@ const submit = async () => {
 
       <el-form label-position="top" @submit.prevent="submit">
         <el-form-item label="Email">
-          <el-input v-model="form.email" placeholder="superadmin@centrum-holidays.test" />
+          <el-input v-model="form.email" placeholder="example@gmail.com" />
         </el-form-item>
 
         <el-form-item :label="t('login.password')">

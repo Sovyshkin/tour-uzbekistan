@@ -67,7 +67,12 @@ async function parseResponse(response) {
 function getStoredAuth() {
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    const auth = raw ? JSON.parse(raw) : null;
+    if (auth && auth.user?.role !== 'PARTNER') {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      return null;
+    }
+    return auth;
   } catch {
     return null;
   }
@@ -197,6 +202,11 @@ export async function refreshTokens(refreshToken) {
   } catch (error) {
     redirectToAuth();
     throw error;
+  }
+
+  if (payload.user?.role !== 'PARTNER') {
+    clearStoredAuth();
+    throw new Error('Partner account required');
   }
 
   setStoredAuth(payload);
@@ -484,7 +494,7 @@ export async function registerPartner(payload) {
 }
 
 export async function login(payload) {
-  const auth = await request('/auth/login', {
+  const auth = await request('/auth/login/partner', {
     method: 'POST',
     body: JSON.stringify(payload),
     withAuth: false,

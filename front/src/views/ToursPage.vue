@@ -6,6 +6,7 @@ import AppContainer from '@/components/AppContainer.vue';
 import Button from '@/components/Button.vue';
 import CustomSelect from '@/components/CustomSelect.vue';
 import Card from '@/components/Card.vue';
+import TourNumberRange from '@/components/TourNumberRange.vue';
 import { getApiLocale, getCountries, getDepartureCities, getSiteSettings, getTours, getToursCalendar, isB2BAuthenticated, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 
@@ -31,19 +32,26 @@ const closeMobileFilter = () => {
 // ─── Поисковые значения ───
 const where = ref(null);
 const from = ref(null);
-const when = ref('');
-const adultCount = ref(2);
-const childCount = ref(0);
-const childAges = ref([]);
-const duration = ref(7);
+const when = ref(typeof route.query.travelDate === 'string' ? route.query.travelDate : '');
+const adultCount = ref(Math.max(1, Number(route.query.adults) || 2));
+const childCount = ref(Math.max(0, Number(route.query.children) || 0));
+const childAges = ref(
+  typeof route.query.childAges === 'string'
+    ? route.query.childAges.split(',').map(Number).filter(Number.isFinite)
+    : [],
+);
+const duration = ref(Math.max(1, Number(route.query.duration) || 7));
 const searchText = ref('');
+const minPrice = ref(null);
 const maxPrice = ref(null);
+const minDuration = ref(null);
 const maxDuration = ref(null);
-const isSearchDurationActive = ref(false);
+const isSearchDurationActive = ref(Boolean(route.query.duration));
 const isPriceFilterAvailable = ref(isB2BAuthenticated());
 const isTravelerSearchActive = ref(
   Boolean(route.query.adults || route.query.children || route.query.childAges),
 );
+const allowRoutePrefill = ref(true);
 
 const countries = ref([]);
 const departureCities = ref([]);
@@ -54,19 +62,21 @@ const settings = ref({});
 const comfortFilter = ref(null);
 
 const tourTypes = ref([
-  { id: 'SHORT', label: t('toursPage.short'), checked: true },
+  { id: 'SHORT', label: t('toursPage.short'), checked: false },
   { id: 'ONE_DAY', label: t('toursPage.oneday'), checked: false },
   { id: 'MULTI_DAY', label: t('toursPage.multiday'), checked: false },
 ]);
 
 const seasons = ref([
-  { id: 'WINTER', label: t('toursPage.winter'), checked: true },
+  { id: 'WINTER', label: t('toursPage.winter'), checked: false },
   { id: 'SPRING', label: t('toursPage.spring'), checked: false },
   { id: 'SUMMER', label: t('toursPage.summer'), checked: false },
   { id: 'AUTUMN', label: t('toursPage.autumn'), checked: false },
 ]);
 
 const tours = ref([]);
+const isLoading = ref(true);
+let latestLoadId = 0;
 const selectedTourTypes = computed(() =>
   tourTypes.value.filter((tourType) => tourType.checked).map((tourType) => tourType.id),
 );
@@ -96,6 +106,7 @@ const performSearch = () => {
   isTravelerSearchActive.value = true;
   currentPage.value = 1;
   loadTours();
+  loadCalendarAvailability();
 };
 
 // ─── Пагинация ───
@@ -118,16 +129,23 @@ const resetFilters = () => {
   where.value = null;
   from.value = null;
   when.value = '';
+  adultCount.value = 2;
+  childCount.value = 0;
   childAges.value = [];
+  duration.value = 7;
+  allowRoutePrefill.value = false;
   searchText.value = '';
   comfortFilter.value = null;
+  minPrice.value = null;
   maxPrice.value = null;
+  minDuration.value = null;
   maxDuration.value = null;
   isSearchDurationActive.value = false;
   isTravelerSearchActive.value = false;
   seasons.value.forEach((s) => (s.checked = false));
   tourTypes.value.forEach((t) => (t.checked = false));
   currentPage.value = 1;
+  closeMobileFilter();
   loadTours();
 };
 
@@ -211,7 +229,7 @@ const loadCountries = async () => {
   }));
 
   const requestedCountry = route.query.country;
-  if (requestedCountry && !where.value) {
+  if (allowRoutePrefill.value && requestedCountry && !where.value) {
     where.value =
       countries.value.find((country) => country.slug === requestedCountry) || null;
   }
@@ -226,7 +244,7 @@ const loadDepartureCities = async () => {
     }));
 
     const requestedFrom = route.query.from;
-    if (requestedFrom && !from.value) {
+    if (allowRoutePrefill.value && requestedFrom && !from.value) {
       from.value = departureCities.value.find((city) => city.label === requestedFrom) || null;
     }
   } catch {
@@ -245,13 +263,16 @@ const loadCalendarAvailability = async () => {
       locale: getApiLocale(locale.value),
       country: where.value?.slug,
       from: from.value?.label,
-      adults: adultCount.value,
-      children: childCount.value,
-      childAges: childAges.value.slice(0, childCount.value).join(','),
-      maxDuration: maxDuration.value || (isSearchDurationActive.value ? duration.value : undefined),
+      adults: isTravelerSearchActive.value ? adultCount.value : undefined,
+      children: isTravelerSearchActive.value ? childCount.value : undefined,
+      childAges: isTravelerSearchActive.value ? childAges.value.slice(0, childCount.value).join(',') : undefined,
+      minDuration: minDuration.value ?? undefined,
+      maxDuration: maxDuration.value ?? (isSearchDurationActive.value ? duration.value : undefined),
       minStars: comfortFilter.value || undefined,
       maxStars: comfortFilter.value || undefined,
       search: searchText.value || undefined,
+      types: selectedTourTypes.value.length ? selectedTourTypes.value.join(',') : undefined,
+      seasons: selectedSeasons.value.length ? selectedSeasons.value.join(',') : undefined,
     });
     calendarAvailability.value = Object.fromEntries(
       (response.items || []).map((item) => [item.date, item]),
@@ -285,6 +306,8 @@ const loadSearchOptions = async () => {
 };
 
 const loadTours = async () => {
+  const loadId = ++latestLoadId;
+  isLoading.value = true;
   try {
     const searchParams = {
       locale: getApiLocale(locale.value),
@@ -292,20 +315,22 @@ const loadTours = async () => {
       pageSize: perPage.value,
       country: where.value?.slug,
       from: from.value?.label,
-      adults: adultCount.value,
-      children: childCount.value,
-      childAges: childAges.value.slice(0, childCount.value).join(','),
+      adults: isTravelerSearchActive.value ? adultCount.value : undefined,
+      children: isTravelerSearchActive.value ? childCount.value : undefined,
+      childAges: isTravelerSearchActive.value ? childAges.value.slice(0, childCount.value).join(',') : undefined,
       travelDate: when.value || undefined,
-      maxDuration: maxDuration.value || (isSearchDurationActive.value ? duration.value : undefined),
+      minDuration: minDuration.value ?? undefined,
+      maxDuration: maxDuration.value ?? (isSearchDurationActive.value ? duration.value : undefined),
       minStars: comfortFilter.value || undefined,
       maxStars: comfortFilter.value || undefined,
-      maxPrice: isPriceFilterAvailable.value ? maxPrice.value || undefined : undefined,
+      minPrice: isPriceFilterAvailable.value ? minPrice.value ?? undefined : undefined,
+      maxPrice: isPriceFilterAvailable.value ? maxPrice.value ?? undefined : undefined,
       search: searchText.value || undefined,
       types: selectedTourTypes.value.length ? selectedTourTypes.value.join(',') : undefined,
       seasons: selectedSeasons.value.length ? selectedSeasons.value.join(',') : undefined,
     };
-    await loadCalendarAvailability();
     const data = await getTours(searchParams);
+    if (loadId !== latestLoadId) return;
     logIncomingToursDebug(data.items || [], searchParams);
 
     const nextTours = (data.items || []).map((tour) => {
@@ -337,7 +362,11 @@ const loadTours = async () => {
     }
     meta.value = data.meta;
   } catch (error) {
-    notifyError(error.message || t('notifications.loadToursFailed'), t('notifications.toursUnavailable'));
+    if (loadId === latestLoadId) {
+      notifyError(error.message || t('notifications.loadToursFailed'), t('notifications.toursUnavailable'));
+    }
+  } finally {
+    if (loadId === latestLoadId) isLoading.value = false;
   }
 };
 
@@ -356,6 +385,7 @@ const loadSettings = async () => {
 const syncPriceFilterVisibility = () => {
   isPriceFilterAvailable.value = isB2BAuthenticated();
   if (!isPriceFilterAvailable.value) {
+    minPrice.value = null;
     maxPrice.value = null;
   }
 };
@@ -368,6 +398,7 @@ const reloadToursAfterAuthChange = () => {
 watch(() => locale.value, async () => {
   await Promise.all([loadSettings(), loadCountries(), loadDepartureCities()]);
   await loadSearchOptions();
+  allowRoutePrefill.value = false;
   await loadTours();
 });
 
@@ -397,6 +428,7 @@ onMounted(async () => {
   await Promise.all([loadSettings(), loadCountries(), loadDepartureCities()]);
   await loadSearchOptions();
   await loadTours();
+  loadCalendarAvailability();
 });
 
 onUnmounted(() => {
@@ -604,50 +636,30 @@ onUnmounted(() => {
             >
               <!-- Цена -->
               <div v-if="isPriceFilterAvailable" class="p-4 xl:p-5 border-b border-[#e6e6e7]">
-                <h4 class="text-[14px] xl:text-[15px] font-medium mb-3 xl:mb-4">
-                  {{ t('toursPage.price') }}
-                </h4>
-                <div class="relative mb-3 xl:mb-4">
-                  <input
-                    v-model.number="maxPrice"
-                    type="range"
-                    class="w-full h-1 bg-[#e6e6e7] rounded-lg appearance-none cursor-pointer accent-[#285aff]"
-                    min="0"
-                    max="5000"
-                    step="50"
-                    @change="applyRangeFilters"
-                  />
-                </div>
-                <div
-                  class="flex justify-between text-[11px] xl:text-[12px] text-[#888]"
-                >
-                  <span>0 USD</span><span>{{ maxPrice ? `${maxPrice} USD` : '5000+ USD' }}</span>
-                </div>
+                <TourNumberRange
+                  v-model:min-value="minPrice"
+                  v-model:max-value="maxPrice"
+                  :title="t('toursPage.price')"
+                  :from-label="t('toursPage.range_from')"
+                  :to-label="t('toursPage.range_to')"
+                  unit="$"
+                  @change="applyRangeFilters"
+                />
               </div>
 
               <!-- Длительность -->
               <div class="p-4 xl:p-5 border-b border-[#e6e6e7]">
-                <h4 class="text-[14px] xl:text-[15px] font-medium mb-1">
-                  {{ t('toursPage.duration_label') }}
-                </h4>
-                <p class="text-[11px] xl:text-[12px] text-[#888] mb-2 xl:mb-3">
-                  {{ t('toursPage.days_label') }}
-                </p>
-                <div class="relative mb-3 xl:mb-4">
-                  <input
-                    v-model.number="maxDuration"
-                    type="range"
-                    class="w-full h-1 bg-[#e6e6e7] rounded-lg appearance-none cursor-pointer accent-[#285aff]"
-                    min="0"
-                    max="30"
-                    @change="applyRangeFilters"
-                  />
-                </div>
-                <div
-                  class="flex justify-between text-[11px] xl:text-[12px] text-[#888]"
-                >
-                  <span>0</span><span>{{ maxDuration ? maxDuration : '30+' }}</span>
-                </div>
+                <TourNumberRange
+                  v-model:min-value="minDuration"
+                  v-model:max-value="maxDuration"
+                  :title="t('toursPage.duration_label')"
+                  :from-label="t('toursPage.range_from')"
+                  :to-label="t('toursPage.range_to')"
+                  :minimum="1"
+                  :step="1"
+                  :unit="t('toursPage.search_days_unit')"
+                  @change="applyRangeFilters"
+                />
               </div>
 
               <!-- По сезону + По типу тура -->
@@ -747,7 +759,9 @@ onUnmounted(() => {
                   <button
                     v-for="stars in [3, 4, 5]"
                     :key="stars"
-                    class="flex items-center gap-2 text-left group"
+                    class="flex items-center gap-2 text-left group w-full rounded-[6px] px-1 py-0.5"
+                    :class="comfortFilter === stars ? 'bg-[#edf2ff]' : ''"
+                    :aria-pressed="comfortFilter === stars"
                     @click="setComfortFilter(stars)"
                   >
                     <div class="flex items-center gap-0.5">
@@ -822,7 +836,7 @@ onUnmounted(() => {
               </button>
             </div>
 
-            <div
+            <div v-if="!isLoading"
               class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5 xl:gap-[20px]"
             >
               <Card
@@ -841,14 +855,21 @@ onUnmounted(() => {
               />
             </div>
 
-            <div
-              v-if="paginatedTours.length === 0"
-              class="text-center py-10 sm:py-20 text-[#888] text-[14px]"
-            >
-              {{ t('toursPage.no_tours') }}
+            <div v-if="isLoading" class="text-center py-10 sm:py-20 text-[#666] text-[14px]" role="status">
+              {{ t('toursPage.loading') }}
             </div>
 
             <div
+              v-else-if="paginatedTours.length === 0"
+              class="text-center py-10 sm:py-20 text-[#888] text-[14px]"
+            >
+              {{ t('toursPage.no_tours') }}
+              <button class="block mx-auto mt-3 text-[#285aff] hover:underline" @click="resetFilters">
+                {{ t('toursPage.reset_filters') }}
+              </button>
+            </div>
+
+            <div v-if="!isLoading && meta.totalPages > 1"
               class="flex justify-center sm:justify-end items-center gap-1.5 sm:gap-2 mt-6 sm:mt-10"
             >
               <button
@@ -886,7 +907,7 @@ onUnmounted(() => {
       <Transition name="fade">
         <div
           v-if="isMobileFilterOpen"
-          class="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          class="fixed inset-0 bg-black/60 z-[110] lg:hidden"
           @click="closeMobileFilter"
         ></div>
       </Transition>
@@ -894,7 +915,7 @@ onUnmounted(() => {
       <Transition name="slide-up">
         <div
           v-if="isMobileFilterOpen"
-          class="fixed bottom-0 left-0 right-0 bg-white rounded-t-[20px] z-50 lg:hidden max-h-[90vh] overflow-y-auto"
+          class="fixed bottom-0 left-0 right-0 bg-white rounded-t-[20px] z-[120] lg:hidden max-h-[90vh] overflow-y-auto"
         >
           <div
             class="sticky top-0 bg-white px-4 sm:px-5 pt-3 sm:pt-4 pb-3 border-b border-[#e6e6e7] flex items-center justify-between rounded-t-[20px]"
@@ -913,46 +934,30 @@ onUnmounted(() => {
           <div class="px-4 sm:px-5 py-4">
             <!-- Цена -->
             <div v-if="isPriceFilterAvailable" class="mb-5 sm:mb-6">
-              <h4 class="text-[14px] sm:text-[15px] font-medium mb-3 sm:mb-4">
-                {{ t('toursPage.price') }}
-              </h4>
-              <div class="relative mb-3">
-                <input
-                  v-model.number="maxPrice"
-                  type="range"
-                  class="w-full h-1 bg-[#e6e6e7] rounded-lg appearance-none cursor-pointer accent-[#285aff]"
-                  min="0"
-                  max="5000"
-                  step="50"
-                  @change="applyRangeFilters"
-                />
-              </div>
-              <div class="flex justify-between text-[12px] text-[#888]">
-                <span>0 USD</span><span>{{ maxPrice ? `${maxPrice} USD` : '5000+ USD' }}</span>
-              </div>
+              <TourNumberRange
+                v-model:min-value="minPrice"
+                v-model:max-value="maxPrice"
+                :title="t('toursPage.price')"
+                :from-label="t('toursPage.range_from')"
+                :to-label="t('toursPage.range_to')"
+                unit="$"
+                @change="applyRangeFilters"
+              />
             </div>
 
             <!-- Длительность -->
             <div class="mb-5 sm:mb-6 pb-5 sm:pb-6 border-b border-[#e6e6e7]">
-              <h4 class="text-[14px] sm:text-[15px] font-medium mb-1">
-                {{ t('toursPage.duration_label') }}
-              </h4>
-              <p class="text-[12px] text-[#888] mb-2 sm:mb-3">
-                {{ t('toursPage.days_label') }}
-              </p>
-              <div class="relative mb-3">
-                <input
-                  v-model.number="maxDuration"
-                  type="range"
-                  class="w-full h-1 bg-[#e6e6e7] rounded-lg appearance-none cursor-pointer accent-[#285aff]"
-                  min="0"
-                  max="30"
-                  @change="applyRangeFilters"
-                />
-              </div>
-              <div class="flex justify-between text-[12px] text-[#888]">
-                <span>0</span><span>{{ maxDuration ? maxDuration : '30+' }}</span>
-              </div>
+              <TourNumberRange
+                v-model:min-value="minDuration"
+                v-model:max-value="maxDuration"
+                :title="t('toursPage.duration_label')"
+                :from-label="t('toursPage.range_from')"
+                :to-label="t('toursPage.range_to')"
+                :minimum="1"
+                :step="1"
+                :unit="t('toursPage.search_days_unit')"
+                @change="applyRangeFilters"
+              />
             </div>
 
             <!-- По сезону + По типу тура -->
@@ -1050,7 +1055,9 @@ onUnmounted(() => {
                 <button
                   v-for="stars in [3, 4, 5]"
                   :key="stars"
-                  class="flex items-center gap-2 text-left"
+                  class="flex items-center gap-2 text-left w-full rounded-[6px] px-1 py-0.5"
+                  :class="comfortFilter === stars ? 'bg-[#edf2ff]' : ''"
+                  :aria-pressed="comfortFilter === stars"
                   @click="setComfortFilter(stars)"
                 >
                   <div class="flex items-center gap-0.5">
