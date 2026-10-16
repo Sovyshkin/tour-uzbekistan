@@ -47,7 +47,7 @@ export class AdminAuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login as administrator or manager' })
+  @ApiOperation({ summary: 'Login as super administrator, administrator, or manager' })
   @ApiOkResponse({ type: AuthResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials or insufficient role' })
@@ -80,7 +80,7 @@ export class AdminAuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current admin user profile' })
   @ApiOkResponse({ type: AdminAuthMeDto })

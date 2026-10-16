@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { BookingStatus, LeadStatus, Locale, PartnerType, UserRole, UserStatus } from '@prisma/client';
 
@@ -67,6 +67,12 @@ export class AdminRecordUpdateDto {
   @IsOptional()
   @IsEnum(UserRole)
   role?: UserRole;
+
+  @ApiPropertyOptional({ minLength: 8, description: 'Required when granting an administrator role' })
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  newPassword?: string;
 
   @ApiPropertyOptional({ enum: UserStatus })
   @IsOptional()

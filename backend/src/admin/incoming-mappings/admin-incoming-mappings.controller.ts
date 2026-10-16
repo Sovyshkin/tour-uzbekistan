@@ -11,7 +11,7 @@ import { AdminIncomingMappingsService } from './admin-incoming-mappings.service'
 @ApiTags('admin-incoming-mappings')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
 @Controller('admin/incoming-mappings')
 export class AdminIncomingMappingsController {
   constructor(private readonly mappingsService: AdminIncomingMappingsService) {}

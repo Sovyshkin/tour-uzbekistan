@@ -9,6 +9,7 @@ import { UserRole } from '@prisma/client';
 import { Request } from 'express';
 
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { isAdministratorRole } from '../../auth/role-policy';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { AdminAuditService } from '../audit/admin-audit.service';
@@ -20,7 +21,7 @@ import { AdminContentUpdateDto } from './dto/admin-content-update.dto';
 @ApiTags('admin-content')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.MANAGER)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 @Controller('admin/content')
 export class AdminContentController {
   constructor(
@@ -102,7 +103,7 @@ export class AdminContentController {
   }
 
   private ensureContentAccess(type: AdminContentType, role: UserRole) {
-    if (type === AdminContentType.SITE_SETTINGS && role !== UserRole.ADMIN) {
+    if (type === AdminContentType.SITE_SETTINGS && !isAdministratorRole(role)) {
       throw new ForbiddenException('Admin access only');
     }
   }

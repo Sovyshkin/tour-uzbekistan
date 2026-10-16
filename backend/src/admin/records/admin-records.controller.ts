@@ -4,6 +4,7 @@ import { UserRole } from '@prisma/client';
 import { Request } from 'express';
 
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { isAdministratorRole } from '../../auth/role-policy';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { AdminAuditService } from '../audit/admin-audit.service';
@@ -16,7 +17,7 @@ import { AdminRecordsService } from './admin-records.service';
 @ApiTags('admin-records')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.MANAGER)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 @Controller('admin/records')
 export class AdminRecordsController {
   constructor(
@@ -55,7 +56,7 @@ export class AdminRecordsController {
   }
 
   @Patch('users/:id/password')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @ApiOperation({ summary: 'Change user password. Super admin only' })
   @ApiOkResponse({ description: 'Updated users list' })
   async updateUserPassword(
@@ -76,7 +77,7 @@ export class AdminRecordsController {
   }
 
   @Post('users/:id/password/reset-email')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @ApiOperation({ summary: 'Generate a new partner password and send it by email. Super admin only' })
   @ApiOkResponse({ description: 'Updated users list' })
   async resetPartnerPasswordAndEmail(
@@ -96,7 +97,7 @@ export class AdminRecordsController {
   }
 
   @Delete('users/:id/permanent')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @ApiOperation({ summary: 'Permanently delete user. Super admin only' })
   @ApiOkResponse({ description: 'Updated users list' })
   async deleteUser(
@@ -116,7 +117,7 @@ export class AdminRecordsController {
   }
 
   @Delete('partners/:id/permanent')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @ApiOperation({ summary: 'Permanently delete partner. Super admin only' })
   @ApiOkResponse({ description: 'Updated partners list' })
   async deletePartner(
@@ -133,6 +134,28 @@ export class AdminRecordsController {
       metadata: { permanentlyDeleted: true },
     });
     return result;
+  }
+
+  @Delete('leads/:id/permanent')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Permanently delete a lead. Super administrator only' })
+  @ApiOkResponse({ description: 'Updated leads list' })
+  deleteLead(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
+  ) {
+    return this.deleteOperationalRecord(AdminRecordType.LEADS, id, req);
+  }
+
+  @Delete('bookings/:id/permanent')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Permanently delete a booking. Super administrator only' })
+  @ApiOkResponse({ description: 'Updated bookings list' })
+  deleteBooking(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { sub: string; email: string; role: UserRole } },
+  ) {
+    return this.deleteOperationalRecord(AdminRecordType.BOOKINGS, id, req);
   }
 
   @Patch(':type/:id')
@@ -176,8 +199,25 @@ export class AdminRecordsController {
   }
 
   private ensureRecordAccess(type: AdminRecordType, role: UserRole) {
-    if ((type === AdminRecordType.USERS || type === AdminRecordType.PARTNERS) && role !== UserRole.ADMIN) {
+    if ((type === AdminRecordType.USERS || type === AdminRecordType.PARTNERS) &&
+      !isAdministratorRole(role)) {
       throw new ForbiddenException('Admin access only');
     }
+  }
+
+  private async deleteOperationalRecord(
+    type: AdminRecordType.LEADS | AdminRecordType.BOOKINGS,
+    id: string,
+    req: Request & { user: { sub: string; email: string; role: UserRole } },
+  ) {
+    const result = await this.adminRecordsService.deleteOperationalRecord(type, id, req.user);
+    await this.adminAuditService.log({
+      user: req.user,
+      request: req,
+      action: 'DELETE',
+      entityType: `record:${type}`,
+      entityId: id,
+    });
+    return result;
   }
 }

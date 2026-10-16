@@ -11,7 +11,7 @@ import { AdminDepartureCityDto } from './dto/admin-departure-city.dto';
 @ApiTags('admin-departure-cities')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.MANAGER)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 @Controller('admin/departure-cities')
 export class AdminDepartureCitiesController {
   constructor(private readonly citiesService: AdminDepartureCitiesService) {}

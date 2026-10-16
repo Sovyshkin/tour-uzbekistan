@@ -140,7 +140,7 @@ const messages = {
     },
     login: {
       title: 'Вход в админ-панель',
-      subtitle: 'Используй учетную запись с ролью ADMIN или MANAGER',
+      subtitle: 'Используй учетную запись с ролью SUPER_ADMIN, ADMIN или MANAGER',
       password: 'Пароль',
       passwordPlaceholder: 'Введите пароль',
       submit: 'Войти',
@@ -230,6 +230,12 @@ const messages = {
       passwordChangeFailed: 'Не удалось изменить пароль',
       userDeleteFailed: 'Не удалось удалить пользователя',
       partnerDeleteFailed: 'Не удалось удалить партнера',
+      deleteLead: 'Удалить лид',
+      deleteBooking: 'Удалить бронирование',
+      deleteLeadConfirm: 'Удалить лид "{title}" без возможности восстановления?',
+      deleteBookingConfirm: 'Удалить бронирование "{title}" без возможности восстановления? Это не отменяет бронь во внешней системе.',
+      recordDeleted: 'Запись удалена',
+      recordDeleteFailed: 'Не удалось удалить запись',
       disable: 'Отключить',
       cancelBooking: 'Отменить',
       markInProgress: 'В работу',
@@ -297,6 +303,7 @@ const messages = {
         CREATE: 'Создание',
         UPDATE: 'Изменение',
         ARCHIVE: 'Архивация',
+        DELETE: 'Удаление',
         UPLOAD: 'Загрузка',
       },
       entities: {
@@ -318,6 +325,7 @@ const messages = {
     },
     enums: {
       role: {
+        SUPER_ADMIN: 'Супер-администратор',
         ADMIN: 'Администратор',
         MANAGER: 'Менеджер',
         CUSTOMER: 'Клиент',
@@ -681,7 +689,7 @@ const messages = {
     },
     login: {
       title: 'Admin panel login',
-      subtitle: 'Use an account with ADMIN or MANAGER role',
+      subtitle: 'Use a SUPER_ADMIN, ADMIN or MANAGER account',
       password: 'Password',
       passwordPlaceholder: 'Enter password',
       submit: 'Sign in',
@@ -771,6 +779,12 @@ const messages = {
       passwordChangeFailed: 'Could not change password',
       userDeleteFailed: 'Could not delete user',
       partnerDeleteFailed: 'Could not delete partner',
+      deleteLead: 'Delete lead',
+      deleteBooking: 'Delete booking',
+      deleteLeadConfirm: 'Permanently delete lead "{title}"?',
+      deleteBookingConfirm: 'Permanently delete booking "{title}"? This does not cancel the booking in an external system.',
+      recordDeleted: 'Record deleted',
+      recordDeleteFailed: 'Could not delete record',
       disable: 'Disable',
       cancelBooking: 'Cancel',
       markInProgress: 'In progress',
@@ -838,6 +852,7 @@ const messages = {
         CREATE: 'Create',
         UPDATE: 'Update',
         ARCHIVE: 'Archive',
+        DELETE: 'Delete',
         UPLOAD: 'Upload',
       },
       entities: {
@@ -859,6 +874,7 @@ const messages = {
     },
     enums: {
       role: {
+        SUPER_ADMIN: 'Super administrator',
         ADMIN: 'Administrator',
         MANAGER: 'Manager',
         CUSTOMER: 'Customer',

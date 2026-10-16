@@ -37,12 +37,14 @@ const selectedRecords = ref<AnyRecord[]>([]);
 const createForm = ref<Record<string, any>>({});
 const handleRoleChange = (role: string) => {
   if (role !== 'PARTNER') createForm.value.partnerId = '';
+  if (roleLevel(role) <= roleLevel(editingTarget.value?.role ?? '')) createForm.value.newPassword = '';
 };
 const createError = ref('');
 const partnerCabinetOpen = ref(false);
 const partnerCabinetTarget = ref<AnyRecord | null>(null);
 
 const roleLabels = computed<Record<string, string>>(() => ({
+  SUPER_ADMIN: t('enums.role.SUPER_ADMIN'),
   ADMIN: t('enums.role.ADMIN'),
   MANAGER: t('enums.role.MANAGER'),
   CUSTOMER: t('enums.role.CUSTOMER'),
@@ -357,12 +359,19 @@ const loadPartnerOptions = async () => {
   partnerOptions.value = response.data;
 };
 
-const canCreate = computed(() => authStore.user?.role === 'ADMIN' && ['users', 'partners'].includes(recordType.value));
-const canResetPartnerPassword = computed(() => authStore.user?.role === 'ADMIN');
+const isSuperAdmin = computed(() => authStore.user?.role === 'SUPER_ADMIN');
+const isAdministrator = computed(() => isSuperAdmin.value || authStore.user?.role === 'ADMIN');
+const canCreate = computed(() => isAdministrator.value && ['users', 'partners'].includes(recordType.value));
+const canResetPartnerPassword = computed(() => isAdministrator.value);
 const canManageUserSecurity = computed(() => recordType.value === 'users' && canResetPartnerPassword.value);
 const canManagePartnerSecurity = computed(() => recordType.value === 'partners' && canResetPartnerPassword.value);
-const canEditUser = (row: AnyRecord) => row.role !== 'ADMIN';
-const canChangeUserPassword = (row: AnyRecord) => canEditUser(row) || row.id === authStore.user?.id;
+const canEditUser = (row: AnyRecord) => row.role !== 'SUPER_ADMIN' && row.id !== authStore.user?.id &&
+  (isSuperAdmin.value || row.role !== 'ADMIN');
+const roleLevel = (role: string) => role === 'SUPER_ADMIN' ? 2 : role === 'ADMIN' ? 1 : 0;
+const isPrivilegePromotion = computed(() => recordType.value === 'users' && isEditing.value &&
+  roleLevel(createForm.value.role) > roleLevel(editingTarget.value?.role ?? ''));
+const canChangeUserPassword = (row: AnyRecord) => row.role !== 'SUPER_ADMIN' &&
+  (canEditUser(row) || row.id === authStore.user?.id);
 const canSelectRecord = (row: AnyRecord) => recordType.value !== 'users' || canEditUser(row);
 const selectedCount = computed(() => selectedRecords.value.length);
 
@@ -467,6 +476,7 @@ const openEdit = async (row: AnyRecord) => {
           language: row.language ?? 'ru',
           partnerId: row.partnerId ?? '',
           role: row.role ?? 'MANAGER',
+          newPassword: '',
           status: row.status ?? 'ACTIVE',
         }
       : {
@@ -494,6 +504,7 @@ const buildFormPayload = () => {
           language: createForm.value.language,
           partnerId: createForm.value.partnerId || '',
           role: createForm.value.role,
+          ...(createForm.value.newPassword ? { newPassword: createForm.value.newPassword } : {}),
           userStatus: createForm.value.status,
         }
       : createForm.value;
@@ -520,6 +531,12 @@ const saveRecord = async () => {
   createError.value = '';
 
   if (!isEditing.value && recordType.value === 'users' && String(createForm.value.password ?? '').length < 8) {
+    createError.value = t('records.passwordTooShort');
+    ElMessage.warning(createError.value);
+    return;
+  }
+
+  if (isPrivilegePromotion.value && String(createForm.value.newPassword ?? '').length < 8) {
     createError.value = t('records.passwordTooShort');
     ElMessage.warning(createError.value);
     return;
@@ -815,6 +832,38 @@ const deletePartner = async (row: AnyRecord) => {
     ElMessage.success(t('records.partnerDeleted'));
   } catch (error: any) {
     ElMessage.error(getApiErrorMessage(error, t('records.partnerDeleteFailed')));
+  } finally {
+    archivingId.value = '';
+  }
+};
+
+const deleteOperationalRecord = async (row: AnyRecord) => {
+  if (!isSuperAdmin.value || (recordType.value !== 'leads' && recordType.value !== 'bookings')) return;
+
+  const type = recordType.value;
+  const title = type === 'leads' ? t('records.deleteLead') : t('records.deleteBooking');
+  const confirmation = type === 'leads'
+    ? t('records.deleteLeadConfirm', { title: row.title })
+    : t('records.deleteBookingConfirm', { title: row.title });
+  try {
+    await ElMessageBox.confirm(confirmation, title, {
+      confirmButtonText: t('common.delete'),
+      cancelButtonText: t('common.cancel'),
+      type: 'error',
+    });
+  } catch {
+    return;
+  }
+
+  archivingId.value = row.id;
+  try {
+    const response = await http.delete<AnyRecord[]>(`/admin/records/${type}/${row.id}/permanent`);
+    records.value = response.data;
+    resetSelection();
+    dashboardStore.load();
+    ElMessage.success(t('records.recordDeleted'));
+  } catch (error: any) {
+    ElMessage.error(getApiErrorMessage(error, t('records.recordDeleteFailed')));
   } finally {
     archivingId.value = '';
   }
@@ -1208,6 +1257,15 @@ watch(
               >
                 {{ archiveLabel }}
               </el-button>
+              <el-button
+                v-if="isSuperAdmin && (recordType === 'leads' || recordType === 'bookings')"
+                type="danger"
+                size="small"
+                :loading="archivingId === row.id"
+                @click.stop="deleteOperationalRecord(row)"
+              >
+                {{ t('common.delete') }}
+              </el-button>
               <template v-if="canManageUserSecurity">
                 <el-button
                   v-if="canChangeUserPassword(row)"
@@ -1477,7 +1535,7 @@ watch(
           <div class="dialog-grid">
             <el-form-item :label="t('common.role')">
               <el-select v-model="createForm.role" @change="handleRoleChange">
-                <el-option :label="roleLabels.ADMIN" value="ADMIN" />
+                <el-option v-if="isSuperAdmin" :label="roleLabels.ADMIN" value="ADMIN" />
                 <el-option :label="roleLabels.MANAGER" value="MANAGER" />
                 <el-option :label="roleLabels.CUSTOMER" value="CUSTOMER" />
                 <el-option :label="roleLabels.PARTNER" value="PARTNER" />
@@ -1491,6 +1549,9 @@ watch(
               </el-select>
             </el-form-item>
           </div>
+          <el-form-item v-if="isPrivilegePromotion" :label="t('records.newPassword')">
+            <el-input v-model="createForm.newPassword" type="password" show-password autocomplete="new-password" />
+          </el-form-item>
         </template>
 
         <template v-else>
@@ -1569,7 +1630,7 @@ watch(
         <el-form-item :label="t('common.user')">
           <el-input :model-value="passwordTarget?.title ?? ''" disabled />
         </el-form-item>
-        <el-form-item v-if="passwordTarget?.role === 'ADMIN'" :label="t('records.currentPassword')">
+        <el-form-item v-if="passwordTarget?.id === authStore.user?.id" :label="t('records.currentPassword')">
           <el-input v-model="passwordForm.currentPassword" type="password" show-password autocomplete="current-password" />
         </el-form-item>
         <el-form-item :label="t('records.newPassword')">

@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { randomInt } from 'crypto';
 
 import { MailService } from '../../mail/mail.service';
+import { isAdministratorRole, isPrivilegeElevation } from '../../auth/role-policy';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdminRecordCreateDto } from './dto/admin-record-create.dto';
 import { AdminRecordUpdateDto } from './dto/admin-record-update.dto';
@@ -36,10 +37,10 @@ export class AdminRecordsService {
   async update(type: AdminRecordType, id: string, dto: AdminRecordUpdateDto, actor: { sub: string; role: UserRole }) {
     switch (type) {
       case AdminRecordType.USERS:
-        this.ensureSuperAdmin(actor);
+        this.ensureAdminAccess(actor);
         return this.updateUser(id, dto, actor);
       case AdminRecordType.PARTNERS:
-        this.ensureSuperAdmin(actor);
+        this.ensureAdminAccess(actor);
         return this.updatePartner(id, dto);
       case AdminRecordType.LEADS:
         return this.updateLead(id, dto);
@@ -51,10 +52,10 @@ export class AdminRecordsService {
   }
 
   async create(type: AdminRecordType, dto: AdminRecordCreateDto, actor: { role: UserRole }) {
-    this.ensureSuperAdmin(actor);
+    this.ensureAdminAccess(actor);
     switch (type) {
       case AdminRecordType.USERS:
-        return this.createUser(dto);
+        return this.createUser(dto, actor);
       case AdminRecordType.PARTNERS:
         return this.createPartner(dto);
       default:
@@ -65,12 +66,14 @@ export class AdminRecordsService {
   async archive(type: AdminRecordType, id: string, actor: { sub: string; role: UserRole }) {
     switch (type) {
       case AdminRecordType.USERS:
-        this.ensureSuperAdmin(actor);
-        await this.ensureMutableUser(id, actor);
-        await this.prisma.user.update({ where: { id }, data: { status: UserStatus.SUSPENDED } });
+        this.ensureAdminAccess(actor);
+        await this.prisma.$transaction(async (tx) => {
+          const archivedUser = await this.ensureMutableUser(id, actor, tx);
+          await tx.user.update({ where: { id }, data: { status: UserStatus.SUSPENDED } });
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
         return this.list(AdminRecordType.USERS);
       case AdminRecordType.PARTNERS:
-        this.ensureSuperAdmin(actor);
+        this.ensureAdminAccess(actor);
         await this.ensureExists(this.prisma.partner.count({ where: { id } }));
         await this.prisma.$transaction([
           this.prisma.partner.update({ where: { id }, data: { isActive: false } }),
@@ -94,30 +97,26 @@ export class AdminRecordsService {
   }
 
   async updateUserPassword(id: string, password: string, actor: { sub: string; role: UserRole }, currentPassword?: string) {
-    this.ensureSuperAdmin(actor);
-    const user = await this.prisma.user.findUnique({ where: { id }, select: { role: true, passwordHash: true } });
-    if (!user) throw new NotFoundException('Record not found');
-    if (user.role === UserRole.ADMIN) {
-      if (actor.sub !== id) throw new ForbiddenException('Cannot change another administrator password');
-      if (!currentPassword || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+    this.ensureAdminAccess(actor);
+    const passwordHash = await bcrypt.hash(password, 10);
+    await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id }, select: { role: true, passwordHash: true } });
+      if (!user) throw new NotFoundException('Record not found');
+      if (user.role === UserRole.SUPER_ADMIN) throw new ForbiddenException('Super administrator credentials are managed by environment variables');
+      if (user.role === UserRole.ADMIN && actor.role !== UserRole.SUPER_ADMIN && actor.sub !== id) {
+        throw new ForbiddenException('Cannot change another administrator password');
+      }
+      if (actor.sub === id && (!currentPassword || !(await bcrypt.compare(currentPassword, user.passwordHash)))) {
         throw new ForbiddenException('Current password is required');
       }
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10);
-    await this.prisma.user.update({
-      where: { id },
-      data: {
-        passwordHash,
-        refreshTokenHash: null,
-      },
-    });
+      await tx.user.update({ where: { id }, data: { passwordHash, refreshTokenHash: null } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     return this.list(AdminRecordType.USERS);
   }
 
   async resetPartnerPasswordAndEmail(id: string, actor: { role: UserRole }) {
-    this.ensureSuperAdmin(actor);
+    this.ensureAdminAccess(actor);
 
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -160,13 +159,14 @@ export class AdminRecordsService {
       user.email;
     const loginUrl = this.getPartnerLoginUrl();
 
-    await this.prisma.user.update({
-      where: { id },
+    const changed = await this.prisma.user.updateMany({
+      where: { id, role: UserRole.PARTNER, passwordHash: user.passwordHash },
       data: {
         passwordHash,
         refreshTokenHash: null,
       },
     });
+    if (!changed.count) throw new ForbiddenException('Partner account changed during password reset');
 
     try {
       await this.mailService.sendPartnerPasswordReset({
@@ -176,8 +176,8 @@ export class AdminRecordsService {
         loginUrl,
       });
     } catch (error) {
-      await this.prisma.user.update({
-        where: { id },
+      await this.prisma.user.updateMany({
+        where: { id, role: UserRole.PARTNER, passwordHash },
         data: {
           passwordHash: user.passwordHash,
           refreshTokenHash: user.refreshTokenHash,
@@ -191,45 +191,54 @@ export class AdminRecordsService {
   }
 
   async deleteUser(id: string, actor: { sub: string; role: UserRole }) {
-    this.ensureSuperAdmin(actor);
+    this.ensureAdminAccess(actor);
 
     if (actor.sub === id) {
       throw new BadRequestException('You cannot delete your own account');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: { id: true, role: true },
-    });
-
-    if (!user) {
-      throw new NotFoundException('Record not found');
-    }
-
-    if (user.role === UserRole.ADMIN) throw new ForbiddenException('Administrator accounts cannot be deleted here');
-
-    await this.prisma.user.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      const user = await this.ensureMutableUser(id, actor, tx);
+      await tx.user.delete({ where: { id } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     return this.list(AdminRecordType.USERS);
   }
 
   async deletePartner(id: string, actor: { role: UserRole }) {
-    this.ensureSuperAdmin(actor);
+    this.ensureAdminAccess(actor);
 
     await this.ensureExists(this.prisma.partner.count({ where: { id } }));
-    await this.prisma.partner.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.updateMany({
+        where: { partnerId: id, role: UserRole.PARTNER },
+        data: { status: UserStatus.SUSPENDED },
+      });
+      await tx.partner.delete({ where: { id } });
+    });
 
     return this.list(AdminRecordType.PARTNERS);
   }
 
-  private async createUser(dto: AdminRecordCreateDto) {
+  async deleteOperationalRecord(type: AdminRecordType.LEADS | AdminRecordType.BOOKINGS, id: string, actor: { role: UserRole }) {
+    this.ensureTopLevelAccess(actor);
+    const deleted = type === AdminRecordType.LEADS
+      ? await this.prisma.lead.deleteMany({ where: { id } })
+      : await this.prisma.booking.deleteMany({ where: { id } });
+    if (!deleted.count) throw new NotFoundException('Record not found');
+    return this.list(type);
+  }
+
+  private async createUser(dto: AdminRecordCreateDto, actor: { role: UserRole }) {
     if (!dto.email || !dto.password) {
       throw new BadRequestException('Email and password are required');
     }
 
     const role = dto.role ?? UserRole.MANAGER;
+    if (role === UserRole.SUPER_ADMIN) throw new ForbiddenException('Super administrator is managed by environment variables');
+    if (isAdministratorRole(role)) this.ensureTopLevelAccess(actor);
     this.ensurePartnerAssignment(role, dto.partnerId || null);
-    if (role === UserRole.ADMIN && dto.status && dto.status !== UserStatus.ACTIVE) {
+    if (isAdministratorRole(role) && dto.status && dto.status !== UserStatus.ACTIVE) {
       throw new BadRequestException('Administrator accounts must be active');
     }
 
@@ -515,19 +524,18 @@ export class AdminRecordsService {
   }
 
   private async updateUser(id: string, dto: AdminRecordUpdateDto, actor: { sub: string; role: UserRole }) {
-    const user = await this.ensureMutableUser(id, actor);
-    if (dto.role !== undefined || dto.partnerId !== undefined) {
-      this.ensurePartnerAssignment(dto.role ?? user.role, dto.partnerId !== undefined ? dto.partnerId || null : user.partnerId);
+    if (dto.role === UserRole.SUPER_ADMIN) throw new ForbiddenException('Super administrator is managed by environment variables');
+    if (dto.role !== undefined && isAdministratorRole(dto.role)) this.ensureTopLevelAccess(actor);
+    if (dto.newPassword && (!dto.role || !isAdministratorRole(dto.role))) {
+      throw new BadRequestException('Use the password action to change a user password');
     }
-    if (dto.role === UserRole.ADMIN && (dto.userStatus ?? user.status) !== UserStatus.ACTIVE) {
-      throw new BadRequestException('Administrator accounts must be active');
-    }
+    const newPasswordHash = dto.newPassword ? await bcrypt.hash(dto.newPassword, 10) : null;
 
     const firstName = dto.firstName?.trim();
     const lastName = dto.lastName?.trim();
     const displayName = [firstName, lastName].filter(Boolean).join(' ');
 
-    await this.prisma.user.update({
+    const update = {
       where: { id },
       data: {
         ...(dto.email !== undefined ? { email: dto.email.trim().toLowerCase() } : {}),
@@ -562,7 +570,33 @@ export class AdminRecordsService {
             }
           : {}),
       },
-    });
+    };
+    await this.prisma.$transaction(async (tx) => {
+      const user = await this.ensureMutableUser(id, actor, tx);
+      if (dto.role !== undefined || dto.partnerId !== undefined) {
+        this.ensurePartnerAssignment(dto.role ?? user.role, dto.partnerId !== undefined ? dto.partnerId || null : user.partnerId);
+      }
+      if (isAdministratorRole(dto.role ?? user.role) &&
+        dto.role !== undefined && (dto.userStatus ?? user.status) !== UserStatus.ACTIVE) {
+        throw new BadRequestException('Administrator accounts must be active');
+      }
+      const elevating = dto.role !== undefined && isPrivilegeElevation(user.role, dto.role);
+      if (elevating && !newPasswordHash) {
+        throw new BadRequestException('A new password is required when granting an administrator role');
+      }
+      if (newPasswordHash && !elevating) {
+        throw new BadRequestException('Use the password action to change a user password');
+      }
+      await tx.user.update({
+        ...update,
+        data: {
+          ...update.data,
+          ...(newPasswordHash && elevating
+            ? { passwordHash: newPasswordHash, refreshTokenHash: null }
+            : {}),
+        },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return this.list(AdminRecordType.USERS);
   }
 
@@ -609,10 +643,10 @@ export class AdminRecordsService {
         },
       });
 
-      if (dto.userStatus !== undefined) {
+      if (dto.userStatus !== undefined || dto.isActive === false) {
         await tx.user.updateMany({
           where: { partnerId: id, role: UserRole.PARTNER },
-          data: { status: dto.userStatus },
+          data: { status: dto.isActive === false ? UserStatus.SUSPENDED : dto.userStatus },
         });
       }
     });
@@ -650,19 +684,29 @@ export class AdminRecordsService {
     }
   }
 
-  private ensureSuperAdmin(actor: { role: UserRole }) {
-    if (actor.role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Super admin access only');
+  private ensureAdminAccess(actor: { role: UserRole }) {
+    if (!isAdministratorRole(actor.role)) {
+      throw new ForbiddenException('Administrator access only');
     }
   }
 
-  private async ensureMutableUser(id: string, actor: { sub: string }) {
-    const user = await this.prisma.user.findUnique({ where: { id }, select: { role: true, partnerId: true, status: true } });
+  private ensureTopLevelAccess(actor: { role: UserRole }) {
+    if (actor.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Super administrator access only');
+    }
+  }
+
+  private async ensureMutableUser(id: string, actor: { sub: string; role: UserRole }, tx: Prisma.TransactionClient) {
+    const user = await tx.user.findUnique({ where: { id }, select: { role: true, partnerId: true, status: true } });
     if (!user) throw new NotFoundException('Record not found');
-    if (user.role === UserRole.ADMIN) {
-      throw new ForbiddenException(actor.sub === id
-        ? 'Use the password action to change your administrator password'
-        : 'Cannot modify another administrator account');
+    if (actor.sub === id) {
+      throw new ForbiddenException('Use the password action to change your own password');
+    }
+    if (user.role === UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Super administrator is managed by environment variables');
+    }
+    if (isAdministratorRole(user.role)) {
+      this.ensureTopLevelAccess(actor);
     }
     return user;
   }

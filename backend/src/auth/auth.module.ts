@@ -9,6 +9,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { JwtStrategy } from './jwt.strategy';
+import { SuperAdminCredentialsService } from './super-admin-credentials.service';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { JwtStrategy } from './jwt.strategy';
     JwtAuthGuard,
     OptionalJwtAuthGuard,
     RolesGuard,
+    SuperAdminCredentialsService,
   ],
   exports: [
     AuthService,

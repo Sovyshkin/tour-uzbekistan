@@ -9,7 +9,7 @@ type AuthUser = {
   firstName: string;
   lastName: string;
   displayName: string;
-  role: 'ADMIN' | 'MANAGER';
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER';
   preferredLocale: string;
 };
 
@@ -20,7 +20,7 @@ type AuthResponse = {
   user: {
     id: string;
     email: string;
-    role: 'ADMIN' | 'MANAGER';
+    role: 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER';
   };
 };
 
@@ -96,9 +96,7 @@ export const useAuthStore = defineStore('auth', () => {
       refreshToken: refreshToken.value,
     });
     setTokens(data);
-    if (!user.value) {
-      await fetchMe();
-    }
+    await fetchMe();
   };
 
   const logout = () => {

@@ -50,6 +50,7 @@ const actionLabels = computed<Record<string, string>>(() => ({
   CREATE: t('audit.actions.CREATE'),
   UPDATE: t('audit.actions.UPDATE'),
   ARCHIVE: t('audit.actions.ARCHIVE'),
+  DELETE: t('audit.actions.DELETE'),
   UPLOAD: t('audit.actions.UPLOAD'),
 }));
 
@@ -82,6 +83,10 @@ const actionTagType = (action: string) => {
 
   if (action === 'ARCHIVE') {
     return 'warning';
+  }
+
+  if (action === 'DELETE') {
+    return 'danger';
   }
 
   if (action === 'LOGIN' || action === 'LOGOUT') {

@@ -8,6 +8,14 @@ async function main() {
     throw new Error('Seed deletes existing data. Set ALLOW_DESTRUCTIVE_SEED=true only when you intentionally want to reset production content.');
   }
 
+  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL?.trim().toLowerCase();
+  const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
+  const managerPassword = process.env.SEED_MANAGER_PASSWORD;
+  if (!superAdminEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(superAdminEmail) ||
+    !superAdminPassword || superAdminPassword.length < 12 || !managerPassword || managerPassword.length < 12) {
+    throw new Error('SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD and SEED_MANAGER_PASSWORD must be configured; passwords need at least 12 characters');
+  }
+
   await prisma.pageTranslation.deleteMany();
   await prisma.page.deleteMany();
   await prisma.siteSettingTranslation.deleteMany();
@@ -516,16 +524,16 @@ async function main() {
     },
   });
 
-  const adminPasswordHash = await bcrypt.hash('admin12345', 10);
-  const managerPasswordHash = await bcrypt.hash('manager12345', 10);
+  const adminPasswordHash = await bcrypt.hash(superAdminPassword, 10);
+  const managerPasswordHash = await bcrypt.hash(managerPassword, 10);
 
   await prisma.user.create({
     data: {
-      email: 'superadmin@centrum-holidays.test',
+      email: superAdminEmail,
       passwordHash: adminPasswordHash,
       firstName: 'System',
       lastName: 'Admin',
-      role: 'ADMIN',
+      role: 'SUPER_ADMIN',
       status: 'ACTIVE',
       preferredLocale: 'ru',
       translations: {

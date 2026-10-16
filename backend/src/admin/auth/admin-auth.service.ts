@@ -6,7 +6,7 @@ import { LoginDto } from '../../auth/dto/login.dto';
 import { RefreshTokenDto } from '../../auth/dto/refresh-token.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 
-const ALLOWED_ADMIN_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.MANAGER];
+const ALLOWED_ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER];
 
 @Injectable()
 export class AdminAuthService {
@@ -16,13 +16,13 @@ export class AdminAuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    const response = await this.authService.login(dto);
+    const response = await this.authService.loginCms(dto);
     this.ensureAdminRole(response.user.role, response.user.status);
     return response;
   }
 
   async refresh(dto: RefreshTokenDto) {
-    const response = await this.authService.refreshToken(dto);
+    const response = await this.authService.refreshToken(dto, true);
     this.ensureAdminRole(response.user.role, response.user.status);
     return response;
   }

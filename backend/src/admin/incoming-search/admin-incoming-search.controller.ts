@@ -11,7 +11,7 @@ import { AdminIncomingSearchDto } from './dto/admin-incoming-search.dto';
 @ApiTags('admin-incoming-search')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
 @Controller('admin/incoming-search')
 export class AdminIncomingSearchController {
   constructor(private readonly incomingSearchService: AdminIncomingSearchService) {}

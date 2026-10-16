@@ -28,7 +28,7 @@ import { AdminMediaService } from './admin-media.service';
 @ApiTags('admin-media')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.MANAGER)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 @Controller('admin/media')
 export class AdminMediaController {
   constructor(

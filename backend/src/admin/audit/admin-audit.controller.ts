@@ -20,13 +20,13 @@ type AuthenticatedRequest = Request & {
 @ApiTags('admin-audit')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.MANAGER)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 @Controller('admin/audit-logs')
 export class AdminAuditController {
   constructor(private readonly adminAuditService: AdminAuditService) {}
 
   @Get()
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   @ApiOperation({ summary: 'List admin audit logs' })
   @ApiOkResponse({ description: 'Admin audit log list' })
   list(@Query() query: AdminAuditQueryDto) {

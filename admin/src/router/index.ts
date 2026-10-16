@@ -217,7 +217,7 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { redirect: to.fullPath } };
   }
 
-  if (to.meta.adminOnly && authStore.user?.role !== 'ADMIN') {
+  if (to.meta.adminOnly && authStore.user?.role !== 'ADMIN' && authStore.user?.role !== 'SUPER_ADMIN') {
     return { name: 'dashboard' };
   }
 

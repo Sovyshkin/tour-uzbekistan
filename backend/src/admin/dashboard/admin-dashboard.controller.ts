@@ -16,7 +16,7 @@ import { AdminDashboardService } from './admin-dashboard.service';
 @ApiTags('admin-dashboard')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN, UserRole.MANAGER)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER)
 @Controller('admin/dashboard')
 export class AdminDashboardController {
   constructor(private readonly adminDashboardService: AdminDashboardService) {}

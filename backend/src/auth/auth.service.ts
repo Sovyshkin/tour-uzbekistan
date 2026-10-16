@@ -7,9 +7,11 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PartnerType, UserRole, UserStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { createHash, timingSafeEqual } from 'crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { createAuthTag } from './auth-tag.util';
+import { isCmsRole } from './role-policy';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterPartnerDto } from './dto/register-partner.dto';
@@ -95,6 +97,14 @@ export class AuthService {
     return this.issueTokens(user.id, user.email, user.role);
   }
 
+  async loginCms(dto: LoginDto) {
+    const user = await this.authenticateUser(dto);
+    if (!isCmsRole(user.role) || user.status !== UserStatus.ACTIVE) {
+      throw new UnauthorizedException('CMS account required');
+    }
+    return this.issueTokens(user.id, user.email, user.role);
+  }
+
   async loginPartner(dto: LoginDto) {
     const user = await this.authenticateUser(dto);
     if (user.role !== UserRole.PARTNER) {
@@ -104,15 +114,24 @@ export class AuthService {
   }
 
   private async authenticateUser(dto: LoginDto) {
+    const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
+      where: { email },
     });
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+    let isPasswordValid: boolean;
+    if (user.role === UserRole.SUPER_ADMIN) {
+      const configuredEmail = this.configService.get<string>('SUPER_ADMIN_EMAIL')?.trim().toLowerCase();
+      const configuredPassword = this.configService.get<string>('SUPER_ADMIN_PASSWORD');
+      isPasswordValid = Boolean(configuredEmail === email && configuredPassword &&
+        timingSafeEqual(createHash('sha256').update(dto.password).digest(), createHash('sha256').update(configuredPassword).digest()));
+    } else {
+      isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+    }
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
@@ -125,7 +144,7 @@ export class AuthService {
     return user;
   }
 
-  async refreshToken(dto: RefreshTokenDto) {
+  async refreshToken(dto: RefreshTokenDto, cmsOnly = false) {
     const payload = await this.verifyRefreshToken(dto.refreshToken);
 
     const user = await this.prisma.user.findUnique({
@@ -133,6 +152,7 @@ export class AuthService {
     });
 
     if (!user || !user.refreshTokenHash || user.status === UserStatus.SUSPENDED ||
+      (cmsOnly && (!isCmsRole(user.role) || user.status !== UserStatus.ACTIVE)) ||
       payload.authTag !== createAuthTag(user.passwordHash, this.configService.getOrThrow<string>('JWT_SECRET'))) {
       throw new UnauthorizedException('Invalid refresh token');
     }
@@ -155,6 +175,7 @@ export class AuthService {
       select: {
         email: true,
         role: true,
+        partnerId: true,
         passwordHash: true,
         status: true,
         partner: {
@@ -167,7 +188,8 @@ export class AuthService {
     });
 
     if (!user || user.status === UserStatus.SUSPENDED ||
-      ((user.role === UserRole.ADMIN || user.role === UserRole.MANAGER) && user.status !== UserStatus.ACTIVE)) {
+      (isCmsRole(user.role) && user.status !== UserStatus.ACTIVE) ||
+      (user.role === UserRole.PARTNER && (!user.partnerId || user.partner?.isActive !== true))) {
       throw new UnauthorizedException('Account is unavailable');
     }
 

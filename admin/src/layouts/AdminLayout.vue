@@ -56,7 +56,8 @@ const menuItems = [
   { labelKey: 'nav.settings', icon: Setting, routeName: 'settings', adminOnly: true },
 ];
 
-const visibleMenuItems = computed(() => menuItems.filter((item) => !item.adminOnly || authStore.user?.role === 'ADMIN'));
+const visibleMenuItems = computed(() => menuItems.filter((item) =>
+  !item.adminOnly || authStore.user?.role === 'ADMIN' || authStore.user?.role === 'SUPER_ADMIN'));
 
 const pageTitle = computed(() =>
   route.meta.titleKey ? t(String(route.meta.titleKey)) : String(route.meta.title ?? t('common.dashboard')),
@@ -220,7 +221,7 @@ onBeforeUnmount(() => {
           />
           <div class="user-box">
             <div class="user-name">{{ authStore.user?.displayName }}</div>
-            <div class="user-role">{{ authStore.user?.role }}</div>
+            <div class="user-role">{{ authStore.user?.role ? t(`enums.role.${authStore.user.role}`) : '' }}</div>
           </div>
           <el-button type="danger" plain @click="handleLogout">{{ t('common.logout') }}</el-button>
         </div>
