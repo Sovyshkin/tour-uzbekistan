@@ -20,7 +20,7 @@ export class SuperAdminCredentialsService implements OnApplicationBootstrap {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(215, 1)`;
+      await tx.$queryRaw`SELECT 1::integer AS acquired FROM pg_advisory_xact_lock(215, 1)`;
       const accounts = await tx.user.findMany({ where: { role: UserRole.SUPER_ADMIN } });
       if (accounts.length > 1) throw new Error('More than one super administrator exists; resolve this before startup');
 
