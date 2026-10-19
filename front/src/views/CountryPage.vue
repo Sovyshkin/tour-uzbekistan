@@ -7,6 +7,7 @@ import AppContainer from '@/components/AppContainer.vue';
 import CustomSelect from '@/components/CustomSelect.vue';
 import { backgroundImageStyle, getApiLocale, getCountries, getCountry, resolveAssetUrl } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
+import { sanitizeRichText } from '@/utils/richText';
 
 const { t, locale } = useI18n();
 const route = useRoute();
@@ -422,7 +423,7 @@ onMounted(() => {
 
           <div
             class="text-[13px] sm:text-[14px] text-[#333] leading-[1.7] mb-[30px]"
-            v-html="activeIntro"
+            v-html="sanitizeRichText(activeIntro)"
           ></div>
 
           <hr class="border-[#e5e5e6] mb-[30px]" />
@@ -464,7 +465,7 @@ onMounted(() => {
               </h2>
               <div
                 class="country-section-text text-[13px] sm:text-[14px] text-[#333] leading-[1.7]"
-                v-html="section.text"
+                v-html="sanitizeRichText(section.text)"
               ></div>
             </section>
           </div>

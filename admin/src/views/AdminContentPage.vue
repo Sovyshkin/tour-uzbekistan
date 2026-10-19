@@ -192,7 +192,7 @@ const typeFields = computed<Record<ContentType, FieldConfig[]>>(() => ({
   countries: [
     { key: 'name', label: t('content.fields.name') },
     { key: 'welcomeTitle', label: t('content.fields.welcomeTitle') },
-    { key: 'intro', label: t('content.fields.intro'), type: 'textarea' },
+    { key: 'intro', label: t('content.fields.intro'), type: 'richtext' },
     { key: 'sidebarTitle', label: t('content.fields.sidebarTitle') },
     { key: 'cities', label: t('content.fields.cities'), type: 'cityList' },
     { key: 'sections', label: t('content.fields.sections'), type: 'countrySections' },
@@ -204,12 +204,12 @@ const typeFields = computed<Record<ContentType, FieldConfig[]>>(() => ({
     { key: 'subtitle', label: t('content.fields.subtitle') },
     { key: 'route', label: t('content.fields.route') },
     { key: 'description', label: t('content.fields.shortDescription'), type: 'textarea' },
-    { key: 'detailsInfo', label: t('content.fields.detailsInfo'), type: 'textarea' },
+    { key: 'detailsInfo', label: t('content.fields.detailsInfo'), type: 'richtext' },
     { key: 'routesInfo', label: t('content.fields.routesInfo'), type: 'richtext' },
     { key: 'reviewsInfo', label: t('content.fields.reviewsInfo'), type: 'richtext' },
     { key: 'transportInfo', label: t('content.fields.transportInfo'), type: 'richtext' },
     { key: 'countriesInfo', label: t('content.fields.countriesInfo'), type: 'richtext' },
-    { key: 'hotelsInfo', label: t('content.fields.hotelsInfo'), type: 'textarea' },
+    { key: 'hotelsInfo', label: t('content.fields.hotelsInfo'), type: 'richtext' },
     { key: 'included', label: t('content.fields.included'), type: 'stringList' },
     { key: 'excluded', label: t('content.fields.excluded'), type: 'stringList' },
     { key: 'seoTitle', label: t('content.fields.seoTitle') },
@@ -218,20 +218,21 @@ const typeFields = computed<Record<ContentType, FieldConfig[]>>(() => ({
   services: [
     { key: 'name', label: t('content.fields.serviceName') },
     { key: 'shortDescription', label: t('content.fields.serviceSubtitle'), type: 'textarea' },
-    { key: 'content', label: t('content.fields.content'), type: 'textarea' },
+    { key: 'content', label: t('content.fields.content'), type: 'richtext' },
     { key: 'seoTitle', label: t('content.fields.seoTitle') },
     { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
   whyCategories: [
     { key: 'title', label: t('content.fields.title') },
     { key: 'subtitle', label: t('content.fields.subtitle') },
-    { key: 'description', label: t('content.fields.description'), type: 'textarea' },
+    { key: 'description', label: t('content.fields.description'), type: 'richtext' },
     { key: 'seoTitle', label: t('content.fields.seoTitle') },
     { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
   news: [
     { key: 'title', label: t('content.fields.title') },
     { key: 'excerpt', label: t('content.fields.excerpt'), type: 'textarea' },
+    { key: 'content', label: t('content.fields.content'), type: 'richtext' },
     { key: 'seoTitle', label: t('content.fields.seoTitle') },
     { key: 'seoDescription', label: t('content.fields.seoDescription'), type: 'textarea' },
   ],
@@ -702,12 +703,20 @@ const normalizeValue = (value: unknown) => {
   return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 };
 
-const normalizeServiceContentValue = (value: unknown) => {
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[character] ?? character));
+
+const normalizeRichContentValue = (value: unknown) => {
   if (Array.isArray(value)) {
     return value
-      .map((item) => (typeof item === 'string' ? item : ''))
+      .map((item) => typeof item === 'string'
+        ? /<(?:p|div|h[1-6]|ul|ol|li|br|strong|b|em|i|a|span|font|blockquote)\b/i.test(item)
+          ? item
+          : `<p>${escapeHtml(item)}</p>`
+        : '')
       .filter(Boolean)
-      .join('\n');
+      .join('');
   }
 
   return normalizeValue(value);
@@ -1504,8 +1513,8 @@ const openEditor = async (record: ContentRecord) => {
             ? normalizeCountryCities(value)
           : record.type === 'countries' && field.key === 'sections'
             ? normalizeCountrySections(value)
-          : record.type === 'services' && field.key === 'content'
-            ? normalizeServiceContentValue(value)
+          : (record.type === 'services' || record.type === 'news') && field.key === 'content'
+            ? normalizeRichContentValue(value)
           : normalizeValue(value);
     }
   }
@@ -2958,10 +2967,11 @@ watch(
                   </el-form-item>
                 </div>
                 <el-form-item :label="t('content.dayDescription')">
-                  <el-input
-                    v-model="day.translations[locale.code].description"
-                    type="textarea"
-                    :rows="5"
+                  <RichTextEditor
+                    :model-value="day.translations[locale.code].description"
+                    :placeholder="t('content.startWriting')"
+                    :min-height="180"
+                    @update:model-value="(value: string) => (day.translations[locale.code].description = value)"
                   />
                 </el-form-item>
               </el-tab-pane>

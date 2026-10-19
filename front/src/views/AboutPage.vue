@@ -6,6 +6,7 @@ import { useRoute } from 'vue-router';
 import { getApiLocale, getPage, getSiteSettings, resolveAssetUrl, submitLead } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateContactFormFields } from '@/utils/formValidation';
+import { sanitizeRichText } from '@/utils/richText';
 
 const { t, tm, locale } = useI18n();
 const route = useRoute();
@@ -213,8 +214,7 @@ const sendLead = async () => {
           <h1 class="page-title">{{ page?.title || $t('about.page_title') }}</h1>
 
           <div class="text-blocks">
-            <p class="text-block" v-for="(item, index) in contentBlocks" v-html="item.text" :key="index">
-            </p>
+            <div class="text-block" v-for="(item, index) in contentBlocks" v-html="sanitizeRichText(item.text)" :key="index" />
           </div>
         </div>
       </AppContainer>

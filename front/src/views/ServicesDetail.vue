@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n';
 import { backgroundImageStyle, getApiLocale, getService, resolveAssetUrl, submitLead } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateContactFormFields } from '@/utils/formValidation';
+import { sanitizeRichText } from '@/utils/richText';
 const { t, locale } = useI18n();
 const route = useRoute();
 const newsId = route.params.id;
@@ -213,13 +214,12 @@ onMounted(loadService);
           <h1 class="page-title">{{ news.title }}</h1>
           <p v-if="news.subtitle" class="page-subtitle">{{ news.subtitle }}</p>
           <div class="text-blocks">
-            <p
+            <div
               v-for="(paragraph, idx) in news.content"
               :key="idx"
               class="text-block"
-            >
-              {{ paragraph }}
-            </p>
+              v-html="sanitizeRichText(paragraph)"
+            />
           </div>
         </div>
       </AppContainer>
@@ -372,7 +372,22 @@ onMounted(loadService);
   font-size: 16px;
   line-height: 1.6;
   color: #000;
-  white-space: pre-line;
+}
+
+.text-block :deep(p),
+.text-block :deep(ul),
+.text-block :deep(ol) {
+  margin: 0 0 12px;
+}
+
+.text-block :deep(ul),
+.text-block :deep(ol) {
+  padding-left: 24px;
+}
+
+.text-block :deep(a) {
+  color: #285aff;
+  text-decoration: underline;
 }
 
 /* Адаптив */

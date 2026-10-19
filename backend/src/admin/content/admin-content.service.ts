@@ -189,7 +189,7 @@ const TRANSLATION_FIELDS: Record<AdminContentType, string[]> = {
     'seoTitle',
     'seoDescription',
   ],
-  [AdminContentType.NEWS]: ['title', 'excerpt', 'seoTitle', 'seoDescription'],
+  [AdminContentType.NEWS]: ['title', 'excerpt', 'content', 'seoTitle', 'seoDescription'],
 };
 
 type DefaultPageSeed = {
@@ -1954,6 +1954,7 @@ export class AdminContentService {
               locale,
               title: this.readString(fields.title, `Новая новость ${locale}`),
               excerpt: this.readNullableString(fields.excerpt),
+              content: this.readServiceContent(fields.content),
               seoTitle: this.readNullableString(fields.seoTitle),
               seoDescription: this.readNullableString(fields.seoDescription),
             };
@@ -2770,7 +2771,10 @@ export class AdminContentService {
         case AdminContentType.NEWS:
           await this.prisma.newsTranslation.updateMany({
             where: { newsId: id, locale: translation.locale },
-            data: data as Prisma.NewsTranslationUpdateManyMutationInput,
+            data: {
+              ...data,
+              ...(data.content !== undefined ? { content: this.readServiceContent(data.content) } : {}),
+            } as Prisma.NewsTranslationUpdateManyMutationInput,
           });
           break;
       }
@@ -2965,6 +2969,10 @@ export class AdminContentService {
       }
     } catch {
       // Plain text is split into paragraphs below.
+    }
+
+    if (/<(?:p|div|h[1-6]|ul|ol|li|br|strong|b|em|i|a|span|font|blockquote)\b/i.test(rawValue)) {
+      return [rawValue] as Prisma.InputJsonValue;
     }
 
     const paragraphs = rawValue

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import AppContainer from '@/components/AppContainer.vue';
+import { sanitizeRichText } from '@/utils/richText';
 import CardGorzontalDMC from '@/components/CardGorzontalDMC.vue';
 import { useI18n } from 'vue-i18n';
 import { backgroundImageStyle, getApiLocale, getWhyUsCategories, resolveAssetUrl } from '@/api';
@@ -172,9 +173,10 @@ onMounted(loadCategories);
             {{ currentCategoryData.title }}
           </h1>
           <!-- Описание категории (переведено) -->
-          <p class="text-[13px] sm:text-[14px] lg:text-[15px] text-black leading-relaxed">
-            {{ currentCategoryData.description }}
-          </p>
+          <div
+            class="text-[13px] sm:text-[14px] lg:text-[15px] text-black leading-relaxed"
+            v-html="sanitizeRichText(currentCategoryData.description)"
+          />
         </div>
 
         <!-- Правая стрелка -->

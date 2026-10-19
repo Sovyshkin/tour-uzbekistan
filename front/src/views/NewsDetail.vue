@@ -6,6 +6,7 @@ import AppContainer from '@/components/AppContainer.vue';
 import { backgroundImageStyle, getApiLocale, getNewsItem, resolveAssetUrl, submitLead } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
 import { validateContactFormFields } from '@/utils/formValidation';
+import { sanitizeRichText } from '@/utils/richText';
 
 const { t, locale } = useI18n();
 const route = useRoute();
@@ -182,9 +183,12 @@ onMounted(loadNews);
         <div class="content-wrapper">
           <h1 class="page-title">{{ news.title }}</h1>
           <div class="text-blocks">
-            <p v-for="(paragraph, idx) in news.content" :key="idx" class="text-block">
-              {{ paragraph }}
-            </p>
+            <div
+              v-for="(paragraph, idx) in news.content"
+              :key="idx"
+              class="text-block"
+              v-html="sanitizeRichText(paragraph)"
+            />
           </div>
         </div>
       </AppContainer>
@@ -329,7 +333,22 @@ onMounted(loadNews);
   font-size: 16px;
   line-height: 1.6;
   color: #000;
-  white-space: pre-line;
+}
+
+.text-block :deep(p),
+.text-block :deep(ul),
+.text-block :deep(ol) {
+  margin: 0 0 12px;
+}
+
+.text-block :deep(ul),
+.text-block :deep(ol) {
+  padding-left: 24px;
+}
+
+.text-block :deep(a) {
+  color: #285aff;
+  text-decoration: underline;
 }
 
 /* Адаптив */

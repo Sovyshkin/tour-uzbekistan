@@ -21,6 +21,7 @@ import {
 import { useNotifications } from '@/composables/useNotifications';
 import { validateBookingFormFields, validateContactFormFields } from '@/utils/formValidation';
 import { getCountryNameOptions } from '@/utils/countryOptions';
+import { sanitizeRichText } from '@/utils/richText';
 const { t, locale } = useI18n();
 const { error: notifyError, success: notifySuccess } = useNotifications();
 
@@ -1619,7 +1620,7 @@ onUnmounted(() => {
               class="tour-tab-card"
             >
               <div class="tour-tab-kicker">{{ tabs.find((tab) => tab.id === activeTab)?.label }}</div>
-              <div class="tour-rich-text" v-html="activeTabContent"></div>
+              <div class="tour-rich-text" v-html="sanitizeRichText(activeTabContent)"></div>
             </div>
 
             <div
@@ -1635,7 +1636,7 @@ onUnmounted(() => {
               class="tour-tab-card tour-details-intro"
             >
               <div class="tour-tab-kicker">{{ t('openCard.tab_details') }}</div>
-              <div class="tour-rich-text" v-html="activeTabContent"></div>
+              <div class="tour-rich-text" v-html="sanitizeRichText(activeTabContent)"></div>
             </div>
 
             <!-- Дни программы -->
@@ -1670,12 +1671,11 @@ onUnmounted(() => {
                   </svg>
                 </button>
                 <Transition name="fade">
-                  <p
+                  <div
                     v-if="descriptionsVisible && day.expanded"
-                    class="mt-3 text-[13px] sm:text-[14px] lg:text-[15px] text-[#555] leading-[1.75]"
-                  >
-                    {{ day.content }}
-                  </p>
+                    class="tour-rich-text mt-3 text-[13px] sm:text-[14px] lg:text-[15px] text-[#555] leading-[1.75]"
+                    v-html="sanitizeRichText(day.content)"
+                  />
                 </Transition>
               </div>
             </div>

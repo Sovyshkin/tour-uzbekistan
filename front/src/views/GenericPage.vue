@@ -4,6 +4,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { getApiLocale, getPage } from '@/api';
+import { sanitizeRichText } from '@/utils/richText';
 
 const { t, locale } = useI18n();
 const route = useRoute();
@@ -211,7 +212,7 @@ onMounted(loadPage);
       <section class="page-content">
         <article v-for="(block, index) in contentBlocks" :key="index" class="content-block">
           <h2 v-if="blockTitle(block)">{{ blockTitle(block) }}</h2>
-          <div v-html="blockHtml(block)"></div>
+          <div v-html="sanitizeRichText(blockHtml(block))"></div>
         </article>
       </section>
     </AppContainer>

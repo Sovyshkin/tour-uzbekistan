@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router';
 import AppContainer from '@/components/AppContainer.vue';
 import { getAuth, getMyBookings, isApprovedPartnerAuth, refreshTokens } from '@/api';
 import { useNotifications } from '@/composables/useNotifications';
+import { sanitizeRichText } from '@/utils/richText';
 
 const { t, locale } = useI18n();
 const router = useRouter();
@@ -326,7 +327,7 @@ onMounted(loadBookings);
                     <span>{{ String(day.dayNumber).padStart(2, '0') }}</span>
                     <div>
                       <strong>{{ day.title }}</strong>
-                      <p>{{ day.description }}</p>
+                      <div v-html="sanitizeRichText(day.description)" />
                     </div>
                   </li>
                 </ol>

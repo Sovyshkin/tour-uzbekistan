@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ElMessageBox } from 'element-plus';
+import DOMPurify from 'dompurify';
 
 import { useAdminI18n } from '@/i18n';
 
@@ -104,7 +105,7 @@ const syncEditor = async () => {
     !isEditorFocused.value &&
     editor.innerHTML !== localValue.value
   ) {
-    editor.innerHTML = localValue.value;
+    editor.innerHTML = DOMPurify.sanitize(localValue.value, { USE_PROFILES: { html: true } });
   }
 };
 
@@ -116,7 +117,7 @@ const applyEditorValue = async (value: string) => {
   await nextTick();
 
   if (editorRef.value && !sourceMode.value) {
-    editorRef.value.innerHTML = value;
+    editorRef.value.innerHTML = DOMPurify.sanitize(value, { USE_PROFILES: { html: true } });
     placeCaretAtEnd();
   }
 
@@ -181,7 +182,8 @@ watch(
   },
 );
 
-watch(sourceMode, () => {
+watch(sourceMode, (enabled) => {
+  if (!enabled) updateValue(DOMPurify.sanitize(localValue.value, { USE_PROFILES: { html: true } }));
   syncEditor();
 });
 
