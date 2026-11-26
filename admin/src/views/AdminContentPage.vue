@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch, type CSSProperties } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Rank } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, Delete, Plus, Rank } from '@element-plus/icons-vue';
 
 import RichTextEditor from '@/components/RichTextEditor.vue';
 import http from '@/lib/http';
@@ -57,6 +57,7 @@ type ContentRecord = {
   imageSettings?: Partial<Record<ImageFieldKey, ImageTransformSettings | null>>;
   whyFacts?: WhyFactForm[];
   tourDays?: TourDayForm[];
+  tourImages?: TourImageForm[];
   translations: Record<LocaleCode, Record<string, any>>;
 };
 
@@ -123,6 +124,11 @@ type TourDayForm = {
     shortTitle: string;
     description: string;
   }>;
+};
+
+type TourImageForm = {
+  id?: string;
+  imageUrl: string;
 };
 
 type WhyFactForm = {
@@ -378,6 +384,7 @@ const contentTableRef = ref();
 const uploadInput = ref<HTMLInputElement | null>(null);
 const uploadTargetField = ref<ImageFieldKey | null>(null);
 const uploadFactTargetIndex = ref<number | null>(null);
+const uploadTourImageTargetIndex = ref<number | null>(null);
 const documentUploadTarget = ref<{ locale: LocaleCode; fieldKey: string } | null>(null);
 const contentByType = reactive<Record<ContentType, ContentRecord[]>>({
   homeBanners: [],
@@ -425,6 +432,7 @@ const form = reactive<{
   imageSettings: Partial<Record<ImageFieldKey, ImageTransformSettings>>;
   whyFacts: WhyFactForm[];
   tourDays: TourDayForm[];
+  tourImages: TourImageForm[];
   translations: Record<LocaleCode, Record<string, unknown>>;
 }>({
   id: '',
@@ -460,6 +468,7 @@ const form = reactive<{
   imageSettings: {},
   whyFacts: [],
   tourDays: [],
+  tourImages: [],
   translations: {
     ru: {},
     en: {},
@@ -542,6 +551,7 @@ const resetForm = () => {
   form.imageSettings = {};
   form.whyFacts = [];
   form.tourDays = [];
+  form.tourImages = [];
   form.translations = { ru: {}, en: {}, uz: {} };
   activeLocale.value = 'ru';
 };
@@ -1045,6 +1055,23 @@ const archiveWhyFact = (index: number) => {
 
 const triggerFactUpload = (index: number) => {
   uploadFactTargetIndex.value = index;
+  uploadTourImageTargetIndex.value = null;
+  uploadTargetField.value = null;
+  documentUploadTarget.value = null;
+  uploadInput.value?.click();
+};
+
+const addTourImage = () => form.tourImages.push({ imageUrl: '' });
+
+const moveTourImage = (index: number, direction: -1 | 1) => {
+  const target = index + direction;
+  if (target < 0 || target >= form.tourImages.length) return;
+  [form.tourImages[index], form.tourImages[target]] = [form.tourImages[target], form.tourImages[index]];
+};
+
+const triggerTourImageUpload = (index: number) => {
+  uploadTourImageTargetIndex.value = index;
+  uploadFactTargetIndex.value = null;
   uploadTargetField.value = null;
   documentUploadTarget.value = null;
   uploadInput.value?.click();
@@ -1496,6 +1523,7 @@ const openEditor = async (record: ContentRecord) => {
   if (record.type === 'tours') {
     await Promise.all([loadCountryOptions(), loadDepartureCityOptions()]);
     form.tourDays = normalizeTourDays(record.tourDays);
+    form.tourImages = (record.tourImages ?? []).map(({ id, imageUrl }) => ({ id, imageUrl }));
   }
 
   for (const locale of locales.value) {
@@ -1665,6 +1693,14 @@ const saveContent = async () => {
           fields: day.translations[locale.code],
         })),
       }));
+      if (form.tourImages.some((image) => !image.imageUrl.trim())) {
+        ElMessage.warning(t('content.galleryImageRequired'));
+        return;
+      }
+      payload.tourImages = form.tourImages.map((image) => ({
+        id: image.id,
+        imageUrl: image.imageUrl,
+      }));
     }
 
     for (const field of imageFieldsByType.value[form.type] ?? []) {
@@ -1707,12 +1743,14 @@ const saveContent = async () => {
 const triggerUpload = (field?: ImageFieldKey) => {
   documentUploadTarget.value = null;
   uploadFactTargetIndex.value = null;
+  uploadTourImageTargetIndex.value = null;
   uploadTargetField.value = field ?? null;
   uploadInput.value?.click();
 };
 
 const triggerDocumentUpload = (locale: LocaleCode, fieldKey: string) => {
   uploadFactTargetIndex.value = null;
+  uploadTourImageTargetIndex.value = null;
   uploadTargetField.value = null;
   documentUploadTarget.value = { locale, fieldKey };
   uploadInput.value?.click();
@@ -1797,6 +1835,9 @@ const handleUploadChange = async (event: Event) => {
     if (documentUploadTarget.value) {
       const { locale, fieldKey } = documentUploadTarget.value;
       form.translations[locale][fieldKey] = response.data.url;
+    } else if (uploadTourImageTargetIndex.value !== null) {
+      const image = form.tourImages[uploadTourImageTargetIndex.value];
+      if (image) image.imageUrl = response.data.url;
     } else if (uploadFactTargetIndex.value !== null) {
       const fact = form.whyFacts[uploadFactTargetIndex.value];
       if (fact) {
@@ -1815,6 +1856,7 @@ const handleUploadChange = async (event: Event) => {
     input.value = '';
     uploadTargetField.value = null;
     uploadFactTargetIndex.value = null;
+    uploadTourImageTargetIndex.value = null;
     documentUploadTarget.value = null;
   }
 };
@@ -2478,6 +2520,43 @@ watch(
             </div>
           </el-form-item>
         </div>
+
+        <section v-if="isTourForm" class="tour-gallery-editor">
+          <div class="tour-gallery-head">
+            <h3>{{ t('content.tourGalleryTitle') }}</h3>
+            <el-button type="primary" plain @click="addTourImage">
+              <el-icon><Plus /></el-icon>
+              {{ t('content.addGalleryImage') }}
+            </el-button>
+          </div>
+          <p class="tour-gallery-hint">{{ t('content.tourGalleryHint') }}</p>
+          <div v-for="(image, index) in form.tourImages" :key="image.id || `new-image-${index}`" class="tour-gallery-row">
+            <div class="media-picker-preview">
+              <img v-if="image.imageUrl" :src="resolveMediaUrl(image.imageUrl)" :alt="t('content.galleryImage', { number: index + 1 })" />
+              <span v-else>{{ t('common.noMediaSelected') }}</span>
+            </div>
+            <div class="tour-gallery-picker">
+              <span>{{ t('content.galleryImage', { number: index + 1 }) }}</span>
+              <div class="media-picker-controls">
+                <el-select v-model="image.imageUrl" filterable clearable :placeholder="t('common.selectMedia')">
+                  <el-option v-for="asset in mediaOptions" :key="asset.id" :label="asset.title" :value="asset.image || ''" />
+                </el-select>
+                <el-button plain @click="triggerTourImageUpload(index)">{{ t('common.uploadFile') }}</el-button>
+              </div>
+            </div>
+            <div class="tour-gallery-actions">
+              <el-button :disabled="index === 0" :title="t('content.moveImageUp')" :aria-label="t('content.moveImageUp')" @click="moveTourImage(index, -1)">
+                <el-icon><ArrowUp /></el-icon>
+              </el-button>
+              <el-button :disabled="index === form.tourImages.length - 1" :title="t('content.moveImageDown')" :aria-label="t('content.moveImageDown')" @click="moveTourImage(index, 1)">
+                <el-icon><ArrowDown /></el-icon>
+              </el-button>
+              <el-button type="danger" plain :title="t('common.delete')" :aria-label="t('common.delete')" @click="form.tourImages.splice(index, 1)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+          </div>
+        </section>
 
         <section v-if="form.type === 'whyCategories'" class="why-facts-editor">
           <div class="why-facts-header">
@@ -3224,6 +3303,68 @@ watch(
   flex-shrink: 0;
 }
 
+.tour-gallery-editor {
+  margin: 14px 0 18px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.tour-gallery-head,
+.tour-gallery-row,
+.tour-gallery-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tour-gallery-head {
+  justify-content: space-between;
+}
+
+.tour-gallery-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.tour-gallery-hint {
+  margin: 6px 0 14px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.tour-gallery-row {
+  padding: 10px 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+.tour-gallery-picker {
+  flex: 1;
+  min-width: 0;
+}
+
+.tour-gallery-picker > span {
+  display: block;
+  margin-bottom: 6px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.tour-gallery-picker .el-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.tour-gallery-actions {
+  gap: 4px;
+}
+
+.tour-gallery-actions .el-button {
+  margin-left: 0;
+  width: 32px;
+  padding: 0;
+}
+
 .image-transform-controls {
   grid-column: 1 / -1;
   min-width: 0;
@@ -3910,6 +4051,25 @@ watch(
 
   .media-picker-controls {
     flex-direction: column;
+  }
+
+  .tour-gallery-head {
+    align-items: flex-start;
+  }
+
+  .tour-gallery-row {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .tour-gallery-row .media-picker-preview {
+    width: 96px;
+    height: 80px;
+  }
+
+  .tour-gallery-actions {
+    grid-column: 2;
   }
 
   .media-picker-controls .el-button {

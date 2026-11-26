@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsNumber,
   IsObject,
   IsOptional,
@@ -129,6 +130,18 @@ class AdminTourDayCreateDto {
   @ValidateNested({ each: true })
   @Type(() => AdminTourDayTranslationCreateDto)
   translations?: AdminTourDayTranslationCreateDto[];
+}
+
+class AdminTourImageCreateDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsNotEmpty()
+  imageUrl!: string;
 }
 
 export class AdminContentCreateDto {
@@ -352,6 +365,13 @@ export class AdminContentCreateDto {
   @ValidateNested({ each: true })
   @Type(() => AdminTourDayCreateDto)
   tourDays?: AdminTourDayCreateDto[];
+
+  @ApiPropertyOptional({ type: [AdminTourImageCreateDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdminTourImageCreateDto)
+  tourImages?: AdminTourImageCreateDto[];
 
   @ApiPropertyOptional({ type: [AdminContentTranslationCreateDto] })
   @IsArray()

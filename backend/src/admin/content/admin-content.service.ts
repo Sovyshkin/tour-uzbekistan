@@ -48,6 +48,13 @@ type AdminContentRecord = {
   translations: Record<Locale, Record<string, unknown>>;
   whyFacts?: AdminWhyFactRecord[];
   tourDays?: AdminTourDayRecord[];
+  tourImages?: AdminTourImageRecord[];
+};
+
+type AdminTourImageRecord = {
+  id: string;
+  imageUrl: string;
+  sortOrder: number;
 };
 
 type AdminWhyFactRecord = {
@@ -1860,6 +1867,7 @@ export class AdminContentService {
     });
 
     await this.updateTourDays(record.id, dto);
+    await this.updateTourImages(record.id, dto);
 
     const items = await this.list(AdminContentType.TOURS);
     return items.find((item) => item.id === record.id);
@@ -2164,6 +2172,7 @@ export class AdminContentService {
           orderBy: { dayNumber: 'asc' },
           include: { translations: true },
         },
+        images: { orderBy: { sortOrder: 'asc' } },
       },
     });
 
@@ -2211,6 +2220,11 @@ export class AdminContentService {
         overnightAt: day.overnightAt,
         image: day.image,
         translations: this.mapTourDayTranslations(day.translations),
+      })),
+      tourImages: record.images.map((image) => ({
+        id: image.id,
+        imageUrl: image.imageUrl,
+        sortOrder: image.sortOrder,
       })),
     }));
   }
@@ -2421,6 +2435,49 @@ export class AdminContentService {
     });
     await this.updateTranslations(AdminContentType.TOURS, id, dto);
     await this.updateTourDays(id, dto);
+    await this.updateTourImages(id, dto);
+  }
+
+  private async updateTourImages(tourId: string, dto: AdminContentCreateDto | AdminContentUpdateDto) {
+    if (dto.tourImages === undefined) {
+      return;
+    }
+
+    const images = dto.tourImages;
+    const ids = images.map((image) => image.id).filter((id): id is string => Boolean(id));
+    if (new Set(ids).size !== ids.length || images.some((image) => !image.imageUrl.trim())) {
+      throw new BadRequestException('Gallery contains duplicate images or empty URLs');
+    }
+
+    if (ids.length) {
+      const ownedCount = await this.prisma.tourImage.count({
+        where: { tourId, id: { in: ids } },
+      });
+      if (ownedCount !== ids.length) {
+        throw new BadRequestException('Gallery image does not belong to this tour');
+      }
+    }
+
+    await this.prisma.$transaction(async (transaction) => {
+      const activeIds = [...ids];
+      for (const [sortOrder, image] of images.entries()) {
+        if (image.id) {
+          await transaction.tourImage.update({
+            where: { id: image.id },
+            data: { imageUrl: image.imageUrl.trim(), sortOrder },
+          });
+        } else {
+          const created = await transaction.tourImage.create({
+            data: { tourId, imageUrl: image.imageUrl.trim(), sortOrder },
+          });
+          activeIds.push(created.id);
+        }
+      }
+
+      await transaction.tourImage.deleteMany({
+        where: { tourId, id: { notIn: activeIds } },
+      });
+    });
   }
 
   private async updateTourDays(tourId: string, dto: AdminContentCreateDto | AdminContentUpdateDto) {

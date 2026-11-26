@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsNumber,
   IsObject,
   IsOptional,
@@ -136,6 +137,18 @@ class AdminTourDayUpdateDto {
   @ValidateNested({ each: true })
   @Type(() => AdminTourDayTranslationUpdateDto)
   translations?: AdminTourDayTranslationUpdateDto[];
+}
+
+class AdminTourImageUpdateDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsNotEmpty()
+  imageUrl!: string;
 }
 
 export class AdminContentUpdateDto {
@@ -392,4 +405,11 @@ export class AdminContentUpdateDto {
   @ValidateNested({ each: true })
   @Type(() => AdminTourDayUpdateDto)
   tourDays?: AdminTourDayUpdateDto[];
+
+  @ApiPropertyOptional({ type: [AdminTourImageUpdateDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdminTourImageUpdateDto)
+  tourImages?: AdminTourImageUpdateDto[];
 }
